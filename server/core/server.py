@@ -43,7 +43,7 @@ LATEST_CLIENT_VERSION = "1.0.4.3"
 UPDATE_URL = "https://github.com/Daoductrung/PlayAural/releases/latest/download/PlayAural.zip"
 UPDATE_HASH = "" # Optional SHA256
 
-SOUNDS_VERSION = "1"
+SOUNDS_VERSION = "2"
 SOUNDS_URL = "https://github.com/Daoductrung/PlayAural/releases/latest/download/sounds.zip"
 TABLE_CREATED_NOTIFICATION_SOUND = "table_created.ogg"
 TABLE_INVITE_NOTIFICATION_SOUND = "table_invite.ogg"

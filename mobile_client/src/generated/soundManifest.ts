@@ -1,4 +1,4 @@
-export const bundledSoundVersion = "1";
+export const bundledSoundVersion = "2";
 
 export const soundManifest: Record<string, number> = {
   "accountactionnotify.ogg": require("../../sounds/accountactionnotify.ogg"),
