@@ -241,6 +241,7 @@ class TestGameRegistryIntegration:
             "colorgame": "dice",
             "coup": "cards",
             "crazyeights": "cards",
+            "deadmansdeck": "cards",
             "dominos": "board",
             "farkle": "dice",
             "fivecarddraw": "poker",
