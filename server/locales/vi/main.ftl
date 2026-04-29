@@ -97,9 +97,9 @@ table-status-playing = Đang chơi
 table-status-finished = Đã xong
 table-not-exists = Bàn chơi không còn tồn tại.
 table-full = Bàn đã đầy.
-player-replaced-by-bot = { $player } đã thoát và được thay thế bằng Bot.
-player-reclaimed-from-bot = { $player } đã kết nối lại và lấy lại vị trí của mình.
-player-took-over = { $player } đã thay thế Bot.
+player-replaced-by-bot = { $bot } đang chơi thay cho { $player }.
+player-reclaimed-from-bot = { $player } đã trở lại và lấy lại chỗ từ { $bot }.
+player-took-over = { $player } đã lấy lại chỗ từ { $bot }.
 spectator-joined = Đã tham gia bàn của { $host } với tư cách khán giả.
 
 spectate = Xem
@@ -166,7 +166,9 @@ no-bot-names-available = Không có tên bot nào.
 enter-bot-name = Nhập tên bot
 bot-name-invalid-length = Tên bot phải dài từ 3 đến 30 ký tự.
 bot-name-invalid-characters = Tên bot chỉ được dùng chữ cái, số và khoảng trắng.
-bot-name-already-used = Tên bot đó đã được dùng trong bàn này.
+bot-name-already-used = Một người chơi hoặc bot với tên này đã có tại bàn.
+bot-name-registered-account = Tên này thuộc về một tài khoản đã đăng ký. Vui lòng chọn tên bot khác.
+table-name-already-used = Một người chơi hoặc bot với tên này đã có tại bàn.
 no-options-available = Không có tùy chọn nào.
 no-scores-available = Chưa có điểm số.
 

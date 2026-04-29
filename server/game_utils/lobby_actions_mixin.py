@@ -13,6 +13,7 @@ from ..messages.localization import Localization
 from ..documentation.manager import DocumentationManager
 from .bot_names import (
     generate_unique_bot_name,
+    get_valid_bot_name_pool,
     normalize_bot_name,
     validate_custom_bot_name,
 )
@@ -53,15 +54,62 @@ class LobbyActionsMixin:
                     self.broadcast_l(error, buffer="game")
             return
 
+        self._prepare_disconnected_lobby_members_for_start()
+
         # Announce game is starting
         self.broadcast_l("game-starting", buffer="system")
 
         # Start the game (subclasses implement this)
         self.on_start()
+        self._sync_table_status()
+
+    def _prepare_disconnected_lobby_members_for_start(self) -> None:
+        """Convert offline lobby players to bots before game-specific setup."""
+        table = self._table
+        server = getattr(table, "_server", None) if table else None
+        online_users = getattr(server, "_users", {}) if server else {}
+        if not table or not server:
+            return
+
+        for member in list(table.members):
+            user = table._users.get(member.username)
+            if member.username in online_users:
+                table._member_offline_since.pop(member.username, None)
+                continue
+            if user and getattr(user, "is_bot", False):
+                continue
+
+            if member.is_spectator:
+                player = self.get_player_by_id(user.uuid) if user else None
+                if player:
+                    self.remove_spectator(player.id)
+                table.remove_member(
+                    member.username,
+                    voice_reason="voice-status-connection-lost",
+                )
+                continue
+
+            player = self.get_player_by_id(user.uuid) if user else None
+            if not player:
+                player = next(
+                    (
+                        current_player
+                        for current_player in self.players
+                        if current_player.name == member.username
+                        and not current_player.is_bot
+                    ),
+                    None,
+                )
+            if (
+                player
+                and not player.is_bot
+                and self._replace_with_bot(player, allow_waiting=True)
+            ):
+                self.broadcast_sound("leave.ogg")
 
     def _bot_input_add_bot(self, player: "Player") -> str | None:
         """Get bot name for add_bot action."""
-        return generate_unique_bot_name(self._existing_player_names())
+        return self._generate_available_bot_name()
 
     def _should_prompt_add_bot(self, player: "Player") -> bool:
         """Return whether the host wants to type custom bot names."""
@@ -70,7 +118,33 @@ class LobbyActionsMixin:
 
     def _existing_player_names(self) -> list[str]:
         """Return every current table player/spectator display name."""
-        return [p.name for p in self.players]
+        if self._table and hasattr(self._table, "reserved_names"):
+            return self._table.reserved_names()
+
+        names: list[str] = []
+        for current_player in self.players:
+            names.append(current_player.name)
+            replaced_name = getattr(current_player, "replaced_human_name", "")
+            if replaced_name:
+                names.append(replaced_name)
+        return names
+
+    def _is_registered_username(self, name: str) -> bool:
+        """Return whether a bot name matches an existing account name."""
+        server = getattr(self._table, "_server", None) if self._table else None
+        db = getattr(server, "_db", None)
+        return bool(db and db.get_user(name))
+
+    def _generate_available_bot_name(self, existing_names: list[str] | None = None) -> str:
+        """Generate a bot name that avoids table names and registered accounts."""
+        existing_names = list(existing_names) if existing_names is not None else self._existing_player_names()
+        max_attempts = len(get_valid_bot_name_pool()) + 100
+        for _ in range(max_attempts):
+            bot_name = generate_unique_bot_name(existing_names)
+            if not self._is_registered_username(bot_name):
+                return bot_name
+            existing_names.append(bot_name)
+        return generate_unique_bot_name(existing_names)
 
     def _resolve_add_bot_name(
         self,
@@ -89,9 +163,14 @@ class LobbyActionsMixin:
                 if user:
                     user.speak_l(error_key, buffer="game")
                 return None
+            if self._is_registered_username(bot_name):
+                user = self.get_user(player)
+                if user:
+                    user.speak_l("bot-name-registered-account", buffer="game")
+                return None
             return bot_name
 
-        return generate_unique_bot_name(self._existing_player_names())
+        return self._generate_available_bot_name()
 
     def _action_add_bot(self, player: "Player", bot_name: str, action_id: str) -> None:
         """Add a bot with the selected name."""
@@ -195,8 +274,8 @@ class LobbyActionsMixin:
             
             if other_humans:
                 # Mid-game AND other humans exist: replace with bot
-                self._replace_with_bot(player)
-                self.broadcast_sound("leave.ogg")
+                if self._replace_with_bot(player):
+                    self.broadcast_sound("leave.ogg")
                 self.rebuild_all_menus()
                 return
 

@@ -9,6 +9,7 @@ from server.core.server import Server
 from server.games.pig.game import PigGame, PigOptions
 from server.messages.localization import Localization
 from server.persistence.database import Database
+from server.users.bot import Bot
 from server.users.test_user import MockUser
 
 
@@ -61,6 +62,14 @@ class TestTableInviteReclaim:
 
     def _sound_names(self, user: MockUser) -> list[str]:
         return [message.data["name"] for message in user.messages if message.type == "play_sound"]
+
+    def _add_named_bot(self, game: PigGame, name: str):
+        bot_user = Bot(name)
+        bot_player = game.create_player(bot_user.uuid, name, is_bot=True)
+        game.players.append(bot_player)
+        game.attach_user(bot_player.id, bot_user)
+        game.setup_player_actions(bot_player)
+        return bot_player
 
     @pytest.mark.asyncio
     async def test_new_table_created_sound_follows_new_table_notification_preference(self):
@@ -196,6 +205,9 @@ class TestTableInviteReclaim:
         replaced = game.get_player_by_id(guest.uuid)
         assert replaced is not None
         assert replaced.is_bot is True
+        bot_name = replaced.name
+        assert replaced.replaced_human_name == guest.username
+        assert bot_name != guest.username
 
         await self.server._send_table_invite(host, table, guest)
         state = self.server._user_states[guest.username]
@@ -213,9 +225,16 @@ class TestTableInviteReclaim:
         assert self.server._tables.find_user_table(guest.username) is table
         assert sum(1 for member in table.members if member.username == guest.username) == 1
         assert sum(1 for player in game.players if player.name == guest.username) == 1
-        expected = Localization.get(guest.locale, "player-reclaimed-from-bot", player=guest.username)
+        expected = Localization.get(
+            guest.locale,
+            "player-reclaimed-from-bot",
+            player=guest.username,
+            bot=bot_name,
+        )
         assert expected in host.get_spoken_messages()
         assert expected in guest.get_spoken_messages()
+        assert "join.ogg" in self._sound_names(host)
+        assert "join.ogg" in self._sound_names(guest)
 
     @pytest.mark.asyncio
     async def test_accepting_invite_reattaches_existing_table_member(self):
@@ -227,6 +246,7 @@ class TestTableInviteReclaim:
         assert guest_player is not None
 
         game._replace_with_bot(guest_player)
+        bot_name = guest_player.name
         table._users.pop(guest.username, None)
         self.server._tables._username_to_table.pop(guest.username, None)
 
@@ -245,9 +265,16 @@ class TestTableInviteReclaim:
         assert table.get_user(guest.username) is guest
         assert self.server._tables.find_user_table(guest.username) is table
         assert sum(1 for member in table.members if member.username == guest.username) == 1
-        expected = Localization.get(guest.locale, "player-reclaimed-from-bot", player=guest.username)
+        expected = Localization.get(
+            guest.locale,
+            "player-reclaimed-from-bot",
+            player=guest.username,
+            bot=bot_name,
+        )
         assert expected in host.get_spoken_messages()
         assert expected in guest.get_spoken_messages()
+        assert "join.ogg" in self._sound_names(host)
+        assert "join.ogg" in self._sound_names(guest)
 
     def test_login_restore_reclaims_bot_replaced_seat_and_announces(self):
         host = self._create_online_user("Host")
@@ -258,6 +285,7 @@ class TestTableInviteReclaim:
         assert guest_player is not None
 
         game._replace_with_bot(guest_player)
+        bot_name = guest_player.name
         table._users.pop(guest.username, None)
         host.clear_messages()
         guest.clear_messages()
@@ -276,9 +304,16 @@ class TestTableInviteReclaim:
             "menu": "in_game",
             "table_id": table.table_id,
         }
-        expected = Localization.get(guest.locale, "player-reclaimed-from-bot", player=guest.username)
+        expected = Localization.get(
+            guest.locale,
+            "player-reclaimed-from-bot",
+            player=guest.username,
+            bot=bot_name,
+        )
         assert expected in host.get_spoken_messages()
         assert expected in guest.get_spoken_messages()
+        assert "join.ogg" in self._sound_names(host)
+        assert "join.ogg" in self._sound_names(guest)
 
     @pytest.mark.asyncio
     async def test_join_player_reclaims_bot_replaced_seat_before_menu_rebuild(self):
@@ -291,6 +326,7 @@ class TestTableInviteReclaim:
 
         game._perform_leave_game(guest_player)
         table.remove_member(guest.username)
+        bot_name = game.get_player_by_id(guest.uuid).name
         host.clear_messages()
         guest.clear_messages()
 
@@ -311,9 +347,324 @@ class TestTableInviteReclaim:
             "menu": "in_game",
             "table_id": table.table_id,
         }
-        expected = Localization.get(guest.locale, "player-took-over", player=guest.username)
+        expected = Localization.get(
+            guest.locale,
+            "player-took-over",
+            player=guest.username,
+            bot=bot_name,
+        )
         assert expected in host.get_spoken_messages()
         assert expected in guest.get_spoken_messages()
+        assert "join.ogg" in self._sound_names(host)
+        assert "join.ogg" in self._sound_names(guest)
+
+    @pytest.mark.asyncio
+    async def test_join_player_rejects_name_matching_existing_bot(self):
+        host = self._create_online_user("Host")
+        entrant = self._create_online_user("Test")
+        table = self.server._tables.create_table("pig", host.username, host)
+        game = PigGame(options=PigOptions(target_score=25))
+        table.game = game
+        game._table = table
+        game.initialize_lobby(host.username, host)
+        self._add_named_bot(game, "Test")
+
+        await self.server._handle_join_selection(
+            entrant,
+            "join_player",
+            {"table_id": table.table_id, "game_type": "pig"},
+        )
+
+        assert self.server._tables.find_user_table(entrant.username) is None
+        assert game.get_player_by_id(entrant.uuid) is None
+        assert entrant.get_last_spoken() == Localization.get(
+            entrant.locale,
+            "table-name-already-used",
+        )
+
+    @pytest.mark.asyncio
+    async def test_join_spectator_rejects_name_matching_existing_bot(self):
+        host = self._create_online_user("Host")
+        entrant = self._create_online_user("Test")
+        table = self.server._tables.create_table("pig", host.username, host)
+        game = PigGame(options=PigOptions(target_score=25))
+        table.game = game
+        game._table = table
+        game.initialize_lobby(host.username, host)
+        self._add_named_bot(game, "Test")
+
+        await self.server._handle_join_selection(
+            entrant,
+            "join_spectator",
+            {"table_id": table.table_id, "game_type": "pig"},
+        )
+
+        assert self.server._tables.find_user_table(entrant.username) is None
+        assert game.get_player_by_id(entrant.uuid) is None
+        assert entrant.get_last_spoken() == Localization.get(
+            entrant.locale,
+            "table-name-already-used",
+        )
+
+    def test_custom_bot_name_rejects_registered_account_name(self):
+        host = self._create_online_user("Host")
+        self._create_online_user("Test")
+        table = self.server._tables.create_table("pig", host.username, host)
+        game = PigGame(options=PigOptions(target_score=25))
+        table.game = game
+        game._table = table
+        game.initialize_lobby(host.username, host)
+        host.preferences.allow_custom_bot_names = True
+        host_player = game.get_player_by_id(host.uuid)
+        assert host_player is not None
+
+        game.execute_action(host_player, "add_bot")
+        game.handle_event(
+            host_player,
+            {
+                "type": "editbox",
+                "input_id": "action_input_editbox",
+                "text": "Test",
+            },
+        )
+
+        assert not any(player.name == "Test" and player.is_bot for player in game.players)
+        assert host.get_last_spoken() == Localization.get(
+            host.locale,
+            "bot-name-registered-account",
+        )
+
+    def test_generated_bot_name_skips_registered_account_name(self, monkeypatch):
+        host = self._create_online_user("Host")
+        self._create_online_user("Pho Pixel")
+        table = self.server._tables.create_table("pig", host.username, host)
+        game = PigGame(options=PigOptions(target_score=25))
+        table.game = game
+        game._table = table
+        game.initialize_lobby(host.username, host)
+        host_player = game.get_player_by_id(host.uuid)
+        assert host_player is not None
+        monkeypatch.setattr(
+            "server.game_utils.bot_names.random.choice",
+            lambda options: options[0],
+        )
+
+        game.execute_action(host_player, "add_bot")
+
+        bot_names = [player.name for player in game.players if player.is_bot]
+        assert bot_names
+        assert "Pho Pixel" not in bot_names
+
+    def test_replacement_bot_name_skips_registered_account_name(self, monkeypatch):
+        host = self._create_online_user("Host")
+        guest = self._create_online_user("Guest")
+        self._create_online_user("Pho Pixel")
+        table, game = self._create_started_table(host, guest)
+        guest_player = game.get_player_by_id(guest.uuid)
+        assert guest_player is not None
+        monkeypatch.setattr(
+            "server.game_utils.bot_names.random.choice",
+            lambda options: options[0],
+        )
+
+        game._replace_with_bot(guest_player)
+
+        assert guest_player.is_bot is True
+        assert guest_player.name != "Pho Pixel"
+
+    def test_disconnect_replacement_bot_survives_stale_waiting_table_status(
+        self, monkeypatch
+    ):
+        host = self._create_online_user("Host")
+        guest = self._create_online_user("Guest")
+        table, game = self._create_started_table(host, guest)
+        table.status = "waiting"
+        table._member_offline_since[guest.username] = 0.0
+
+        guest_player = game.get_player_by_id(guest.uuid)
+        assert guest_player is not None
+        game.on_player_disconnect(guest.uuid)
+        self.server._users.pop(guest.username, None)
+
+        replacement = game.get_player_by_id(guest.uuid)
+        assert replacement is not None
+        assert replacement.is_bot is True
+        bot_name = replacement.name
+        host.clear_messages()
+        monkeypatch.setattr("server.tables.table.time.time", lambda: 20.0)
+
+        table.on_tick()
+
+        replacement = game.get_player_by_id(guest.uuid)
+        assert table.status == "playing"
+        assert replacement is not None
+        assert replacement.is_bot is True
+        assert replacement.name == bot_name
+        assert replacement.replaced_human_name == guest.username
+        assert any(member.username == guest.username for member in table.members)
+        assert self.server._tables.get_table(table.table_id) is table
+        assert Localization.get(
+            host.locale,
+            "player-kicked-offline",
+            player=guest.username,
+        ) not in host.get_spoken_messages()
+
+    @pytest.mark.asyncio
+    async def test_unexpected_disconnect_replacement_plays_table_leave_sound(self):
+        host = self._create_online_user("Host")
+        guest = self._create_online_user("Guest")
+        table, game = self._create_started_table(host, guest)
+        guest.connection = object()
+        client = SimpleNamespace(username=guest.username, address="guest-client")
+        host.clear_messages()
+
+        await self.server._on_client_disconnect(client)
+
+        replacement = game.get_player_by_id(guest.uuid)
+        assert replacement is not None
+        assert replacement.is_bot is True
+        assert replacement.replaced_human_name == guest.username
+        assert "leave.ogg" in self._sound_names(host)
+        assert Localization.get(
+            host.locale,
+            "player-replaced-by-bot",
+            player=guest.username,
+            bot=replacement.name,
+        ) in host.get_spoken_messages()
+
+    def test_last_human_disconnect_survives_stale_waiting_table_status(
+        self, monkeypatch
+    ):
+        host = self._create_online_user("Host")
+        table = self.server._tables.create_table("pig", host.username, host)
+        game = PigGame(options=PigOptions(target_score=25))
+        table.game = game
+        game._table = table
+        game.initialize_lobby(host.username, host)
+        game.on_start()
+        table.status = "waiting"
+        table._member_offline_since[host.username] = 0.0
+
+        game.on_player_disconnect(host.uuid)
+        self.server._users.pop(host.username, None)
+        host.clear_messages()
+        monkeypatch.setattr("server.tables.table.time.time", lambda: 20.0)
+
+        table.on_tick()
+
+        host_player = game.get_player_by_id(host.uuid)
+        assert table.status == "playing"
+        assert host_player is not None
+        assert host_player.is_bot is False
+        assert any(member.username == host.username for member in table.members)
+        assert self.server._tables.get_table(table.table_id) is table
+        assert Localization.get(
+            host.locale,
+            "player-kicked-offline",
+            player=host.username,
+        ) not in host.get_spoken_messages()
+
+    def test_lobby_disconnected_player_becomes_reclaimable_bot_on_start(
+        self, monkeypatch
+    ):
+        host = self._create_online_user("Host")
+        guest = self._create_online_user("Guest")
+        table = self.server._tables.create_table("pig", host.username, host)
+        game = PigGame(options=PigOptions(target_score=25))
+        table.game = game
+        game._table = table
+        game.initialize_lobby(host.username, host)
+        table.add_member(guest.username, guest, as_spectator=False)
+        game.add_player(guest.username, guest)
+        table._member_offline_since[guest.username] = 0.0
+        self.server._users.pop(guest.username, None)
+        host_player = game.get_player_by_id(host.uuid)
+        assert host_player is not None
+
+        game.execute_action(host_player, "start_game")
+
+        replacement = game.get_player_by_id(guest.uuid)
+        assert replacement is not None
+        assert game.status == "playing"
+        assert table.status == "playing"
+        assert replacement.is_bot is True
+        assert replacement.replaced_human is True
+        assert replacement.replaced_human_name == guest.username
+        assert replacement.name != guest.username
+        assert any(member.username == guest.username for member in table.members)
+        assert Localization.get(
+            host.locale,
+            "player-replaced-by-bot",
+            player=guest.username,
+            bot=replacement.name,
+        ) in host.get_spoken_messages()
+        assert "leave.ogg" in self._sound_names(host)
+
+        host.clear_messages()
+        monkeypatch.setattr("server.tables.table.time.time", lambda: 20.0)
+        table.on_tick()
+
+        assert game.get_player_by_id(guest.uuid) is replacement
+        assert any(member.username == guest.username for member in table.members)
+        assert self.server._tables.get_table(table.table_id) is table
+        assert Localization.get(
+            host.locale,
+            "player-kicked-offline",
+            player=guest.username,
+        ) not in host.get_spoken_messages()
+
+    def test_lobby_disconnected_spectator_is_removed_before_start(self):
+        host = self._create_online_user("Host")
+        guest = self._create_online_user("Guest")
+        spectator = self._create_online_user("Spectator")
+        table = self.server._tables.create_table("pig", host.username, host)
+        game = PigGame(options=PigOptions(target_score=25))
+        table.game = game
+        game._table = table
+        game.initialize_lobby(host.username, host)
+        table.add_member(guest.username, guest, as_spectator=False)
+        game.add_player(guest.username, guest)
+        table.add_member(spectator.username, spectator, as_spectator=True)
+        game.add_spectator(spectator.username, spectator)
+        table._member_offline_since[spectator.username] = 0.0
+        self.server._users.pop(spectator.username, None)
+        host_player = game.get_player_by_id(host.uuid)
+        assert host_player is not None
+
+        game.execute_action(host_player, "start_game")
+
+        assert game.status == "playing"
+        assert game.get_player_by_id(spectator.uuid) is None
+        assert not any(
+            member.username == spectator.username for member in table.members
+        )
+        assert spectator.username not in table._member_offline_since
+
+    def test_table_reset_converts_replacement_bot_to_fresh_bot_identity(self):
+        host = self._create_online_user("Host")
+        guest = self._create_online_user("Guest")
+        table, game = self._create_started_table(host, guest)
+
+        guest_player = game.get_player_by_id(guest.uuid)
+        assert guest_player is not None
+        game._perform_leave_game(guest_player)
+        table.remove_member(guest.username)
+
+        replacement = game.get_player_by_id(guest.uuid)
+        assert replacement is not None
+        assert replacement.is_bot is True
+        assert replacement.replaced_human is True
+        replacement_name = replacement.name
+
+        assert table.reset_game()
+        assert table.game is not None
+        fresh_bot = next(
+            player
+            for player in table.game.players
+            if player.is_bot and player.name == replacement_name
+        )
+        assert fresh_bot.id != guest.uuid
+        assert fresh_bot.replaced_human is False
 
     @pytest.mark.asyncio
     async def test_friend_join_reclaims_bot_replaced_seat(self):
@@ -326,6 +677,7 @@ class TestTableInviteReclaim:
 
         game._perform_leave_game(guest_player)
         table.remove_member(guest.username)
+        bot_name = game.get_player_by_id(guest.uuid).name
         host.clear_messages()
         guest.clear_messages()
 
@@ -344,9 +696,16 @@ class TestTableInviteReclaim:
         assert table.get_user(guest.username) is guest
         assert self.server._tables.find_user_table(guest.username) is table
         assert sum(1 for member in table.members if member.username == guest.username) == 1
-        expected = Localization.get(guest.locale, "player-reclaimed-from-bot", player=guest.username)
+        expected = Localization.get(
+            guest.locale,
+            "player-reclaimed-from-bot",
+            player=guest.username,
+            bot=bot_name,
+        )
         assert expected in host.get_spoken_messages()
         assert expected in guest.get_spoken_messages()
+        assert "join.ogg" in self._sound_names(host)
+        assert "join.ogg" in self._sound_names(guest)
 
     @pytest.mark.asyncio
     async def test_friend_join_switches_active_tables_via_leave_logic(self):

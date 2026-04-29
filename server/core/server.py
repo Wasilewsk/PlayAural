@@ -9,6 +9,7 @@ import sys
 import unicodedata
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from .tick import TickScheduler
 from ..administration.manager import AdministrationManager
@@ -269,7 +270,7 @@ PlayAural Server
                 # Action sets are already restored from serialization
                 for player in game.players:
                     if player.is_bot:
-                        bot_user = Bot(player.name)
+                        bot_user = Bot(player.name, uuid=player.id)
                         game.attach_user(player.id, bot_user)
 
         print(f"Loaded {len(tables)} tables from database.")
@@ -4082,31 +4083,32 @@ PlayAural Server
 
         table_id = table.table_id
 
+        reclaimed_player = self._find_reclaimable_bot_player(game, user)
         current_table = self._tables.find_user_table(user.username)
-        if current_table == table:
+        if current_table == table and not reclaimed_player:
             user.speak_l("already-in-table", buffer="system")
             return
 
         if current_table and current_table != table:
             self._leave_current_table_for_transfer(user, current_table)
 
-        # Check if user is reclaiming a bot-replaced slot
-        reclaimed_player = None
-        if game.status == "playing":
-            for player in game.players:
-                if player.is_bot and player.id == user.uuid:
-                    reclaimed_player = player
-                    break
-
-        # Set in_game state BEFORE rebuild_all_menus so the universal
-        # GLOBAL_SYSTEM_MENUS guard lets the initial turn_menu through
-        # (the user's previous state — e.g. "tables_menu" — is in
-        # GLOBAL_SYSTEM_MENUS and would otherwise block the push).
-        self._set_in_game_state(user, table_id)
-
         if reclaimed_player:
             self._reclaim_bot_replaced_slot(user, table, reclaimed_player)
         else:
+            if self._table_name_conflicts(user, table):
+                user.speak_l("table-name-already-used", buffer="system")
+                state = self._user_states.get(user.username, {})
+                menu = state.get("menu")
+                if menu == "active_tables_menu":
+                    self._nav_refresh(user, self._show_active_tables_menu)
+                elif menu == "tables_menu":
+                    self._nav_refresh(
+                        user,
+                        self._show_tables_menu,
+                        state.get("game_type", game_type),
+                    )
+                return
+
             # Determine if user can join as player
             active_players_count = sum(1 for p in game.players if not p.is_spectator)
             can_join_as_player = (
@@ -4116,19 +4118,50 @@ PlayAural Server
 
             if can_join_as_player:
                 # Join as player
-                table.add_member(user.username, user, as_spectator=False)
+                if not table.add_member(user.username, user, as_spectator=False):
+                    user.speak_l("table-name-already-used", buffer="system")
+                    return
                 game.add_player(user.username, user)
+                self._set_in_game_state(user, table_id)
                 game.broadcast_l("table-joined", buffer="system", player=user.username)
                 game.broadcast_sound("join.ogg")
                 game.rebuild_all_menus()
             else:
                 # Join as spectator
-                table.add_member(user.username, user, as_spectator=True)
+                if not table.add_member(user.username, user, as_spectator=True):
+                    user.speak_l("table-name-already-used", buffer="system")
+                    return
                 game.add_spectator(user.username, user)
+                self._set_in_game_state(user, table_id)
                 user.speak_l("spectator-joined", buffer="system", host=table.host)
                 game.broadcast_l("now-spectating", buffer="system", player=user.username)
                 game.broadcast_sound("join_spectator.ogg")
                 game.rebuild_all_menus()
+
+    def _find_reclaimable_bot_player(self, game: Any, user: NetworkUser) -> Any | None:
+        """Find the bot-held seat that belongs to this user's UUID, if any."""
+        if game.status != "playing":
+            return None
+        for player in game.players:
+            if (
+                getattr(player, "is_bot", False)
+                and getattr(player, "id", None) == user.uuid
+            ):
+                return player
+        return None
+
+    def _table_name_conflicts(
+        self,
+        user: NetworkUser,
+        table: "Table",
+        *,
+        allowed_user_uuid: str | None = None,
+    ) -> bool:
+        """Return whether this user's account name is reserved by another table slot."""
+        return table.has_name_conflict(
+            user.username,
+            allowed_user_uuid=allowed_user_uuid,
+        )
 
     def _reclaim_bot_replaced_slot(
         self,
@@ -4137,16 +4170,26 @@ PlayAural Server
         reclaimed_player: "Player",
         *,
         message_key: str = "player-reclaimed-from-bot",
-        sound_name: str = "online.ogg",
+        sound_name: str = "join.ogg",
     ) -> None:
         """Restore a human user to an in-progress seat currently held by a bot."""
         game = table.game
         if not game:
             return
+        if self._table_name_conflicts(user, table, allowed_user_uuid=user.uuid):
+            user.speak_l("table-name-already-used", buffer="system")
+            return
 
         self._set_in_game_state(user, table.table_id)
+        bot_name = reclaimed_player.name
+        human_name = reclaimed_player.replaced_human_name or user.username
         reclaimed_player.is_bot = False
         reclaimed_player.replaced_human = False
+        reclaimed_player.name = user.username
+        reclaimed_player.replaced_human_name = ""
+        reclaimed_player.replacement_bot_name = ""
+        reclaimed_player.bot_pending_action = None
+        reclaimed_player.bot_think_ticks = 0
         game._users.pop(reclaimed_player.id, None)
         game.attach_user(reclaimed_player.id, user)
 
@@ -4158,13 +4201,20 @@ PlayAural Server
             existing_member.is_spectator = reclaimed_player.is_spectator
             table.attach_user(user.username, user)
         else:
-            table.add_member(
+            if not table.add_member(
                 user.username,
                 user,
                 as_spectator=reclaimed_player.is_spectator,
-            )
+            ):
+                user.speak_l("table-name-already-used", buffer="system")
+                return
 
-        game.broadcast_l(message_key, buffer="system", player=user.username)
+        game.broadcast_l(
+            message_key,
+            buffer="system",
+            player=human_name,
+            bot=bot_name,
+        )
         game.broadcast_sound(sound_name)
         game.rebuild_all_menus()
 
@@ -4777,7 +4827,8 @@ PlayAural Server
             table.game.remove_player(target_player.id)
         else:
             # Mid-game: bot replacement preserves game continuity
-            table.game._replace_with_bot(target_player)
+            if table.game._replace_with_bot(target_player):
+                table.game.broadcast_sound("leave.ogg")
 
         table.remove_member(target_name)
 
@@ -4822,11 +4873,7 @@ PlayAural Server
             # Check if game is already in progress
             if game.status == "playing":
                 # Look for a player with matching UUID that is now a bot
-                matching_player = None
-                for p in game.players:
-                    if p.id == user.uuid and p.is_bot:
-                        matching_player = p
-                        break
+                matching_player = self._find_reclaimable_bot_player(game, user)
 
                 if matching_player:
                     self._reclaim_bot_replaced_slot(
@@ -4838,8 +4885,15 @@ PlayAural Server
                     )
                     return
                 else:
+                    if self._table_name_conflicts(user, table):
+                        user.speak_l("table-name-already-used", buffer="system")
+                        self._return_from_join_menu(user, state)
+                        return
                     # No matching player - join as spectator instead
-                    table.add_member(user.username, user, as_spectator=True)
+                    if not table.add_member(user.username, user, as_spectator=True):
+                        user.speak_l("table-name-already-used", buffer="system")
+                        self._return_from_join_menu(user, state)
+                        return
                     game.add_spectator(user.username, user)
                     user.speak_l("spectator-joined", buffer="system", host=table.host)
                     game.broadcast_l("now-spectating", buffer="system", player=user.username)
@@ -4854,8 +4908,16 @@ PlayAural Server
                 self._return_from_join_menu(user, state)
                 return
 
+            if self._table_name_conflicts(user, table):
+                user.speak_l("table-name-already-used", buffer="system")
+                self._return_from_join_menu(user, state)
+                return
+
             # Add player to game
-            table.add_member(user.username, user, as_spectator=False)
+            if not table.add_member(user.username, user, as_spectator=False):
+                user.speak_l("table-name-already-used", buffer="system")
+                self._return_from_join_menu(user, state)
+                return
             game.add_player(user.username, user)
             game.broadcast_l("table-joined", buffer="system", player=user.username)
             game.broadcast_sound("join.ogg")
@@ -4863,7 +4925,14 @@ PlayAural Server
             self._set_in_game_state(user, table_id)
 
         elif selection_id == "join_spectator":
-            table.add_member(user.username, user, as_spectator=True)
+            if self._table_name_conflicts(user, table):
+                user.speak_l("table-name-already-used", buffer="system")
+                self._return_from_join_menu(user, state)
+                return
+            if not table.add_member(user.username, user, as_spectator=True):
+                user.speak_l("table-name-already-used", buffer="system")
+                self._return_from_join_menu(user, state)
+                return
             game.add_spectator(user.username, user)
             user.speak_l("spectator-joined", buffer="system", host=table.host)
             game.broadcast_l("now-spectating", buffer="system", player=user.username)
@@ -4976,15 +5045,19 @@ PlayAural Server
         for member in members_data:
             member_username = member.get("username")
             is_bot = member.get("is_bot", False)
+            player_id = member.get("player_id", "")
 
-            # Find the player object by name to get their ID
-            player = game.get_player_by_name(member_username)
+            # Prefer the serialized player ID. Older saves did not include it,
+            # so fall back to the historical display-name lookup.
+            player = game.get_player_by_id(player_id) if player_id else None
+            if not player:
+                player = game.get_player_by_name(member_username)
             if not player:
                 continue
 
             if is_bot:
                 # Recreate bot with the player's original ID
-                bot_user = Bot(member_username, uuid=player.id)
+                bot_user = Bot(player.name, uuid=player.id)
                 game.attach_user(player.id, bot_user)
             else:
                 # Attach human user by player ID
@@ -5812,8 +5885,11 @@ PlayAural Server
                 continue
             members_data.append(
                 {
+                    "player_id": getattr(player, "id", ""),
                     "username": player.name,
-                    "is_bot": player.is_bot,
+                    "is_bot": getattr(player, "is_bot", False),
+                    "replaced_human": getattr(player, "replaced_human", False),
+                    "replaced_human_name": getattr(player, "replaced_human_name", ""),
                 }
             )
         members_json = json.dumps(members_data)

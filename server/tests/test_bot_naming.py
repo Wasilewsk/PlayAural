@@ -183,12 +183,29 @@ def test_custom_bot_name_validation_matches_expected_shape() -> None:
     assert validate_custom_bot_name("Host", ["host"]) == "bot-name-already-used"
 
 
+def test_replaced_human_name_remains_reserved_for_bot_names() -> None:
+    game, host, _ = make_game()
+    host.name = "Pixel Pal"
+    host.is_bot = True
+    host.replaced_human = True
+    host.replaced_human_name = "Host"
+    host.replacement_bot_name = "Pixel Pal"
+
+    assert "Host" in game._existing_player_names()
+    assert (
+        validate_custom_bot_name("host", game._existing_player_names())
+        == "bot-name-already-used"
+    )
+
+
 def test_new_bot_name_localization_keys_have_en_vi_parity() -> None:
     keys = [
         "custom-bot-names-option",
         "bot-name-invalid-length",
         "bot-name-invalid-characters",
         "bot-name-already-used",
+        "bot-name-registered-account",
+        "table-name-already-used",
     ]
 
     for key in keys:

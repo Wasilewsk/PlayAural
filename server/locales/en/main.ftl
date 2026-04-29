@@ -97,9 +97,9 @@ table-status-playing = Playing
 table-status-finished = Finished
 table-not-exists = Table no longer exists.
 table-full = Table is full.
-player-replaced-by-bot = { $player } left and was replaced by a bot.
-player-reclaimed-from-bot = { $player } reconnected and reclaimed their seat.
-player-took-over = { $player } took over from the bot.
+player-replaced-by-bot = { $bot } is now playing on behalf of { $player }.
+player-reclaimed-from-bot = { $player } has returned and taken their seat back from { $bot }.
+player-took-over = { $player } has taken their seat back from { $bot }.
 spectator-joined = Joined { $host }'s table as a spectator.
 
 spectate = Spectate
@@ -166,7 +166,9 @@ no-bot-names-available = No bot names available.
 enter-bot-name = Enter bot name
 bot-name-invalid-length = Bot names must be 3 to 30 characters.
 bot-name-invalid-characters = Bot names can only contain letters, numbers, and spaces.
-bot-name-already-used = That bot name is already in use at this table.
+bot-name-already-used = A player or bot with this name is already at this table.
+bot-name-registered-account = This name belongs to a registered account. Please choose a different bot name.
+table-name-already-used = A player or bot with this name is already at this table.
 no-options-available = No options available.
 no-scores-available = No scores available.
 

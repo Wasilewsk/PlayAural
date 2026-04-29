@@ -842,6 +842,7 @@ class BlackjackGame(Game):
 
     def on_start(self) -> None:
         self.status = "playing"
+        self._sync_table_status()
         self.game_active = True
         self.phase = "settle"
         self.hand_number = 0

@@ -6,7 +6,9 @@ from typing import TYPE_CHECKING, Any
 
 from mashumaro.mixins.json import DataClassJSONMixin
 
+from ..game_utils.bot_names import bot_name_key, normalize_bot_name
 from ..games.registry import get_game_class
+from ..users.bot import Bot
 
 if TYPE_CHECKING:
     from ..games.base import Game
@@ -73,17 +75,58 @@ class Table(DataClassJSONMixin):
         self._game = value
         if value:
             self.game_json = value.to_json()
+            self._sync_status_from_game()
+        if self._server and hasattr(self._server, "on_tables_changed"):
+            self._server.on_tables_changed()
+
+    def effective_status(self) -> str:
+        """Return the game lifecycle status that should drive table cleanup."""
+        return getattr(self._game, "status", self.status) if self._game else self.status
+
+    def _sync_status_from_game(self) -> None:
+        """Keep the persisted/listing status aligned with the attached game."""
+        if not self._game:
+            return
+        game_status = getattr(self._game, "status", self.status)
+        if self.status == game_status:
+            return
+        old_status = self.status
+        self.status = game_status
+        if old_status == "waiting" and self.status != "waiting":
+            self._member_offline_since.clear()
         if self._server and hasattr(self._server, "on_tables_changed"):
             self._server.on_tables_changed()
 
     def add_member(
         self, username: str, user: "User", as_spectator: bool = False
-    ) -> None:
+    ) -> bool:
         """Add a member to the table."""
-        # Check if already a member
+        username_key = bot_name_key(username)
+        user_uuid = getattr(user, "uuid", None)
+
+        # Check if already a member. Table membership is keyed by canonical
+        # account name, but comparisons must be case-insensitive to match the
+        # database and bot-name rules.
         for member in self.members:
-            if member.username == username:
-                return
+            if bot_name_key(member.username) != username_key:
+                continue
+
+            existing_user = self._users.get(member.username)
+            if user_uuid and (
+                not existing_user
+                or getattr(existing_user, "uuid", None) == user_uuid
+            ):
+                member.is_spectator = as_spectator
+                self._users[member.username] = user
+                if self._manager and hasattr(self._manager, "_username_to_table"):
+                    self._manager._username_to_table[member.username] = self.table_id
+                if self._server and hasattr(self._server, "on_tables_changed"):
+                    self._server.on_tables_changed()
+                return True
+            return False
+
+        if self.has_name_conflict(username, allowed_user_uuid=user_uuid):
+            return False
 
         self.members.append(TableMember(username=username, is_spectator=as_spectator))
         self._users[username] = user
@@ -91,6 +134,58 @@ class Table(DataClassJSONMixin):
             self._manager._username_to_table[username] = self.table_id
         if self._server and hasattr(self._server, "on_tables_changed"):
             self._server.on_tables_changed()
+        return True
+
+    def reserved_names(self, *, exclude_player_id: str | None = None) -> list[str]:
+        """Return every display/account name reserved by this table."""
+        names = [member.username for member in self.members]
+        if self._game:
+            for player in self._game.players:
+                if getattr(player, "id", None) == exclude_player_id:
+                    continue
+                names.append(player.name)
+                replaced_name = getattr(player, "replaced_human_name", "")
+                if replaced_name:
+                    names.append(replaced_name)
+        return [name for name in names if normalize_bot_name(name)]
+
+    def has_name_conflict(
+        self,
+        username: str,
+        *,
+        allowed_user_uuid: str | None = None,
+    ) -> bool:
+        """Return whether a name is already reserved by another table slot."""
+        username_key = bot_name_key(username)
+        if not username_key:
+            return False
+
+        for member in self.members:
+            if bot_name_key(member.username) != username_key:
+                continue
+            member_user = self._users.get(member.username)
+            if (
+                allowed_user_uuid
+                and (
+                    not member_user
+                    or getattr(member_user, "uuid", None) == allowed_user_uuid
+                )
+            ):
+                continue
+            return True
+
+        if self._game:
+            for player in self._game.players:
+                if allowed_user_uuid and getattr(player, "id", None) == allowed_user_uuid:
+                    continue
+                player_names = [player.name]
+                replaced_name = getattr(player, "replaced_human_name", "")
+                if replaced_name:
+                    player_names.append(replaced_name)
+                if any(bot_name_key(name) == username_key for name in player_names):
+                    return True
+
+        return False
 
     def remove_member(
         self,
@@ -110,7 +205,7 @@ class Table(DataClassJSONMixin):
                 voice_reason=voice_reason,
             )
 
-        if self.status == "waiting" and username == self.host:
+        if self.effective_status() == "waiting" and username == self.host:
             # Host left/kicked in lobby -> promote new host
             # Filter for non-spectator humans. Note: Removed user is already gone from self.members
             candidates = [m for m in self.members if not m.is_spectator and not (self._users.get(m.username) and getattr(self._users.get(m.username), "is_bot", False))]
@@ -184,9 +279,11 @@ class Table(DataClassJSONMixin):
         """Called every tick. Forwards to game."""
         if self._game:
             self._game.on_tick()
+            self._sync_status_from_game()
 
             # Check if state changed for menu auto-refresh
-            current_state_hash = f"{self._game.status}|{len(self.members)}|{self.host}"
+            table_status = self.effective_status()
+            current_state_hash = f"{table_status}|{len(self.members)}|{self.host}"
             if self._last_menu_state_hash is None:
                 self._last_menu_state_hash = current_state_hash
             elif self._last_menu_state_hash != current_state_hash:
@@ -219,7 +316,9 @@ class Table(DataClassJSONMixin):
             
             should_destroy = False
             
-            if self.status == "waiting":
+            table_status = self.effective_status()
+
+            if table_status == "waiting":
                 # Waiting: 
                 # 1. If host offline and no other humans -> Destroy immediately
                 if not host_online and not any_human_present:
@@ -256,12 +355,8 @@ class Table(DataClassJSONMixin):
                                 if user_record:
                                     if member.is_spectator:
                                         self._game.remove_spectator(user_record.uuid)
-                                    elif self.status == "waiting":
-                                        # In lobby, just remove the player
+                                    else:
                                         self._game.remove_player(user_record.uuid)
-                                    elif self.status == "playing":
-                                        # In game, treat as disconnect (bot replacement)
-                                        self._game.on_player_disconnect(user_record.uuid)
 
                             self.remove_member(
                                 member.username,
@@ -270,7 +365,7 @@ class Table(DataClassJSONMixin):
                             # Remove from tracker
                             self._member_offline_since.pop(member.username, None)
             
-            elif self.status == "playing":
+            elif table_status == "playing":
                 # Playing: 
                 # - If humans present: Keep alive forever (reset timer)
                 # - If NO humans present (e.g. host vs bot, host offline): 5 min timeout
@@ -292,7 +387,14 @@ class Table(DataClassJSONMixin):
     def handle_event(self, username: str, event: dict) -> None:
         """Handle an event from a member."""
         if self._game:
-            # Find the player
+            user = self._users.get(username)
+            if user:
+                player = self._game.get_player_by_id(user.uuid)
+                if player:
+                    self._game.handle_event(player, event)
+                    return
+
+            # Fall back to display-name lookup for legacy callers.
             for player in self._game.players:
                 if player.name == username:
                     self._game.handle_event(player, event)
@@ -383,7 +485,9 @@ class Table(DataClassJSONMixin):
             if player.is_bot:
                 user = old_game._users.get(player.id)
                 if user:
-                    active_bots.append((player.id, player.name, user))
+                    if getattr(player, "replaced_human", False):
+                        user = Bot(player.name)
+                    active_bots.append((user.uuid, player.name, user))
 
         # 4. Re-evaluate host
         # If the old host left, they won't be in active_players or active_spectators
@@ -480,6 +584,7 @@ class Table(DataClassJSONMixin):
         self.status = "waiting"
         self.game_json = new_game.to_json()
         self._last_menu_state_hash = None
+        self._member_offline_since.clear()
         if self._server and hasattr(self._server, "on_tables_changed"):
             self._server.on_tables_changed()
         return True

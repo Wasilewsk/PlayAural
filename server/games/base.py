@@ -65,6 +65,8 @@ class Player(DataClassJSONMixin):
     name: str  # Display name
     is_bot: bool = False
     replaced_human: bool = False  # True if this slot was a human who disconnected and was replaced by a bot
+    replaced_human_name: str = ""  # Original human name while a replacement bot holds this slot
+    replacement_bot_name: str = ""  # Visible bot name while this slot is being auto-played
     is_spectator: bool = False
     # Bot AI state (serialized for persistence)
     bot_think_ticks: int = 0  # Ticks until bot can act
@@ -312,7 +314,27 @@ class Game(
         to keep table and game status in sync.
         """
         if self._table:
+            if (
+                getattr(self._table, "game", None) is self
+                and hasattr(self._table, "_sync_status_from_game")
+            ):
+                self._table._sync_status_from_game()
+                return
+
+            status_changed = self._table.status != self.status
             self._table.status = self.status
+            if (
+                status_changed
+                and self.status != "waiting"
+                and hasattr(self._table, "_member_offline_since")
+            ):
+                self._table._member_offline_since.clear()
+            if (
+                status_changed
+                and self._table._server
+                and hasattr(self._table._server, "on_tables_changed")
+            ):
+                self._table._server.on_tables_changed()
 
     def on_round_timer_ready(self) -> None:
         """Called when round timer expires. Override in subclasses that use RoundTimer."""
@@ -345,10 +367,10 @@ class Game(
              self.broadcast_l("game-paused-host-disconnect", buffer="system", player=player.name)
              return
 
-        # Convert to bot (marking original human status before replacement)
-        self._replace_with_bot(player)
-
-        # We don't play sound here because Server plays offline sound
+        if self._replace_with_bot(player):
+            self.broadcast_sound("leave.ogg")
+            if hasattr(self, "rebuild_all_menus"):
+                self.rebuild_all_menus()
 
     def remove_spectator(self, player_id: str) -> None:
         """Remove a spectator from the game state entirely."""
@@ -386,23 +408,58 @@ class Game(
         # Notify others
         self.broadcast_l("table-left", buffer="system", player=player.name)
 
-    def _replace_with_bot(self, player: "Player") -> None:
+    def _replace_with_bot(
+        self,
+        player: "Player",
+        *,
+        allow_waiting: bool = False,
+    ) -> bool:
         """Replace a human player with a bot (shared logic)."""
-        # strict check: only replace if playing
-        if self.status != "playing":
-            return
+        if self.status != "playing" and not (
+            allow_waiting and self.status == "waiting"
+        ):
+            return False
+        if player.is_bot:
+            return False
+
+        human_name = player.replaced_human_name or player.name
+        existing_names = self._reserved_table_names(exclude_player_id=player.id)
+        existing_names.append(human_name)
+        bot_name = self._generate_available_bot_name(existing_names)
 
         player.replaced_human = True
         player.is_bot = True
+        player.replaced_human_name = human_name
+        player.replacement_bot_name = bot_name
+        player.name = bot_name
         self._users.pop(player.id, None)
 
         # Use same UUID so user can reclaim it
-        bot_user = Bot(player.name, uuid=player.id)
+        bot_user = Bot(bot_name, uuid=player.id)
         self.attach_user(player.id, bot_user)
         
-        self.broadcast_l("player-replaced-by-bot", buffer="system", player=player.name)
+        self.broadcast_l(
+            "player-replaced-by-bot",
+            buffer="system",
+            player=human_name,
+            bot=bot_name,
+        )
         # Note: Caller is responsible for playing sounds if needed
+        return True
 
+    def _reserved_table_names(self, *, exclude_player_id: str | None = None) -> list[str]:
+        """Return all names currently reserved by the table and game state."""
+        names: list[str] = []
+        if self._table and hasattr(self._table, "reserved_names"):
+            names.extend(self._table.reserved_names(exclude_player_id=exclude_player_id))
+        else:
+            for existing_player in self.players:
+                if getattr(existing_player, "id", None) == exclude_player_id:
+                    continue
+                names.append(existing_player.name)
+                if existing_player.replaced_human_name:
+                    names.append(existing_player.replaced_human_name)
+        return names
 
     # Player management
 

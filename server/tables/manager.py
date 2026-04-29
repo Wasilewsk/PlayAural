@@ -68,7 +68,7 @@ class TableManager:
         tables = self._tables.values()
         if game_type:
             tables = [t for t in tables if t.game_type == game_type]
-        return [t for t in tables if t.status == "waiting"]
+        return [t for t in tables if t.effective_status() == "waiting"]
 
     def find_user_table(self, username: str) -> Table | None:
         """Find the table a user is currently in (O(1) via reverse-lookup dict)."""
