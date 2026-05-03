@@ -1164,7 +1164,7 @@ class AdministrationManager:
          await asyncio.sleep(1.0)
          try:
              await user.connection.close(1000, "Kicked")
-         except:
+         except Exception:
              pass
 
     # ==================== Ban System ====================

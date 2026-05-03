@@ -3698,7 +3698,7 @@ PlayAural Server
         await asyncio.sleep(5.0)
         try:
              await user.connection.close(1000, "Logout Failsafe")
-        except:
+        except Exception:
              pass
 
     # ==========================================================================
