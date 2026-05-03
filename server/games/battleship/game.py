@@ -538,7 +538,7 @@ class BattleshipGame(GridGameMixin, TurnTimerMixin, Game):
                 continue
             ship_key, ship_size = FLEET[0]
             user.speak_l(
-                "battleship-deploy-start", "game",
+                "battleship-deploy-start", buffer="game",
                 ship=Localization.get(user.locale, f"battleship-ship-{ship_key}"),
                 size=str(ship_size),
             )
@@ -722,7 +722,7 @@ class BattleshipGame(GridGameMixin, TurnTimerMixin, Game):
         ship_key, ship_size = FLEET[ship_idx]
         coord = self._grid_cell_coordinate(row, col)
         user.speak_l(
-            "battleship-choose-orientation", "game",
+            "battleship-choose-orientation", buffer="game",
             ship=Localization.get(user.locale, f"battleship-ship-{ship_key}"),
             coord=coord,
             size=str(ship_size),
@@ -767,7 +767,7 @@ class BattleshipGame(GridGameMixin, TurnTimerMixin, Game):
             coord = self._grid_cell_coordinate(row, col)
             orientation_key = "battleship-horizontal" if horizontal else "battleship-vertical"
             user.speak_l(
-                "battleship-cannot-place", "game",
+                "battleship-cannot-place", buffer="game",
                 ship=Localization.get(user.locale, f"battleship-ship-{ship_key}"),
                 coord=coord,
                 orientation=Localization.get(user.locale, orientation_key),
@@ -791,7 +791,7 @@ class BattleshipGame(GridGameMixin, TurnTimerMixin, Game):
         coord = self._grid_cell_coordinate(row, col)
         orientation_key = "battleship-horizontal" if horizontal else "battleship-vertical"
         user.speak_l(
-            "battleship-ship-placed", "game",
+            "battleship-ship-placed", buffer="game",
             ship=Localization.get(user.locale, f"battleship-ship-{ship_key}"),
             coord=coord,
             orientation=Localization.get(user.locale, orientation_key),
@@ -803,14 +803,14 @@ class BattleshipGame(GridGameMixin, TurnTimerMixin, Game):
         if next_idx < len(FLEET):
             next_key, next_size = FLEET[next_idx]
             user.speak_l(
-                "battleship-place-next-ship", "game",
+                "battleship-place-next-ship", buffer="game",
                 ship=Localization.get(user.locale, f"battleship-ship-{next_key}"),
                 size=str(next_size),
             )
         else:
             bp.deploy_ready = True
             user.play_sound(SOUND_DEPLOY_DONE)
-            user.speak_l("battleship-deploy-done", "game")
+            user.speak_l("battleship-deploy-done", buffer="game")
             self._check_all_deployed()
 
         self.rebuild_player_menu(bp)
@@ -839,14 +839,14 @@ class BattleshipGame(GridGameMixin, TurnTimerMixin, Game):
         if bp.viewing_own:
             user = self.get_user(bp)
             if user:
-                user.speak_l("battleship-switch-to-shots", "game")
+                user.speak_l("battleship-switch-to-shots", buffer="game")
             return
 
         # Can't fire at already-shot cells
         if bp.shot_board[row][col] != CELL_EMPTY:
             user = self.get_user(bp)
             if user:
-                user.speak_l("battleship-already-shot", "game")
+                user.speak_l("battleship-already-shot", buffer="game")
             return
 
         self._fire_shot(bp, row, col)
@@ -908,15 +908,15 @@ class BattleshipGame(GridGameMixin, TurnTimerMixin, Game):
                         u.locale, f"battleship-ship-{hit_ship.type_key}",
                     )
                     if p.id == bp.id:
-                        u.speak_l("battleship-sunk-self", "game", ship=ship_name)
+                        u.speak_l("battleship-sunk-self", buffer="game", ship=ship_name)
                     elif p.id == opponent.id:
                         u.speak_l(
-                            "battleship-sunk-target", "game",
+                            "battleship-sunk-target", buffer="game",
                             player=bp.name, ship=ship_name,
                         )
                     else:
                         u.speak_l(
-                            "battleship-sunk-spectator", "game",
+                            "battleship-sunk-spectator", buffer="game",
                             player=bp.name, target=opponent.name, ship=ship_name,
                         )
 
@@ -982,16 +982,16 @@ class BattleshipGame(GridGameMixin, TurnTimerMixin, Game):
             if not u:
                 continue
             if p.id == winner.id:
-                u.speak_l("battleship-victory-self", "game")
+                u.speak_l("battleship-victory-self", buffer="game")
                 u.play_sound(SOUND_WIN)
             elif loser and p.id == loser.id:
                 u.speak_l(
-                    "battleship-victory-target", "game", player=winner.name,
+                    "battleship-victory-target", buffer="game", player=winner.name,
                 )
                 u.play_sound(SOUND_LOSE)
             else:
                 u.speak_l(
-                    "battleship-victory-spectator", "game",
+                    "battleship-victory-spectator", buffer="game",
                     player=winner.name, target=loser_name,
                 )
                 u.play_sound(SOUND_LOSE)
@@ -1022,7 +1022,7 @@ class BattleshipGame(GridGameMixin, TurnTimerMixin, Game):
             user = self.get_user(bp)
             if user:
                 coord = self._grid_cell_coordinate(row, col)
-                user.speak_l("battleship-timeout-fire", "game", coord=coord)
+                user.speak_l("battleship-timeout-fire", buffer="game", coord=coord)
             self._fire_shot(bp, row, col)
         else:
             self.advance_turn()
@@ -1069,9 +1069,9 @@ class BattleshipGame(GridGameMixin, TurnTimerMixin, Game):
         user = self.get_user(player)
         if user:
             if bp.viewing_own:
-                user.speak_l("battleship-view-own", "game")
+                user.speak_l("battleship-view-own", buffer="game")
             else:
-                user.speak_l("battleship-view-shots", "game")
+                user.speak_l("battleship-view-shots", buffer="game")
             # Announce current cell after switching
             cursor = self._get_cursor(bp)
             label = self.get_cell_label(cursor.row, cursor.col, bp, user.locale)
@@ -1358,15 +1358,15 @@ class BattleshipGame(GridGameMixin, TurnTimerMixin, Game):
             if not u:
                 continue
             if p.id == shooter.id:
-                u.speak_l(key_self, "game", **kwargs)
+                u.speak_l(key_self, buffer="game", **kwargs)
             elif p.id == opponent.id:
                 u.speak_l(
-                    key_target, "game",
+                    key_target, buffer="game",
                     player=shooter.name, target=opponent.name, **kwargs,
                 )
             else:
                 u.speak_l(
-                    key_spectator, "game",
+                    key_spectator, buffer="game",
                     player=shooter.name, target=opponent.name, **kwargs,
                 )
 

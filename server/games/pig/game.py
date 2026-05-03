@@ -575,8 +575,6 @@ class PigGame(Game):
             },
         )
 
-        return lines
-
     def format_end_screen(self, result: GameResult, locale: str) -> list[str]:
         """Format the end screen for Pig game."""
         lines = [Localization.get(locale, "game-final-scores")]
@@ -589,9 +587,6 @@ class PigGame(Game):
                 if data.get("is_individual") and data.get("members"):
                     name = data["members"][0]
                 else:
-                    # Team mode: "Team X" (localized)
-                    # For individual mode with custom team names, this also works if we had them
-                    # But for now, just handle standard team naming
                     name = Localization.get(locale, "game-team-name", index=data["index"] + 1)
                 
                 score = data["score"]
