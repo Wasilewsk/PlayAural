@@ -6,12 +6,14 @@ import random
 from server.games.deadmansdeck.game import (
     AUDIO_DURATIONS_TICKS,
     COCK_TO_OUTCOME_DELAY_TICKS,
+    LATEST_REVOLVER_PREPARATION_START_TICKS,
     MAX_CLAIM_CARDS,
     PHASE_CHALLENGE,
     PHASE_CLAIM,
     PHASE_PLAYING,
     PHASE_ROULETTE,
     PHASE_ROUND_START,
+    PREPARATION_INTRO_TICKS,
     REVOLVER_PREPARATION_DELAY_TICKS,
     SOUND_BODY_FALLS,
     SOUND_BULLET_HIT,
@@ -22,6 +24,7 @@ from server.games.deadmansdeck.game import (
     SOUND_EMPTY_CLICK,
     SOUND_GAME_OVER,
     SOUND_GUNSHOT,
+    SOUND_INTRO,
     SOUND_MUSIC,
     SOUND_PLAYS,
     SOUND_REVEAL,
@@ -90,6 +93,21 @@ def assert_subsequence(sequence: list[str], expected: list[str]) -> None:
             if index == len(expected):
                 return
     raise AssertionError(f"Did not find {expected!r} in order within {sequence!r}")
+
+
+def preparation_sequence_events(game: DeadMansDeckGame):
+    sequence = next(
+        sequence
+        for sequence in game.active_sequences
+        if sequence.sequence_id == "deadmansdeck_preparation"
+    )
+    tick = 0
+    events = []
+    for beat in sequence.beats:
+        for operation in beat.ops:
+            events.append((tick, operation))
+        tick += beat.delay_after_ticks
+    return events
 
 
 def visible_action_ids(game: DeadMansDeckGame, player) -> list[str]:
@@ -306,6 +324,7 @@ def test_selected_cards_stay_visible_at_limit_and_fourth_card_speaks_error() -> 
 def test_required_exclusive_sound_constants_match_asset_plan() -> None:
     expected = {
         SOUND_MUSIC,
+        SOUND_INTRO,
         SOUND_ROUND_START,
         SOUND_REVOLVER_SPIN,
         SOUND_COCK,
@@ -333,11 +352,14 @@ def test_audio_delays_are_locked() -> None:
     assert AUDIO_DURATIONS_TICKS[SOUND_CHALLENGE] == 45
     assert AUDIO_DURATIONS_TICKS[SOUND_CHALLENGE_SUCCESS] == 42
     assert AUDIO_DURATIONS_TICKS["game_coup/challengefail.ogg"] == 15
+    assert AUDIO_DURATIONS_TICKS[SOUND_INTRO] == 160
+    assert PREPARATION_INTRO_TICKS == 160
     assert AUDIO_DURATIONS_TICKS[SOUND_ROUND_START] == 46
     assert AUDIO_DURATIONS_TICKS[SOUND_REVOLVER_SPIN] == 60
     assert AUDIO_DURATIONS_TICKS[SOUND_COCK] == 20
     assert COCK_TO_OUTCOME_DELAY_TICKS == 40
     assert REVOLVER_PREPARATION_DELAY_TICKS == 80
+    assert LATEST_REVOLVER_PREPARATION_START_TICKS == 80
     assert AUDIO_DURATIONS_TICKS[SOUND_EMPTY_CLICK] == 13
     assert AUDIO_DURATIONS_TICKS["game_deadmansdeck/empty_casing1.ogg"] == 69
     assert AUDIO_DURATIONS_TICKS["game_deadmansdeck/empty_casing2.ogg"] == 64
@@ -360,15 +382,88 @@ def test_grouped_sound_pools_can_select_every_variant() -> None:
     assert body_falls == set(SOUND_BODY_FALLS)
 
 
+def test_preparation_pan_values_match_player_counts() -> None:
+    game = DeadMansDeckGame()
+
+    assert game._preparation_pan_values(2) == [-25, 25]
+    assert game._preparation_pan_values(3) == [-50, 0, 50]
+    assert game._preparation_pan_values(4) == [-50, -17, 17, 50]
+
+
+def test_preparation_intro_and_revolver_loads_are_concurrent() -> None:
+    random.seed(70)
+    game = make_game(4)
+    game.on_start()
+
+    events = preparation_sequence_events(game)
+    intro_ticks = [
+        tick
+        for tick, operation in events
+        if operation.kind == "sound" and operation.sound == SOUND_INTRO
+    ]
+    spin_events = [
+        (tick, operation.pan)
+        for tick, operation in events
+        if operation.kind == "sound" and operation.sound == SOUND_REVOLVER_SPIN
+    ]
+    mark_ticks = [
+        tick
+        for tick, operation in events
+        if operation.kind == "callback"
+        and operation.callback_id == "mark_revolver_prepared"
+    ]
+    announce_ticks = [
+        tick
+        for tick, operation in events
+        if operation.kind == "callback"
+        and operation.callback_id == "announce_prepare_revolvers"
+    ]
+    music_ticks = [
+        tick
+        for tick, operation in events
+        if operation.kind == "callback"
+        and operation.callback_id == "start_preparation_music"
+    ]
+    finish_ticks = [
+        tick
+        for tick, operation in events
+        if operation.kind == "callback"
+        and operation.callback_id == "finish_preparation"
+    ]
+
+    assert intro_ticks == [0]
+    assert announce_ticks == [0]
+    assert len(spin_events) == 4
+    assert sorted(pan for _tick, pan in spin_events) == [-50, -17, 17, 50]
+    assert len({tick for tick, _pan in spin_events}) == len(spin_events)
+    assert all(
+        1 <= tick <= LATEST_REVOLVER_PREPARATION_START_TICKS
+        for tick, _pan in spin_events
+    )
+    assert sorted(mark_ticks) == sorted(
+        tick + REVOLVER_PREPARATION_DELAY_TICKS
+        for tick, _pan in spin_events
+    )
+    assert max(mark_ticks) <= PREPARATION_INTRO_TICKS
+    assert music_ticks == [PREPARATION_INTRO_TICKS]
+    assert finish_ticks == [PREPARATION_INTRO_TICKS]
+
+
 def test_preparation_music_and_round_start_are_public() -> None:
     random.seed(10)
     game = make_game(3)
     game.on_start()
 
     assert all(
-        any(message.type == "play_music" and message.data["name"] == SOUND_MUSIC for message in game.get_user(p).messages)
+        not any(
+            message.type == "play_music" and message.data["name"] == SOUND_MUSIC
+            for message in game.get_user(p).messages
+        )
         for p in game.players
     )
+    for player in game.players:
+        spoken = speech_texts(game.get_user(player))
+        assert spoken.count("The revolvers are being prepared.") == 1
 
     reached = advance_until(game, lambda: game.phase == PHASE_PLAYING and game.round == 1)
     assert reached
@@ -377,8 +472,13 @@ def test_preparation_music_and_round_start_are_public() -> None:
     for player in game.players:
         user = game.get_user(player)
         sounds = sound_names(user)
+        assert SOUND_INTRO in sounds
         assert sounds.count(SOUND_REVOLVER_SPIN) == 3
         assert SOUND_ROUND_START in sounds
+        assert any(
+            message.type == "play_music" and message.data["name"] == SOUND_MUSIC
+            for message in user.messages
+        )
         assert any(sound in sounds for sound in ("game_cards/shuffle1.ogg", "game_cards/shuffle2.ogg", "game_cards/shuffle3.ogg"))
 
 

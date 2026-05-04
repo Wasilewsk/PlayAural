@@ -31,7 +31,7 @@ deadmansdeck-cannot-challenge-self = Bạn không thể tự vạch mặt chính
 deadmansdeck-action-sequence-running = Hãy chờ diễn biến hiện tại kết thúc.
 deadmansdeck-action-eliminated = Bạn đã bị loại khỏi ván.
 
-deadmansdeck-prepare-revolver = Khẩu súng của { $player } đang được chuẩn bị.
+deadmansdeck-prepare-revolver = Các khẩu súng đang được chuẩn bị.
 deadmansdeck-round-start = Vòng { $round }. Hạng mục tiêu là { $target }.
 deadmansdeck-turn-order = Thứ tự lượt vòng này: { $order }.
 deadmansdeck-your-hand = Bài trên tay bạn: { $cards }.

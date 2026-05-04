@@ -44,6 +44,7 @@ CHAMBER_COUNT = 6
 TICKS_PER_SECOND = 20
 RELOAD_EXTRA_WAIT_TICKS = TICKS_PER_SECOND
 COCK_TO_OUTCOME_DELAY_TICKS = 2 * TICKS_PER_SECOND
+PREPARATION_INTRO_TICKS = 8 * TICKS_PER_SECOND
 
 PHASE_PREPARING = "preparing"
 PHASE_ROUND_START = "round_start"
@@ -54,6 +55,7 @@ PHASE_ROULETTE = "roulette"
 PHASE_GAME_OVER = "game_over"
 
 SOUND_MUSIC = "game_deadmansdeck/music.ogg"
+SOUND_INTRO = "game_deadmansdeck/intro.ogg"
 SOUND_ROUND_START = "game_deadmansdeck/round_start.ogg"
 SOUND_REVOLVER_SPIN = "game_deadmansdeck/revolver_spin.ogg"
 SOUND_COCK = "game_deadmansdeck/cock.ogg"
@@ -99,6 +101,7 @@ AUDIO_DURATIONS_TICKS = {
     "game_coup/challenge.ogg": 45,
     "game_coup/challengesuccess.ogg": 42,
     "game_coup/challengefail.ogg": 15,
+    "game_deadmansdeck/intro.ogg": PREPARATION_INTRO_TICKS,
     "game_deadmansdeck/round_start.ogg": 46,
     "game_deadmansdeck/revolver_spin.ogg": 60,
     "game_deadmansdeck/cock.ogg": 20,
@@ -114,6 +117,9 @@ AUDIO_DURATIONS_TICKS = {
 }
 REVOLVER_PREPARATION_DELAY_TICKS = (
     AUDIO_DURATIONS_TICKS[SOUND_REVOLVER_SPIN] + RELOAD_EXTRA_WAIT_TICKS
+)
+LATEST_REVOLVER_PREPARATION_START_TICKS = max(
+    0, PREPARATION_INTRO_TICKS - REVOLVER_PREPARATION_DELAY_TICKS
 )
 
 
@@ -251,7 +257,6 @@ class DeadMansDeckGame(Game):
             dmd_player.truthful_claims = 0
             dmd_player.roulette_survivals = 0
 
-        self.play_music(SOUND_MUSIC)
         self._start_preparation_sequence()
 
     def on_tick(self) -> None:
@@ -282,6 +287,32 @@ class DeadMansDeckGame(Game):
 
     def _random_body_fall_sound(self) -> str:
         return random.choice(SOUND_BODY_FALLS)  # nosec B311
+
+    def _preparation_pan_values(self, player_count: int) -> list[int]:
+        if player_count <= 0:
+            return []
+        if player_count == 1:
+            return [0]
+        if player_count == 2:
+            return [-25, 25]
+
+        step = 100 / (player_count - 1)
+        return [round(-50 + (step * index)) for index in range(player_count)]
+
+    def _preparation_load_start_ticks(self, player_count: int) -> list[int]:
+        if player_count <= 0:
+            return []
+        latest_start = LATEST_REVOLVER_PREPARATION_START_TICKS
+        if latest_start <= 0:
+            return [0 for _ in range(player_count)]
+
+        candidates = list(range(1, latest_start + 1))
+        if len(candidates) >= player_count:
+            return random.sample(candidates, player_count)  # nosec B311
+        return [
+            random.randint(0, latest_start)  # nosec B311
+            for _ in range(player_count)
+        ]
 
     def _card_sort_key(self, card: DeadMansDeckCard) -> tuple[int, int]:
         return (CARD_SORT_ORDER.get(card.rank, len(CARD_SORT_ORDER)), card.id)
@@ -322,45 +353,92 @@ class DeadMansDeckGame(Game):
 
     def _start_preparation_sequence(self) -> None:
         players = self.alive_players[:]
-        random.shuffle(players)
-        beats: list[SequenceBeat] = []
+        pans = self._preparation_pan_values(len(players))
+        load_start_ticks = self._preparation_load_start_ticks(len(players))
+        events: list[tuple[int, int, SequenceOperation]] = [
+            (
+                0,
+                0,
+                SequenceOperation.sound_op(SOUND_INTRO),
+            ),
+            (
+                0,
+                1,
+                SequenceOperation.callback_op("announce_prepare_revolvers"),
+            )
+        ]
 
-        for player in players:
-            beats.append(
-                SequenceBeat(
-                    ops=[
-                        SequenceOperation.callback_op(
-                            "announce_prepare_revolver",
-                            {"player_id": player.id},
-                        ),
-                        SequenceOperation.sound_op(SOUND_REVOLVER_SPIN),
-                    ],
-                    delay_after_ticks=REVOLVER_PREPARATION_DELAY_TICKS,
+        for index, player in enumerate(players):
+            start_tick = load_start_ticks[index]
+            pan = pans[index]
+            events.append(
+                (
+                    start_tick,
+                    0,
+                    SequenceOperation.sound_op(SOUND_REVOLVER_SPIN, pan=pan),
                 )
             )
-            beats.append(
-                SequenceBeat(
-                    ops=[
-                        SequenceOperation.callback_op(
-                            "mark_revolver_prepared",
-                            {"player_id": player.id},
-                        )
-                    ],
+            events.append(
+                (
+                    start_tick + REVOLVER_PREPARATION_DELAY_TICKS,
+                    0,
+                    SequenceOperation.callback_op(
+                        "mark_revolver_prepared",
+                        {"player_id": player.id},
+                    ),
                 )
             )
 
-        beats.append(
-            SequenceBeat(
-                ops=[SequenceOperation.callback_op("finish_preparation")],
+        events.append(
+            (
+                PREPARATION_INTRO_TICKS,
+                50,
+                SequenceOperation.callback_op("start_preparation_music"),
+            )
+        )
+        events.append(
+            (
+                PREPARATION_INTRO_TICKS,
+                99,
+                SequenceOperation.callback_op("finish_preparation"),
             )
         )
         self.start_sequence(
             "deadmansdeck_preparation",
-            beats,
+            self._build_timed_sequence_beats(events),
             tag="deadmansdeck_preparation",
             lock_scope=self.SEQUENCE_LOCK_GAMEPLAY,
             pause_bots=True,
         )
+
+    def _build_timed_sequence_beats(
+        self,
+        events: list[tuple[int, int, SequenceOperation]],
+    ) -> list[SequenceBeat]:
+        grouped_events: list[tuple[int, list[SequenceOperation]]] = []
+        for tick, _priority, operation in sorted(
+            events,
+            key=lambda item: (item[0], item[1]),
+        ):
+            if grouped_events and grouped_events[-1][0] == tick:
+                grouped_events[-1][1].append(operation)
+            else:
+                grouped_events.append((tick, [operation]))
+
+        beats: list[SequenceBeat] = []
+        for index, (tick, operations) in enumerate(grouped_events):
+            next_tick = (
+                grouped_events[index + 1][0]
+                if index + 1 < len(grouped_events)
+                else tick
+            )
+            beats.append(
+                SequenceBeat(
+                    ops=operations,
+                    delay_after_ticks=max(0, next_tick - tick),
+                )
+            )
+        return beats
 
     def _start_round(self) -> None:
         if self._check_game_end():
@@ -1392,20 +1470,18 @@ class DeadMansDeckGame(Game):
         payload: dict,
     ) -> None:
         del sequence_id
-        if callback_id == "announce_prepare_revolver":
-            player = self.get_player_by_id(payload.get("player_id", ""))
-            if player:
-                self.broadcast_l(
-                    "deadmansdeck-prepare-revolver",
-                    buffer="game",
-                    player=player.name,
-                )
+        if callback_id == "announce_prepare_revolvers":
+            self.broadcast_l("deadmansdeck-prepare-revolver", buffer="game")
             return
 
         if callback_id == "mark_revolver_prepared":
             player = self.get_player_by_id(payload.get("player_id", ""))
             if isinstance(player, DeadMansDeckPlayer):
                 player.revolver_prepared = True
+            return
+
+        if callback_id == "start_preparation_music":
+            self.play_music(SOUND_MUSIC)
             return
 
         if callback_id == "finish_preparation":

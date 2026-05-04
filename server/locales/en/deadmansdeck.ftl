@@ -31,7 +31,7 @@ deadmansdeck-cannot-challenge-self = You cannot challenge your own claim.
 deadmansdeck-action-sequence-running = Wait for the current sequence to finish.
 deadmansdeck-action-eliminated = You have been eliminated.
 
-deadmansdeck-prepare-revolver = { $player }'s revolver is being prepared.
+deadmansdeck-prepare-revolver = The revolvers are being prepared.
 deadmansdeck-round-start = Round { $round }. The table card is { $target }.
 deadmansdeck-turn-order = Turn order this round: { $order }.
 deadmansdeck-your-hand = Your hand: { $cards }.

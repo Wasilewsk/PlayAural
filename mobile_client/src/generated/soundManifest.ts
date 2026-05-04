@@ -378,6 +378,7 @@ export const soundManifest: Record<string, number> = {
   "game_deadmansdeck/empty_click.ogg": require("../../sounds/game_deadmansdeck/empty_click.ogg"),
   "game_deadmansdeck/game_over.ogg": require("../../sounds/game_deadmansdeck/game_over.ogg"),
   "game_deadmansdeck/gunshot.ogg": require("../../sounds/game_deadmansdeck/gunshot.ogg"),
+  "game_deadmansdeck/intro.ogg": require("../../sounds/game_deadmansdeck/intro.ogg"),
   "game_deadmansdeck/music.ogg": require("../../sounds/game_deadmansdeck/music.ogg"),
   "game_deadmansdeck/revolver_spin.ogg": require("../../sounds/game_deadmansdeck/revolver_spin.ogg"),
   "game_deadmansdeck/round_start.ogg": require("../../sounds/game_deadmansdeck/round_start.ogg"),
