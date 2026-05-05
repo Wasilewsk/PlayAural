@@ -160,6 +160,7 @@ class ConfigManager:
             "audio": {
                 "music_volume": 20,
                 "ambience_volume": 20,
+                "voice_volume": 80,
                 "input_device_id": "",
                 "input_device_name": "",
             },

@@ -44,7 +44,7 @@ export class MobileVoiceManager {
   private nativeAudioSessionStarted = false;
   private remoteAudioElements = new Map<string, HTMLAudioElement>();
   private webAudioContainer: HTMLDivElement | null = null;
-  // Voice volume: 0.1–1.0, applied to all remote audio elements
+  // Voice volume: 0.1-1.0, applied to all remote audio elements
   private _voiceVolume = 0.8;
 
   setCallbacks(callbacks: VoiceCallbacks): void {
@@ -94,8 +94,8 @@ export class MobileVoiceManager {
   }
 
   setVoiceVolume(volume: number): void {
-    // Clamp to 0.1–1.0 range
-    const clamped = Math.max(0.1, Math.min(1.0, volume));
+    // Clamp to 0.1-1.0 range.
+    const clamped = Number.isFinite(volume) ? Math.max(0.1, Math.min(1.0, volume)) : 0.8;
     this._voiceVolume = clamped;
     // Apply to all currently playing remote audio elements
     this.remoteAudioElements.forEach((element) => {

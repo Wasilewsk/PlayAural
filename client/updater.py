@@ -166,7 +166,7 @@ class UpdaterApp:
             # 3. Cleanup
             try:
                 os.remove(self.zip_path)
-            except:
+            except OSError:
                 pass # Not critical
 
             # 4. Launch Game

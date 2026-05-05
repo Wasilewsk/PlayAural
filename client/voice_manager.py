@@ -272,7 +272,7 @@ class VoiceManager:
             # We need to intercept the PCM bytes as they flow into _buffer.
             # The cleanest way is to wrap the player's internal buffer attribute
             # so writes go through our gain function.
-            wrapped_buffer = _VolumeAwareBuffer(player, lambda: self._get_voice_volume())
+            wrapped_buffer = _VolumeAwareBuffer(lambda: self._get_voice_volume())
             player._buffer = wrapped_buffer
 
         player.start = volume_aware_start
@@ -427,7 +427,7 @@ class _VolumeAwareBuffer:
     and reliable way to apply software gain without modifying the SDK.
     """
 
-    def __init__(self, player: Any, get_volume: callable) -> None:
+    def __init__(self, get_volume: Callable[[], float]) -> None:
         self._inner = bytearray()
         self._get_volume = get_volume
 

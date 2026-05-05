@@ -152,9 +152,16 @@ class MainWindow(wx.Frame):
             audio = self.client_options["audio"]
             music_volume = audio.get("music_volume", 20) / 100.0
             ambience_volume = audio.get("ambience_volume", 20) / 100.0
+            try:
+                voice_volume = max(10, min(100, int(audio.get("voice_volume", 80)))) / 100.0
+            except (TypeError, ValueError):
+                voice_volume = 0.8
 
             self.sound_manager.set_music_volume(music_volume)
             self.sound_manager.set_ambience_volume(ambience_volume)
+            if self.voice_manager:
+                self.voice_manager.set_voice_volume(voice_volume)
+            self._pending_voice_volume = voice_volume
 
     def _get_audio_input_device_preferences(self):
         audio = self.client_options.get("audio", {})
@@ -1836,19 +1843,23 @@ class MainWindow(wx.Frame):
         
         # Apply changes immediately
         if key == "audio/music_volume":
-             if self.sound_manager:
-                 self.sound_manager.set_music_volume(value / 100.0)
+            if self.sound_manager:
+                self.sound_manager.set_music_volume(value / 100.0)
         elif key == "audio/ambience_volume":
-             if self.sound_manager:
-                 self.sound_manager.set_ambience_volume(value / 100.0)
+            if self.sound_manager:
+                self.sound_manager.set_ambience_volume(value / 100.0)
         elif key == "audio/voice_volume":
-             if self.voice_manager:
-                 # Clamp to 10-100 as server enforces, default 80
-                 vol = max(10, min(100, int(value) if isinstance(value, (int, float)) else 80))
-                 self.voice_manager.set_voice_volume(vol / 100.0)
-                 self._pending_voice_volume = vol / 100.0
+            # Clamp to 10-100 as server enforces, default 80.
+            try:
+                vol = max(10, min(100, int(value)))
+            except (TypeError, ValueError):
+                vol = 80
+            self.config_manager.set_client_option(key, vol, create_mode=True)
+            if self.voice_manager:
+                self.voice_manager.set_voice_volume(vol / 100.0)
+            self._pending_voice_volume = vol / 100.0
         elif key == "audio/input_device_id" and not value:
-             self.config_manager.set_client_option("audio/input_device_name", "", create_mode=True)
+            self.config_manager.set_client_option("audio/input_device_name", "", create_mode=True)
 
         # Reload full options to be safe
         self.client_options = self.config_manager.get_client_options(self.server_id)
@@ -1995,9 +2006,14 @@ class MainWindow(wx.Frame):
                 if self.sound_manager:
                     self.sound_manager.set_ambience_volume(vol / 100.0)
             if "voice_volume" in preferences:
-                vol = max(10, min(100, preferences["voice_volume"]))
+                try:
+                    vol = max(10, min(100, int(preferences["voice_volume"])))
+                except (TypeError, ValueError):
+                    vol = 80
                 self.config_manager.set_client_option("audio/voice_volume", vol, create_mode=True)
                 self._pending_voice_volume = vol / 100.0
+                if self.voice_manager:
+                    self.voice_manager.set_voice_volume(self._pending_voice_volume)
             if "desktop_audio_input_device_id" in preferences:
                 self.config_manager.set_client_option(
                     "audio/input_device_id",
@@ -2168,7 +2184,7 @@ class MainWindow(wx.Frame):
                 if os.path.exists(target_zip):
                     try:
                         os.remove(target_zip)
-                    except:
+                    except OSError:
                         pass
                 
                 wx.CallAfter(self.sound_manager.stop_music)
@@ -2210,7 +2226,8 @@ class MainWindow(wx.Frame):
             if os.path.exists(target_zip):
                  try:
                      os.remove(target_zip)
-                 except: pass
+                 except OSError:
+                     pass
 
     def _launch_updater(self, zip_path, extract_dir=None):
         """Launch the standalone updater."""
@@ -2380,7 +2397,7 @@ class MainWindow(wx.Frame):
                 if os.path.exists(target_zip):
                     try:
                         os.remove(target_zip)
-                    except:
+                    except OSError:
                         pass
                 wx.CallAfter(self.sounds_update_dialog.Destroy)
                 wx.CallAfter(self.speaker.speak, Localization.get("sounds-update-cancelled"))
@@ -2405,7 +2422,8 @@ class MainWindow(wx.Frame):
             if os.path.exists(target_zip):
                  try:
                      os.remove(target_zip)
-                 except: pass
+                 except OSError:
+                     pass
 
     def on_update_locale(self, packet):
         """Handle update_locale packet from server."""

@@ -672,6 +672,7 @@ class GameClient {
             play_turn_sound: true,
             music_volume: 20,
             ambience_volume: 20,
+            voice_volume: 80,
             mute_global_chat: false,
             mute_table_chat: false,
             notify_table_created: true,
@@ -2939,7 +2940,8 @@ class GameClient {
     }
 
     setVoiceVolume(vol) {
-        this.voiceVolume = Math.max(0.1, Math.min(1.0, vol));
+        const parsed = Number(vol);
+        this.voiceVolume = Number.isFinite(parsed) ? Math.max(0.1, Math.min(1.0, parsed)) : 0.8;
         this.voiceRemoteAudio.forEach((element) => {
             element.volume = this.voiceVolume;
         });
@@ -3005,6 +3007,9 @@ class GameClient {
                 } else if (packet.input_id.includes("ambience") && packet.input_id.includes("volume")) {
                     const vol = parseInt(value) / 100;
                     if (!isNaN(vol)) this.setAmbienceVolume(vol);
+                } else if (packet.input_id.includes("voice") && packet.input_id.includes("volume")) {
+                    const vol = parseInt(value) / 100;
+                    if (!isNaN(vol)) this.setVoiceVolume(vol);
                 } else if (packet.input_id.includes("sound") && packet.input_id.includes("volume")) {
                     const vol = parseInt(value) / 100;
                     if (!isNaN(vol)) this.setSoundVolume(vol);
