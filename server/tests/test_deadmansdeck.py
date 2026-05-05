@@ -31,6 +31,7 @@ from server.games.deadmansdeck.game import (
     SOUND_REVOLVER_SPIN,
     SOUND_ROUND_START,
     DeadMansDeckCard,
+    DeadMansDeckClaim,
     DeadMansDeckGame,
 )
 from server.games.deadmansdeck.bot import bot_think as deadmansdeck_bot_think
@@ -129,6 +130,158 @@ def test_game_delegates_bot_logic_to_bot_module() -> None:
     player = game.players[0]
 
     assert game.bot_think(player) == deadmansdeck_bot_think(game, player)
+
+
+def test_bot_challenges_instead_of_forced_false_final_claim() -> None:
+    game = make_game(2)
+    bot = game.players[0]
+    opponent = game.players[1]
+    bot.is_bot = True
+    game.status = "playing"
+    game.game_active = True
+    game.phase = PHASE_PLAYING
+    game.target_rank = "king"
+    game.set_turn_players([bot, opponent])
+    bot.hand = [DeadMansDeckCard(id=1, rank="queen")]
+    opponent.hand = [
+        DeadMansDeckCard(id=2, rank="ace"),
+        DeadMansDeckCard(id=3, rank="king"),
+    ]
+    game.last_claim = DeadMansDeckClaim(
+        player_id=opponent.id,
+        player_name=opponent.name,
+        cards=[DeadMansDeckCard(id=4, rank="ace")],
+        target_rank="king",
+    )
+
+    assert deadmansdeck_bot_think(game, bot) == "call_liar"
+    assert bot.selected_card_ids == []
+
+
+def test_bot_preserves_truthful_exit_card_in_two_player_endgame() -> None:
+    random.seed(101)
+    game = make_game(2)
+    bot = game.players[0]
+    opponent = game.players[1]
+    bot.is_bot = True
+    game.status = "playing"
+    game.game_active = True
+    game.phase = PHASE_PLAYING
+    game.target_rank = "king"
+    game.set_turn_players([bot, opponent])
+    bot.hand = [
+        DeadMansDeckCard(id=1, rank="queen"),
+        DeadMansDeckCard(id=2, rank="king"),
+    ]
+    opponent.hand = [DeadMansDeckCard(id=3, rank="ace")]
+
+    assert deadmansdeck_bot_think(game, bot) == "play_selected"
+
+    selected = [card for card in bot.hand if card.id in bot.selected_card_ids]
+    assert [card.rank for card in selected] == ["queen"]
+
+
+def test_bot_finishes_truthfully_when_forced_challenge_is_good() -> None:
+    random.seed(102)
+    game = make_game(2)
+    bot = game.players[0]
+    opponent = game.players[1]
+    bot.is_bot = True
+    game.status = "playing"
+    game.game_active = True
+    game.phase = PHASE_PLAYING
+    game.target_rank = "king"
+    game.set_turn_players([bot, opponent])
+    bot.hand = [
+        DeadMansDeckCard(id=1, rank="king"),
+        DeadMansDeckCard(id=2, rank="joker"),
+    ]
+    opponent.hand = [DeadMansDeckCard(id=3, rank="ace")]
+
+    assert deadmansdeck_bot_think(game, bot) == "play_selected"
+
+    selected = [card for card in bot.hand if card.id in bot.selected_card_ids]
+    assert [card.rank for card in selected] == ["king", "joker"]
+
+
+def test_bot_calls_overwhelmingly_unlikely_large_claim() -> None:
+    random.seed(1)
+    game = make_game(2)
+    bot = game.players[0]
+    opponent = game.players[1]
+    bot.is_bot = True
+    game.status = "playing"
+    game.game_active = True
+    game.phase = PHASE_PLAYING
+    game.target_rank = "king"
+    game.set_turn_players([bot, opponent])
+    bot.hand = [
+        DeadMansDeckCard(id=1, rank="king"),
+        DeadMansDeckCard(id=2, rank="king"),
+        DeadMansDeckCard(id=3, rank="king"),
+        DeadMansDeckCard(id=4, rank="joker"),
+        DeadMansDeckCard(id=5, rank="joker"),
+    ]
+    opponent.hand = [DeadMansDeckCard(id=6, rank="ace")]
+    game.last_claim = DeadMansDeckClaim(
+        player_id=opponent.id,
+        player_name=opponent.name,
+        cards=[
+            DeadMansDeckCard(id=7, rank="ace"),
+            DeadMansDeckCard(id=8, rank="queen"),
+            DeadMansDeckCard(id=9, rank="queen"),
+        ],
+        target_rank="king",
+    )
+
+    assert deadmansdeck_bot_think(game, bot) == "call_liar"
+
+
+def test_bot_uses_mixed_strategy_for_opening_three_card_claim() -> None:
+    challenges = 0
+    passes = 0
+
+    for seed in range(80):
+        random.seed(seed)
+        game = make_game(2)
+        bot = game.players[0]
+        opponent = game.players[1]
+        bot.is_bot = True
+        game.status = "playing"
+        game.game_active = True
+        game.phase = PHASE_PLAYING
+        game.target_rank = "king"
+        game.set_turn_players([bot, opponent])
+        bot.hand = [
+            DeadMansDeckCard(id=1, rank="king"),
+            DeadMansDeckCard(id=2, rank="queen"),
+            DeadMansDeckCard(id=3, rank="queen"),
+            DeadMansDeckCard(id=4, rank="ace"),
+            DeadMansDeckCard(id=5, rank="ace"),
+        ]
+        opponent.hand = [
+            DeadMansDeckCard(id=6, rank="ace"),
+            DeadMansDeckCard(id=7, rank="queen"),
+        ]
+        game.last_claim = DeadMansDeckClaim(
+            player_id=opponent.id,
+            player_name=opponent.name,
+            cards=[
+                DeadMansDeckCard(id=8, rank="ace"),
+                DeadMansDeckCard(id=9, rank="queen"),
+                DeadMansDeckCard(id=10, rank="queen"),
+            ],
+            target_rank="king",
+        )
+
+        action = deadmansdeck_bot_think(game, bot)
+        if action == "call_liar":
+            challenges += 1
+        elif action == "play_selected":
+            passes += 1
+
+    assert 20 <= challenges <= 60
+    assert passes > 0
 
 
 def test_card_count_action_and_keybind_are_available() -> None:
