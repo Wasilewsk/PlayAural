@@ -613,72 +613,13 @@ class DeadMansPokerGame(Game):
             )
 
         if self.is_touch_client(user):
-            for action in [
-                Action(
-                    id="read_hand",
-                    label=Localization.get(locale, "deadmanspoker-read-hand"),
-                    handler="_action_read_hand",
-                    is_enabled="_is_read_hand_enabled",
-                    is_hidden="_is_private_info_hidden",
-                ),
-                Action(
-                    id="read_community_cards",
-                    label=Localization.get(locale, "deadmanspoker-read-community-cards"),
-                    handler="_action_read_community_cards",
-                    is_enabled="_is_public_info_enabled",
-                    is_hidden="_is_public_info_hidden",
-                    include_spectators=True,
-                ),
-                Action(
-                    id="read_hand_value",
-                    label=Localization.get(locale, "deadmanspoker-read-hand-value"),
-                    handler="_action_read_hand_value",
-                    is_enabled="_is_read_hand_enabled",
-                    is_hidden="_is_private_info_hidden",
-                ),
-                Action(
-                    id="read_table",
-                    label=Localization.get(locale, "deadmanspoker-read-table"),
-                    handler="_action_read_table",
-                    is_enabled="_is_public_info_enabled",
-                    is_hidden="_is_public_info_hidden",
-                    include_spectators=True,
-                ),
-                Action(
-                    id="read_card_counts",
-                    label=Localization.get(locale, "deadmanspoker-read-card-counts"),
-                    handler="_action_read_card_counts",
-                    is_enabled="_is_public_info_enabled",
-                    is_hidden="_is_public_info_hidden",
-                    include_spectators=True,
-                ),
-                Action(
-                    id="read_revolvers",
-                    label=Localization.get(locale, "deadmanspoker-read-revolvers"),
-                    handler="_action_read_revolvers",
-                    is_enabled="_is_public_info_enabled",
-                    is_hidden="_is_public_info_hidden",
-                    include_spectators=True,
-                ),
-            ]:
-                action_set.add(action)
-
             primary_actions = ["call", "fold", "coward_fold", "switch_card", "all_in"]
             switch_actions = [f"choose_switch_{index}" for index in range(3)]
-            info_actions = [
-                "read_hand",
-                "read_community_cards",
-                "read_hand_value",
-                "read_table",
-                "read_card_counts",
-                "read_revolvers",
-            ]
-            pinned = set(primary_actions) | set(switch_actions) | set(info_actions)
+            pinned = set(primary_actions) | set(switch_actions)
             rest = [action_id for action_id in action_set._order if action_id not in pinned]
             action_set._order = (
                 [action_id for action_id in primary_actions if action_id in action_set._order]
                 + [action_id for action_id in switch_actions if action_id in action_set._order]
-                + [action_id for action_id in info_actions if action_id in action_set._order]
                 + rest
             )
 

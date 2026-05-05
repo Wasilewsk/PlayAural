@@ -51,6 +51,18 @@ def make_game(player_count: int = 2) -> DeadMansPokerGame:
     return game
 
 
+def make_touch_game(player_count: int = 2) -> DeadMansPokerGame:
+    game = DeadMansPokerGame()
+    game.setup_keybinds()
+    for index in range(player_count):
+        name = f"Player{index + 1}"
+        user = MockUser(name, uuid=f"p{index + 1}")
+        user.client_type = "web"
+        game.add_player(name, user)
+    game.host = "Player1"
+    return game
+
+
 def make_bot_game(player_count: int = 2) -> DeadMansPokerGame:
     game = DeadMansPokerGame()
     game.setup_keybinds()
@@ -302,6 +314,39 @@ def test_read_community_cards_reports_only_table_cards() -> None:
     assert "Community cards:" in text
     assert "Hidden:" in text
     assert "Current turn" not in text
+
+
+def test_touch_turn_menu_does_not_duplicate_info_actions() -> None:
+    game = make_touch_game(2)
+    start_to_decision(game)
+    player = game.players[0]
+    user = game.get_user(player)
+    assert user is not None
+
+    items = user.get_current_menu_items("turn_menu") or []
+    item_ids = [getattr(item, "id", "") for item in items]
+    item_texts = [getattr(item, "text", str(item)) for item in items]
+    info_ids = [
+        "read_hand",
+        "read_community_cards",
+        "read_hand_value",
+        "read_table",
+        "read_card_counts",
+        "read_revolvers",
+    ]
+    info_labels = [
+        Localization.get("en", "deadmanspoker-read-hand"),
+        Localization.get("en", "deadmanspoker-read-community-cards"),
+        Localization.get("en", "deadmanspoker-read-hand-value"),
+        Localization.get("en", "deadmanspoker-read-table"),
+        Localization.get("en", "deadmanspoker-read-card-counts"),
+        Localization.get("en", "deadmanspoker-read-revolvers"),
+    ]
+
+    for action_id in info_ids:
+        assert item_ids.count(action_id) == 1
+    for label in info_labels:
+        assert item_texts.count(label) == 1
 
 
 def test_decision_rounds_reveal_community_cards_in_order() -> None:
