@@ -212,6 +212,7 @@ music-volume-option = Âm lượng nhạc: { $value }%
 ambience-volume-option = Âm lượng môi trường: { $value }%
 voice-volume-option = Âm lượng trò chuyện thoại: { $value }%
 audio-input-device-option = Thiết bị đầu vào âm thanh: { $device }
+audio-input-device-default = Thiết bị đầu vào mặc định của hệ thống
 
 mute-global-chat-option = Tắt tiếng trò chuyện chung: { $status }
 mute-table-chat-option = Tắt tiếng trò chuyện trong bàn: { $status }

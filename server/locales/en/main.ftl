@@ -212,6 +212,7 @@ music-volume-option = Music Volume: { $value }%
 ambience-volume-option = Ambience Volume: { $value }%
 voice-volume-option = Voice Chat Volume: { $value }%
 audio-input-device-option = Audio Input Device: { $device }
+audio-input-device-default = System Default Input Device
 
 mute-global-chat-option = Mute Global Chat: { $status }
 mute-table-chat-option = Mute Table Chat: { $status }

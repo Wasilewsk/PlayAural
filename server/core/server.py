@@ -1644,32 +1644,50 @@ PlayAural Server
     }
 
     def _show_options_menu(self, user: NetworkUser) -> None:
-        """Show options menu."""
+        """Show options menu (top-level hub)."""
         languages = Localization.get_available_languages(user.locale, fallback=user.locale)
         current_lang = languages.get(user.locale, user.locale)
-        prefs = user.preferences
 
+        items = [
+            MenuItem(
+                text=Localization.get(user.locale, "language-option", language=current_lang),
+                id="language",
+            ),
+            MenuItem(
+                text=Localization.get(user.locale, "options-category-audio"),
+                id="options_audio",
+            ),
+            MenuItem(
+                text=Localization.get(user.locale, "options-category-accessibility"),
+                id="options_accessibility",
+            ),
+            MenuItem(
+                text=Localization.get(user.locale, "options-category-notifications"),
+                id="options_notifications",
+            ),
+            MenuItem(
+                text=Localization.get(user.locale, "options-category-game"),
+                id="options_game",
+            ),
+            MenuItem(text=Localization.get(user.locale, "back"), id="back"),
+        ]
+
+        user.show_menu(
+            "options_menu",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {"menu": "options_menu"}
+
+    def _show_audio_submenu(self, user: NetworkUser) -> None:
+        """Audio submenu."""
+        prefs = user.preferences
         audio_input_device_name = (
             prefs.desktop_audio_input_device_name
             or Localization.get(user.locale, "audio-input-device-default")
         )
-
-        items = []
-
-        # ── Language ─────────────────────────────────────────────────────────────
-        # Placed at the very top, outside any category.
-        items.append(
-            MenuItem(
-                text=Localization.get(user.locale, "language-option", language=current_lang),
-                id="language",
-            )
-        )
-
-        # ── Audio ─────────────────────────────────────────────────────────────────
-        items.append(
-            MenuItem(text=Localization.get(user.locale, "options-category-audio"), id="--category-audio")
-        )
-        items.extend([
+        items = [
             MenuItem(
                 text=Localization.get(user.locale, "music-volume-option", value=prefs.music_volume),
                 id="music_volume",
@@ -1682,8 +1700,7 @@ PlayAural Server
                 text=Localization.get(user.locale, "voice-volume-option", value=prefs.voice_volume),
                 id="voice_volume",
             ),
-        ])
-
+        ]
         if not is_web_client_type(user.client_type) and not is_mobile_client_type(user.client_type):
             items.append(
                 MenuItem(
@@ -1691,20 +1708,18 @@ PlayAural Server
                     id="audio_input_device",
                 )
             )
-
-        items.append(
-            MenuItem(
-                text=Localization.get(
-                    user.locale,
-                    "turn-sound-option",
-                    status=Localization.get(
-                        user.locale, "option-on" if prefs.play_turn_sound else "option-off"
+            items.append(
+                MenuItem(
+                    text=Localization.get(
+                        user.locale,
+                        "turn-sound-option",
+                        status=Localization.get(
+                            user.locale, "option-on" if prefs.play_turn_sound else "option-off"
+                        ),
                     ),
-                ),
-                id="turn_sound",
+                    id="turn_sound",
+                )
             )
-        )
-
         if not uses_self_voicing_settings_type(user.client_type):
             items.append(
                 MenuItem(
@@ -1719,24 +1734,30 @@ PlayAural Server
                     id="play_typing_sounds",
                 )
             )
-
-        # ── Accessibility ───────────────────────────────────────────────────────
-        items.append(
-            MenuItem(
-                text=Localization.get(user.locale, "options-category-accessibility"), id="--category-accessibility"
-            )
+        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
+        user.show_menu(
+            "options_audio_submenu",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
         )
+        self._user_states[user.username] = {"menu": "options_audio_submenu"}
 
+    def _show_accessibility_submenu(self, user: NetworkUser) -> None:
+        """Accessibility submenu."""
+        prefs = user.preferences
         if is_web_client_type(user.client_type):
-            items.append(
-                MenuItem(text=Localization.get(user.locale, "speech-settings"), id="web_speech_settings")
-            )
+            items = [
+                MenuItem(text=Localization.get(user.locale, "speech-settings"), id="web_speech_settings"),
+                MenuItem(text=Localization.get(user.locale, "back"), id="back"),
+            ]
         elif is_mobile_client_type(user.client_type):
-            items.append(
-                MenuItem(text=Localization.get(user.locale, "mobile-speech-settings"), id="mobile_speech_settings")
-            )
+            items = [
+                MenuItem(text=Localization.get(user.locale, "mobile-speech-settings"), id="mobile_speech_settings"),
+                MenuItem(text=Localization.get(user.locale, "back"), id="back"),
+            ]
         else:
-            items.append(
+            items = [
                 MenuItem(
                     text=Localization.get(
                         user.locale,
@@ -1747,16 +1768,21 @@ PlayAural Server
                         ),
                     ),
                     id="invert_multiline_enter",
-                )
-            )
-
-        # ── Notifications ───────────────────────────────────────────────────────
-        items.append(
-            MenuItem(
-                text=Localization.get(user.locale, "options-category-notifications"), id="--category-notifications"
-            )
+                ),
+                MenuItem(text=Localization.get(user.locale, "back"), id="back"),
+            ]
+        user.show_menu(
+            "options_accessibility_submenu",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
         )
-        items.extend([
+        self._user_states[user.username] = {"menu": "options_accessibility_submenu"}
+
+    def _show_notifications_submenu(self, user: NetworkUser) -> None:
+        """Notifications submenu."""
+        prefs = user.preferences
+        items = [
             MenuItem(
                 text=Localization.get(
                     user.locale,
@@ -1804,13 +1830,20 @@ PlayAural Server
                 ),
                 id="notify_table_created",
             ),
-        ])
-
-        # ── Game ─────────────────────────────────────────────────────────────────
-        items.append(
-            MenuItem(text=Localization.get(user.locale, "options-category-game"), id="--category-game")
+            MenuItem(text=Localization.get(user.locale, "back"), id="back"),
+        ]
+        user.show_menu(
+            "options_notifications_submenu",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
         )
-        items.extend([
+        self._user_states[user.username] = {"menu": "options_notifications_submenu"}
+
+    def _show_game_submenu(self, user: NetworkUser) -> None:
+        """Game submenu."""
+        prefs = user.preferences
+        items = [
             MenuItem(
                 text=Localization.get(
                     user.locale,
@@ -1845,17 +1878,15 @@ PlayAural Server
                 ),
                 id="clear_kept",
             ),
-        ])
-
-        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
-
+            MenuItem(text=Localization.get(user.locale, "back"), id="back"),
+        ]
         user.show_menu(
-            "options_menu",
+            "options_game_submenu",
             items,
             multiletter=True,
             escape_behavior=EscapeBehavior.SELECT_LAST,
         )
-        self._user_states[user.username] = {"menu": "options_menu"}
+        self._user_states[user.username] = {"menu": "options_game_submenu"}
 
     def _show_audio_input_device_menu(self, user: NetworkUser) -> None:
         """Show the desktop audio input device selection menu."""
@@ -2904,6 +2935,14 @@ PlayAural Server
             await self._handle_join_selection(user, selection_id, state)
         elif current_menu == "options_menu":
             await self._handle_options_selection(user, selection_id)
+        elif current_menu == "options_audio_submenu":
+            await self._handle_audio_submenu_selection(user, selection_id)
+        elif current_menu == "options_accessibility_submenu":
+            await self._handle_accessibility_submenu_selection(user, selection_id)
+        elif current_menu == "options_notifications_submenu":
+            await self._handle_notifications_submenu_selection(user, selection_id)
+        elif current_menu == "options_game_submenu":
+            await self._handle_game_submenu_selection(user, selection_id)
         elif current_menu == "language_menu":
             await self._handle_language_selection(user, selection_id)
         elif current_menu == "speech_settings_menu":
@@ -3861,31 +3900,34 @@ PlayAural Server
     async def _handle_options_selection(
         self, user: NetworkUser, selection_id: str
     ) -> None:
-        """Handle options menu selection."""
-        # Category headers are non-interactive separators – ignore selection.
-        if selection_id and selection_id.startswith("--category-"):
-            return
-
+        """Handle options menu (hub) selection."""
         if selection_id == "language":
             self._nav_push(user, self._show_language_menu)
-            return
-        elif selection_id in {"speech_settings", "web_speech_settings"}:
-            self._nav_push(user, self._show_speech_settings_menu)
-            return
-        elif selection_id == "mobile_speech_settings":
-            self._nav_push(user, self._show_mobile_speech_settings_menu)
-            return
+        elif selection_id == "options_audio":
+            self._nav_push(user, self._show_audio_submenu)
+        elif selection_id == "options_accessibility":
+            self._nav_push(user, self._show_accessibility_submenu)
+        elif selection_id == "options_notifications":
+            self._nav_push(user, self._show_notifications_submenu)
+        elif selection_id == "options_game":
+            self._nav_push(user, self._show_game_submenu)
+        elif selection_id == "back":
+            self._nav_back(user)
 
+    async def _handle_audio_submenu_selection(
+        self, user: NetworkUser, selection_id: str
+    ) -> None:
+        """Handle audio submenu selection."""
         prefs = user.preferences
-
-        if selection_id == "music_volume":
+        if selection_id == "back":
+            self._nav_back(user)
+        elif selection_id == "music_volume":
             user.show_editbox(
                 "music_volume_input",
                 Localization.get(user.locale, "enter-music-volume"),
                 default_value=str(prefs.music_volume),
             )
             self._enter_input_state(user, "music_volume_input")
-            return
         elif selection_id == "ambience_volume":
             user.show_editbox(
                 "ambience_volume_input",
@@ -3893,7 +3935,6 @@ PlayAural Server
                 default_value=str(prefs.ambience_volume),
             )
             self._enter_input_state(user, "ambience_volume_input")
-            return
         elif selection_id == "voice_volume":
             user.show_editbox(
                 "voice_volume_input",
@@ -3901,49 +3942,76 @@ PlayAural Server
                 default_value=str(prefs.voice_volume),
             )
             self._enter_input_state(user, "voice_volume_input")
-            return
         elif selection_id == "turn_sound":
             prefs.play_turn_sound = not prefs.play_turn_sound
             self._save_user_preferences(user)
             self._sync_pref_to_client(user, "gameplay/play_turn_sound", prefs.play_turn_sound)
-            self._nav_refresh(user, self._show_options_menu)
-        elif selection_id == "mute_global_chat":
-            prefs.mute_global_chat = not prefs.mute_global_chat
-            self._save_user_preferences(user)
-            self._sync_pref_to_client(user, "social/mute_global_chat", prefs.mute_global_chat)
-            self._nav_refresh(user, self._show_options_menu)
-        elif selection_id == "mute_table_chat":
-            prefs.mute_table_chat = not prefs.mute_table_chat
-            self._save_user_preferences(user)
-            self._sync_pref_to_client(user, "social/mute_table_chat", prefs.mute_table_chat)
-            self._nav_refresh(user, self._show_options_menu)
-        elif selection_id == "invert_multiline_enter":
-            prefs.invert_multiline_enter_behavior = not prefs.invert_multiline_enter_behavior
-            self._save_user_preferences(user)
-            self._sync_pref_to_client(user, "interface/invert_multiline_enter_behavior", prefs.invert_multiline_enter_behavior)
-            self._nav_refresh(user, self._show_options_menu)
+            self._nav_refresh(user, self._show_audio_submenu)
         elif selection_id == "play_typing_sounds":
             prefs.play_typing_sounds = not prefs.play_typing_sounds
             self._save_user_preferences(user)
             self._sync_pref_to_client(user, "interface/play_typing_sounds", prefs.play_typing_sounds)
-            self._nav_refresh(user, self._show_options_menu)
-        elif selection_id == "notify_table_created":
-            prefs.notify_table_created = not prefs.notify_table_created
+            self._nav_refresh(user, self._show_audio_submenu)
+        elif selection_id == "audio_input_device":
+            self._nav_push(user, self._show_audio_input_device_menu)
+
+    async def _handle_accessibility_submenu_selection(
+        self, user: NetworkUser, selection_id: str
+    ) -> None:
+        """Handle accessibility submenu selection."""
+        if selection_id == "back":
+            self._nav_back(user)
+        elif selection_id in {"speech_settings", "web_speech_settings"}:
+            self._nav_push(user, self._show_speech_settings_menu)
+        elif selection_id == "mobile_speech_settings":
+            self._nav_push(user, self._show_mobile_speech_settings_menu)
+        elif selection_id == "invert_multiline_enter":
+            prefs = user.preferences
+            prefs.invert_multiline_enter_behavior = not prefs.invert_multiline_enter_behavior
             self._save_user_preferences(user)
-            self._sync_pref_to_client(user, "notifications/notify_table_created", prefs.notify_table_created)
-            self._nav_refresh(user, self._show_options_menu)
+            self._sync_pref_to_client(user, "interface/invert_multiline_enter_behavior", prefs.invert_multiline_enter_behavior)
+            self._nav_refresh(user, self._show_accessibility_submenu)
+
+    async def _handle_notifications_submenu_selection(
+        self, user: NetworkUser, selection_id: str
+    ) -> None:
+        """Handle notifications submenu selection."""
+        prefs = user.preferences
+        if selection_id == "back":
+            self._nav_back(user)
+        elif selection_id == "mute_global_chat":
+            prefs.mute_global_chat = not prefs.mute_global_chat
+            self._save_user_preferences(user)
+            self._sync_pref_to_client(user, "social/mute_global_chat", prefs.mute_global_chat)
+            self._nav_refresh(user, self._show_notifications_submenu)
+        elif selection_id == "mute_table_chat":
+            prefs.mute_table_chat = not prefs.mute_table_chat
+            self._save_user_preferences(user)
+            self._sync_pref_to_client(user, "social/mute_table_chat", prefs.mute_table_chat)
+            self._nav_refresh(user, self._show_notifications_submenu)
         elif selection_id == "notify_user_presence":
             prefs.notify_user_presence = not prefs.notify_user_presence
             self._save_user_preferences(user)
             self._sync_pref_to_client(user, "notifications/notify_user_presence", prefs.notify_user_presence)
-            self._nav_refresh(user, self._show_options_menu)
+            self._nav_refresh(user, self._show_notifications_submenu)
         elif selection_id == "notify_friend_presence":
             prefs.notify_friend_presence = not prefs.notify_friend_presence
             self._save_user_preferences(user)
             self._sync_pref_to_client(user, "notifications/notify_friend_presence", prefs.notify_friend_presence)
-            self._nav_refresh(user, self._show_options_menu)
-        elif selection_id == "audio_input_device":
-            self._nav_push(user, self._show_audio_input_device_menu)
+            self._nav_refresh(user, self._show_notifications_submenu)
+        elif selection_id == "notify_table_created":
+            prefs.notify_table_created = not prefs.notify_table_created
+            self._save_user_preferences(user)
+            self._sync_pref_to_client(user, "notifications/notify_table_created", prefs.notify_table_created)
+            self._nav_refresh(user, self._show_notifications_submenu)
+
+    async def _handle_game_submenu_selection(
+        self, user: NetworkUser, selection_id: str
+    ) -> None:
+        """Handle game submenu selection."""
+        prefs = user.preferences
+        if selection_id == "back":
+            self._nav_back(user)
         elif selection_id == "custom_bot_names":
             prefs.allow_custom_bot_names = not prefs.allow_custom_bot_names
             self._save_user_preferences(user)
@@ -3952,16 +4020,14 @@ PlayAural Server
                 "gameplay/allow_custom_bot_names",
                 prefs.allow_custom_bot_names,
             )
-            self._nav_refresh(user, self._show_options_menu)
+            self._nav_refresh(user, self._show_game_submenu)
+        elif selection_id == "dice_keeping_style":
+            self._nav_push(user, self._show_dice_keeping_style_menu)
         elif selection_id == "clear_kept":
             prefs.clear_kept_on_roll = not prefs.clear_kept_on_roll
             self._save_user_preferences(user)
             self._sync_pref_to_client(user, "dice/clear_kept_on_roll", prefs.clear_kept_on_roll)
-            self._nav_refresh(user, self._show_options_menu)
-        elif selection_id == "dice_keeping_style":
-            self._nav_push(user, self._show_dice_keeping_style_menu)
-        elif selection_id == "back":
-            self._nav_back(user)
+            self._nav_refresh(user, self._show_game_submenu)
 
     async def _handle_audio_input_device_selection(
         self, user: NetworkUser, selection_id: str
