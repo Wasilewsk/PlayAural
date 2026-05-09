@@ -54,7 +54,7 @@ From strongest to weakest, poker hands are:
 
 If two players have the same type of hand, the higher ranks decide the winner. For example, a pair of kings beats a pair of queens. If the main ranks are equal, the next highest extra cards decide. If the best hands are exactly tied, those players tie for the best hand.
 
-The game may announce a royal flush as an ace-high straight flush. That still means it is the strongest possible hand.
+The game announces this strongest hand as Royal Flush.
 
 \*\*Hand Setup\*\*
 
@@ -149,7 +149,7 @@ If the chamber is empty, you survive and your committed bullets are cleared. If 
 Use the information actions whenever you need orientation:
 
 \* \*\*Read hand:\*\* hear your private cards.
-\* \*\*Read hand value:\*\* hear your current best hand estimate.
+\* \*\*Read hand strength:\*\* hear your current best hand estimate.
 \* \*\*Read community cards:\*\* hear the revealed table cards and how many community cards are still face down.
 \* \*\*Read table:\*\* hear the hand number, betting round, community cards, current turn, and player states.
 \* \*\*Read card counts:\*\* hear how many private cards each player has.
@@ -175,7 +175,7 @@ Dead Man's Poker currently uses fixed rules. The host has no game-specific optio
 \* \*\*D:\*\* Switch card.
 \* \*\*Shift+A:\*\* All-in.
 \* \*\*W:\*\* Read your hand.
-\* \*\*G:\*\* Read your current hand value.
+\* \*\*G:\*\* Read your current hand strength.
 \* \*\*E:\*\* Read community cards.
 \* \*\*V:\*\* Read the full table status.
 \* \*\*H:\*\* Read card counts.

@@ -18,7 +18,7 @@ poker-check-position = Your position
 
 poker-read-hand = Read hand
 poker-read-table = Read table cards
-poker-hand-value = Hand value
+poker-hand-value = Read hand strength
 poker-read-card = Read card { $index }
 poker-dealt-cards = You are dealt { $cards }.
 poker-flop = Flop: { $cards }.

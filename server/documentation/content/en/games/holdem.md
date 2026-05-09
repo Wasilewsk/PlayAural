@@ -112,7 +112,7 @@ Keyboard Shortcuts
 
 \* \*\*W:\*\* Read private hole cards.
 
-\* \*\*G:\*\* Check hand value/strength.
+\* \*\*G:\*\* Read hand strength.
 
 \* \*\*N:\*\* Check current bet to call.
 

@@ -16,10 +16,10 @@ poker-check-button = Ai đang giữ nút
 poker-check-dealer = Ai là người chia bài
 poker-check-position = Vị trí của bạn
 
-poker-read-hand = Xem bài trên tay
-poker-read-table = Xem bài trên bàn
-poker-hand-value = Giá trị bài
-poker-read-card = Xem lá thứ { $index }
+poker-read-hand = Đọc bài trên tay
+poker-read-table = Đọc bài chung
+poker-hand-value = Đọc sức mạnh tay bài
+poker-read-card = Đọc lá thứ { $index }
 poker-dealt-cards = Bạn được chia { $cards }.
 poker-flop = Vòng Flop: { $cards }.
 poker-turn = Vòng Turn: { $card }.

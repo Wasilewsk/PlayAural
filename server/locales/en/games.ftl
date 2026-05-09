@@ -148,6 +148,7 @@ poker-flush-high-with = { $high } high Flush, with { $rest }
 poker-full-house = Full House, { $trips } over { $pair }
 poker-quads-with = Four of a Kind, { $quads }, with { $kicker }
 poker-quads = Four of a Kind, { $quads }
+poker-royal-flush = Royal Flush
 poker-straight-flush-high = { $high } high Straight Flush
 poker-unknown-hand = Unknown hand
 

@@ -110,7 +110,7 @@ Betting Actions
 
 \* \*\*W:\*\* Read hand cards.
 
-\* \*\*G:\*\* Check current hand value.
+\* \*\*G:\*\* Read hand strength.
 
 \* \*\*N:\*\* Check current bet to call.
 

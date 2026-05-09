@@ -48,25 +48,25 @@ Xếp hạng Bài (Từ cao xuống thấp)
 
 
 
-1\. Thùng phá sảnh lớn (Sảnh chúa): Sảnh 10, J, Q, K, A cùng chất.
+1\. Sảnh chúa: 10, J, Q, K, Át cùng chất.
 
 2\. Thùng phá sảnh: 5 lá liên tiếp cùng chất.
 
-3\. Tứ quý: 4 lá bài giống nhau về số.
+3\. Tứ quý: 4 lá cùng hạng, kèm 1 lá lẻ.
 
-4\. Cù lũ: Một bộ ba đi kèm với một đôi.
+4\. Cù lũ: Một bộ sám cô đi kèm với một đôi.
 
-5\. Thùng: 5 lá bài cùng chất.
+5\. Thùng: 5 lá cùng chất, không cần liên tiếp.
 
-6\. Sảnh: 5 lá bài liên tiếp khác chất.
+6\. Sảnh: 5 lá liên tiếp nhưng không đồng chất.
 
-7\. Sám cô (Bộ ba): 3 lá bài giống nhau về số.
+7\. Sám cô: 3 lá cùng hạng, kèm 2 lá lẻ.
 
-8\. Thú (Hai đôi): Hai đôi khác nhau.
+8\. Hai đôi: Hai đôi khác nhau, kèm 1 lá lẻ.
 
-9\. Một đôi: Một đôi giống nhau.
+9\. Một đôi: 2 lá cùng hạng, kèm 3 lá lẻ.
 
-10\. Mậu thầu (Lá bài cao): Lá bài cao nhất (khi không có liên kết nào).
+10\. Mậu thầu: Không có đôi, không có sảnh, không có thùng, và không có tay bài mạnh hơn; xét lá cao nhất.
 
 
 
@@ -112,7 +112,7 @@ Phím tắt
 
 \* \*\*W:\*\* Đọc các lá bài tẩy (bài riêng).
 
-\* \*\*G:\*\* Kiểm tra độ mạnh tay bài hiện tại.
+\* \*\*G:\*\* Đọc sức mạnh tay bài.
 
 \* \*\*N:\*\* Kiểm tra mức cược hiện tại cần theo.
 

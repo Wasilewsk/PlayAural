@@ -171,7 +171,7 @@ def test_describe_hand_pair():
     assert describe_hand(score) == "Pair of Aces, with 9, 7, and 4"
 
 
-def test_describe_best_hand_straight_flush():
+def test_describe_best_hand_royal_flush():
     cards = _cards(
         [
             (1, SUIT_SPADES),
@@ -184,8 +184,41 @@ def test_describe_best_hand_straight_flush():
         ]
     )
     description, best = describe_best_hand(cards)
-    assert description == "Ace high Straight Flush"
+    assert description == "Royal Flush"
     assert len(best) == 5
 
+
+def test_describe_hand_vietnamese_terms():
+    royal = _cards(
+        [
+            (1, SUIT_SPADES),
+            (13, SUIT_SPADES),
+            (12, SUIT_SPADES),
+            (11, SUIT_SPADES),
+            (10, SUIT_SPADES),
+        ]
+    )
+    trips = _cards(
+        [
+            (12, SUIT_SPADES),
+            (12, SUIT_DIAMONDS),
+            (12, SUIT_CLUBS),
+            (9, SUIT_HEARTS),
+            (2, SUIT_DIAMONDS),
+        ]
+    )
+    full_house = _cards(
+        [
+            (13, SUIT_SPADES),
+            (13, SUIT_DIAMONDS),
+            (13, SUIT_CLUBS),
+            (5, SUIT_HEARTS),
+            (5, SUIT_DIAMONDS),
+        ]
+    )
+
+    assert describe_hand(score_5_cards(royal), "vi") == "Sảnh chúa"
+    assert describe_hand(score_5_cards(trips), "vi") == "Sám cô Q, kèm 9 và 2"
+    assert describe_hand(score_5_cards(full_house), "vi") == "Cù lũ, K trên 5"
 
 

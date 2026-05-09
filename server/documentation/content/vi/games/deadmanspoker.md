@@ -41,7 +41,7 @@ Chất bài không tự mạnh hơn nhau. Cơ không mạnh hơn tép, tép khô
 
 Từ mạnh nhất đến yếu nhất, các tay bài là:
 
-\* \*\*Sảnh rồng:\*\* 10, J, Q, K, và Át, tất cả cùng chất. Ví dụ: 10 cơ, J cơ, Q cơ, K cơ, Át cơ. Đây là thùng phá sảnh mạnh nhất.
+\* \*\*Sảnh chúa:\*\* 10, J, Q, K, và Át, tất cả cùng chất. Ví dụ: 10 cơ, J cơ, Q cơ, K cơ, Át cơ. Đây là thùng phá sảnh mạnh nhất.
 \* \*\*Thùng phá sảnh:\*\* 5 lá liên tiếp và cùng chất. Ví dụ: 6 bích, 7 bích, 8 bích, 9 bích, 10 bích.
 \* \*\*Tứ quý:\*\* 4 lá cùng hạng, kèm 1 lá lẻ. Ví dụ: bốn lá Q và một lá 7.
 \* \*\*Cù lũ:\*\* 3 lá cùng hạng kèm 2 lá cùng hạng khác. Ví dụ: ba lá K và hai lá 4.
@@ -54,7 +54,7 @@ Từ mạnh nhất đến yếu nhất, các tay bài là:
 
 Nếu hai người có cùng loại tay bài, hạng cao hơn sẽ thắng. Ví dụ, đôi K thắng đôi Q. Nếu phần chính ngang nhau, các lá lẻ cao hơn sẽ được xét tiếp. Nếu tay bài mạnh nhất giống hệt nhau, những người đó hòa tay bài mạnh nhất.
 
-Trong hệ thống đọc bài, sảnh rồng có thể được đọc là thùng phá sảnh tới Át. Cách đọc đó vẫn chỉ tay bài mạnh nhất.
+Khi sở hữu tay bài này, hệ thống sẽ đọc là Sảnh chúa.
 
 \*\*Chuẩn bị ván bài\*\*
 

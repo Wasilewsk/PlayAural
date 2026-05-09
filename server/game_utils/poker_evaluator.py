@@ -163,6 +163,8 @@ def describe_hand(score: tuple[int, tuple[int, ...]], locale: str = "en") -> str
         )
 
     if category == STRAIGHT_FLUSH:
+        if tiebreakers[0] == 14:
+            return Localization.get(locale, "poker-royal-flush")
         high = _cap(_rank_name(tiebreakers[0], locale))
         return Localization.get(
             locale, "poker-straight-flush-high", high=high
