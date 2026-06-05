@@ -1,58 +1,58 @@
-# Nine game messages
+# Thông báo trò chơi Nine
 
-# Game name and description
+# Tên và mô tả trò chơi
 game-name-nine = Nine
-nine-description = A popular Russian card game in which players build suit sequences.
+nine-description = Một trò chơi bài Nga phổ biến, trong đó người chơi xếp các dãy bài cùng chất.
 
-# Player count validation
-nine-error-invalid-player-count = Nine can only be played with 2, 3, 4, or 6 players.
+# Kiểm tra số người chơi
+nine-error-invalid-player-count = Nine chỉ chơi được với 2, 3, 4 hoặc 6 người chơi.
 
-# Dealing messages
-nine-player-nine-deal = Dealing {$cards} cards to all players.
+# Thông báo chia bài
+nine-player-nine-deal = Chia {$cards} lá bài cho mỗi người chơi.
 
-# Game start
-nine-you-start-player-announcement = You have the nine of clubs and start the game.
-nine-player-start-player-announcement = { $player } has the nine of clubs and starts the game.
+# Bắt đầu trò chơi
+nine-you-start-player-announcement = Bạn có chín chuồn và sẽ bắt đầu ván chơi.
+nine-player-start-player-announcement = { $player } có chín chuồn và bắt đầu ván chơi.
 
-# Turn actions
-nine-you-play-card = You play the { $card }.
-nine-player-plays-card = { $player } plays the { $card }.
+# Lượt đi
+nine-you-play-card = Bạn đánh { $card }.
+nine-player-plays-card = { $player } đánh { $card }.
 
-nine-you-plays-nine-clubs = You play the nine of clubs.
-nine-player-plays-nine-clubs = { $player } plays the nine of clubs.
+nine-you-plays-nine-clubs = Bạn đánh chín chuồn.
+nine-player-plays-nine-clubs = { $player } đánh chín chuồn.
 
-nine-you-plays-nine-suit = You play the { $card } to start the { $suit } sequence.
-nine-player-plays-nine-suit = { $player } plays the { $card } to start the { $suit } sequence.
+nine-you-plays-nine-suit = Bạn đánh { $card } để mở dãy { $suit }.
+nine-player-plays-nine-suit = { $player } đánh { $card } để mở dãy { $suit }.
 
-nine-you-extend-sequence = You extend the { $suit } sequence with the { $card }.
-nine-player-extend-sequence = { $player } extends the { $suit } sequence with the { $card }.
+nine-you-extend-sequence = Bạn nối dài dãy { $suit } bằng { $card }.
+nine-player-extend-sequence = { $player } nối dài dãy { $suit } bằng { $card }.
 
-nine-you-skips-turn = You have no valid moves and must skip your turn.
-nine-player-skips-turn = { $player } has no valid moves and skips their turn.
+nine-you-skips-turn = Bạn không có nước đi hợp lệ nên phải bỏ lượt.
+nine-player-skips-turn = { $player } không có nước đi hợp lệ nên bỏ lượt.
 
-# Reasons for not being able to play a card
-nine-reason-not-your-turn = It is not your turn.
-nine-reason-must-play-nine-clubs = You must play the nine of clubs to start the game.
-nine-reason-no-nine = You do not have a nine to start a new sequence.
-nine-reason-cannot-extend = That card cannot extend the { $suit } sequence.
-nine-reason-generic = That card cannot be played right now.
+# Lý do không thể đánh bài
+nine-reason-not-your-turn = Chưa đến lượt bạn.
+nine-reason-must-play-nine-clubs = Bạn phải đánh chín chuồn để bắt đầu ván chơi.
+nine-reason-no-nine = Bạn không có quân chín nào để mở dãy mới.
+nine-reason-cannot-extend = Lá bài đó không nối được vào dãy { $suit }.
+nine-reason-generic = Lá bài đó hiện không đánh được.
 
-# Winning
-nine-you-wins-game = You have no cards left and win the game!
-nine-player-wins-game = { $player } has no cards left and wins the game!
-nine-player-game-ended = The game of Nine has ended.
-nine-you-game-ended = The game of Nine has ended.
+# Chiến thắng
+nine-you-wins-game = Bạn đã hết bài và thắng ván chơi!
+nine-player-wins-game = { $player } đã hết bài và thắng ván chơi!
+nine-player-game-ended = Ván Nine đã kết thúc.
+nine-you-game-ended = Ván Nine đã kết thúc.
 
-nine-you-win = You win!
-nine-you-lose = You lose!
-nine-final-score = Cards left: { $score }
+nine-you-win = Bạn thắng!
+nine-you-lose = Bạn thua!
+nine-final-score = Số bài còn lại: { $score }
 
-# Status
-nine-status = { $name }: { $cards_left } cards left.
-nine-status-sequence = { $suit } sequence: { $sequence }.
-nine-status-no-sequence = No { $suit } sequence started yet.
-nine-none = none
-nine-action-check-sequences = Check Sequences
-nine-action-check-hand-counts = Check Hand Counts
+# Trạng thái
+nine-status = { $name }: còn { $cards_left } lá bài.
+nine-status-sequence = Dãy { $suit }: { $sequence }.
+nine-status-no-sequence = Chưa có dãy { $suit } nào được mở.
+nine-none = không có
+nine-action-check-sequences = Xem các dãy bài
+nine-action-check-hand-counts = Xem số bài trên tay
 
-nine-status-player-hand-count = { $player }: { $count } cards
+nine-status-player-hand-count = { $player }: { $count } lá bài
