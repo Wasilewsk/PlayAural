@@ -46,6 +46,7 @@ class OptionMeta:
     label: str  # Localization key for the option label
     change_msg: str  # Localization key for the change announcement
     prompt: str = ""  # Localization key for input prompt (if applicable)
+    description: str = ""  # Localization key for a longer description (spoken on demand)
 
     def get_label(self, locale: str, value: Any) -> str:
         """Get the localized label with current value interpolated.
@@ -331,13 +332,32 @@ class BoolOption(OptionMeta):
         return True, value.lower() in ("true", "1", "yes")
 
 
-def option_field(meta: OptionMeta) -> Any:
+def option_field(
+    meta: OptionMeta,
+    *,
+    visible_when: (
+        tuple[str, Callable[[Any], bool]]
+        | list[tuple[str, Callable[[Any], bool]]]
+        | None
+    ) = None,
+) -> Any:
     """Create a dataclass field with option metadata attached.
 
     Usage:
         target_score: int = option_field(IntOption(default=50, ...))
+
+    Args:
+        meta: Option metadata instance.
+        visible_when: One or more (option_name, predicate) tuples. The option is
+            hidden unless every predicate returns True for its referenced
+            option's current value (AND logic). Use for mode-conditional options.
     """
-    return field(default=meta.default, metadata={"option_meta": meta})
+    metadata: dict[str, Any] = {"option_meta": meta}
+    if visible_when is not None:
+        if isinstance(visible_when, tuple):
+            visible_when = [visible_when]
+        metadata["visible_when"] = visible_when
+    return field(default=meta.default, metadata=metadata)
 
 
 def get_option_meta(options_class: type, field_name: str) -> OptionMeta | None:
@@ -356,6 +376,16 @@ def get_all_option_metas(options_class: type) -> dict[str, OptionMeta]:
         if meta is not None:
             result[f.name] = meta
     return result
+
+
+def get_visibility_conditions(
+    options_class: type, field_name: str
+) -> list[tuple[str, Callable[[Any], bool]]] | None:
+    """Get the visible_when conditions for an option field, if any."""
+    for f in fields(options_class):
+        if f.name == field_name:
+            return f.metadata.get("visible_when")
+    return None
 
 
 @dataclass
@@ -378,6 +408,20 @@ class GameOptions(DataClassJSONMixin):
         """Get all option metadata for this options instance."""
         return get_all_option_metas(type(self))
 
+    def is_option_visible(self, name: str) -> bool:
+        """Whether an option passes all its visible_when conditions (AND logic).
+
+        Options without conditions are always visible. Used to hide
+        mode-conditional options from the lobby until they are relevant.
+        """
+        conditions = get_visibility_conditions(type(self), name)
+        if not conditions:
+            return True
+        for ref_name, predicate in conditions:
+            if not predicate(getattr(self, ref_name, None)):
+                return False
+        return True
+
     def format_options_summary(self, locale: str) -> list[str]:
         """Return a list of localized label strings for all current option values."""
         lines = []
@@ -394,6 +438,8 @@ class GameOptions(DataClassJSONMixin):
         action_set = ActionSet(name="options")
 
         for name, meta in self.get_option_metas().items():
+            if not self.is_option_visible(name):
+                continue
             current_value = getattr(self, name)
             action = meta.create_action(name, game, player, current_value, locale)
             action_set.add(action)
@@ -415,6 +461,8 @@ class GameOptions(DataClassJSONMixin):
                 # Add updated actions with current values
                 locale = game.get_user(player).locale if game.get_user(player) else "en"
                 for name, meta in self.get_option_metas().items():
+                    if not self.is_option_visible(name):
+                        continue
                     current_value = getattr(self, name)
                     action = meta.create_action(name, game, player, current_value, locale)
                     existing_set.add(action)

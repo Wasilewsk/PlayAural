@@ -110,6 +110,7 @@ class PusoyDosOptions(GameOptions):
             label="pusoydos-set-game-mode",
             prompt="pusoydos-select-game-mode",
             change_msg="pusoydos-option-changed-game-mode",
+            description="pusoydos-desc-game-mode",
         )
     )
     rounds_to_win: int = option_field(
@@ -121,7 +122,9 @@ class PusoyDosOptions(GameOptions):
             label="pusoydos-set-rounds-to-win",
             prompt="pusoydos-enter-rounds-to-win",
             change_msg="pusoydos-option-changed-rounds-to-win",
-        )
+            description="pusoydos-desc-rounds-to-win",
+        ),
+        visible_when=("game_mode", lambda v: v == "elimination"),
     )
     losses_to_lose: int = option_field(
         IntOption(
@@ -132,7 +135,9 @@ class PusoyDosOptions(GameOptions):
             label="pusoydos-set-losses-to-lose",
             prompt="pusoydos-enter-losses-to-lose",
             change_msg="pusoydos-option-changed-losses-to-lose",
-        )
+            description="pusoydos-desc-losses-to-lose",
+        ),
+        visible_when=("game_mode", lambda v: v == "losses"),
     )
     target_score: int = option_field(
         IntOption(
@@ -143,7 +148,9 @@ class PusoyDosOptions(GameOptions):
             label="pusoydos-set-target-score",
             prompt="pusoydos-enter-target-score",
             change_msg="pusoydos-option-changed-target-score",
-        )
+            description="pusoydos-desc-target-score",
+        ),
+        visible_when=("game_mode", lambda v: v in ("points", "points_elimination")),
     )
     turn_timer: str = option_field(
         MenuOption(
@@ -154,6 +161,7 @@ class PusoyDosOptions(GameOptions):
             label="pusoydos-set-turn-timer",
             prompt="pusoydos-select-turn-timer",
             change_msg="pusoydos-option-changed-turn-timer",
+            description="pusoydos-desc-turn-timer",
         )
     )
     allow_2_in_straights: bool = option_field(
@@ -162,6 +170,7 @@ class PusoyDosOptions(GameOptions):
             value_key="enabled",
             label="pusoydos-set-allow-2-in-straights",
             change_msg="pusoydos-option-changed-allow-2-in-straights",
+            description="pusoydos-desc-allow-2-in-straights",
         )
     )
     instant_wins: bool = option_field(
@@ -170,6 +179,7 @@ class PusoyDosOptions(GameOptions):
             value_key="enabled",
             label="pusoydos-set-instant-wins",
             change_msg="pusoydos-option-changed-instant-wins",
+            description="pusoydos-desc-instant-wins",
         )
     )
     card_passing: str = option_field(
@@ -181,6 +191,7 @@ class PusoyDosOptions(GameOptions):
             label="pusoydos-set-card-passing",
             prompt="pusoydos-select-card-passing",
             change_msg="pusoydos-option-changed-card-passing",
+            description="pusoydos-desc-card-passing",
         )
     )
     penalty_tier: str = option_field(
@@ -192,7 +203,9 @@ class PusoyDosOptions(GameOptions):
             label="pusoydos-set-penalty-tier",
             prompt="pusoydos-select-penalty-tier",
             change_msg="pusoydos-option-changed-penalty-tier",
-        )
+            description="pusoydos-desc-penalty-tier",
+        ),
+        visible_when=("game_mode", lambda v: v in ("points", "points_elimination")),
     )
     penalty_per_two: bool = option_field(
         BoolOption(
@@ -200,7 +213,9 @@ class PusoyDosOptions(GameOptions):
             value_key="enabled",
             label="pusoydos-set-penalty-per-two",
             change_msg="pusoydos-option-changed-penalty-per-two",
-        )
+            description="pusoydos-desc-penalty-per-two",
+        ),
+        visible_when=("game_mode", lambda v: v in ("points", "points_elimination")),
     )
 
 
