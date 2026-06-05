@@ -493,6 +493,31 @@ class OptionsHandlerMixin:
         # Fallback for non-declarative options
         return ActionSet(name="options")
 
+    def _speak_option_description(self, player: "Player", menu_item_id: str) -> bool:
+        """Speak an option's description when space is pressed on it.
+
+        Extracts the option name from the focused menu item id (e.g. set_X /
+        toggle_X) and speaks its OptionMeta.description if one is defined.
+        Returns True if a description was spoken.
+        """
+        if not hasattr(self, "options"):
+            return False
+        option_name = None
+        for prefix in ("set_", "toggle_", "group_", "multiselect_"):
+            if menu_item_id.startswith(prefix):
+                option_name = menu_item_id[len(prefix):]
+                break
+        if option_name is None:
+            return False
+        meta = get_option_meta(type(self.options), option_name)
+        if meta is None or not meta.description:
+            return False
+        user = self.get_user(player)
+        if not user:
+            return False
+        user.speak_l(meta.description, buffer="system")
+        return True
+
     def _handle_option_change(self, option_name: str, value: str) -> None:
         """Handle a declarative option change (for int/menu options).
 
