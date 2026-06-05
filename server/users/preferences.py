@@ -1,6 +1,6 @@
 """User preferences for PlayAural."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from enum import Enum
 from typing import Any
 
@@ -21,11 +21,55 @@ class DiceKeepingStyle(Enum):
 
 
 @dataclass
+class PrefMeta:
+    """Metadata describing a declarative (game) preference.
+
+    Drives the Game Options menu: ``label``/``description`` are Fluent keys,
+    ``kind`` is "bool" or "menu", ``choices`` are (value, fluent_key) pairs for
+    menu prefs, and ``sync_key`` is the existing client preference-sync key so
+    web/mobile keep receiving the same updates.
+    """
+
+    category: str
+    label: str  # Fluent key; receives $status (bool) or $choice (menu)
+    change_msg: str  # Fluent key for the change announcement
+    description: str = ""  # Fluent key spoken on space
+    kind: str = "bool"  # "bool" or "menu"
+    default: Any = None
+    choices: list[tuple[str, str]] | None = None  # (value, fluent_key)
+    enum_class: type[Enum] | None = None
+    sync_key: str = ""  # client sync key, e.g. "gameplay/play_turn_sound"
+
+
+def pref_field(meta: PrefMeta) -> Any:
+    """Create a dataclass field carrying PrefMeta (a declarative game pref)."""
+    return field(default=meta.default, metadata={"pref_meta": meta})
+
+
+# Declarative game-preference categories, in Game Options menu order.
+PREF_CATEGORIES: list[tuple[str, str]] = [
+    ("sounds", "pref-category-sounds"),
+    ("gameplay", "pref-category-gameplay"),
+    ("dice", "pref-category-dice"),
+]
+
+
+@dataclass
 class UserPreferences:
     """User preferences that persist across sessions."""
 
-    # Sound preferences
-    play_turn_sound: bool = True  # Play sound when it's your turn
+    # Sound preferences (declarative -> Game Options)
+    play_turn_sound: bool = pref_field(
+        PrefMeta(
+            category="sounds",
+            label="pref-set-play-turn-sound",
+            change_msg="pref-changed-play-turn-sound",
+            description="pref-desc-play-turn-sound",
+            kind="bool",
+            default=True,
+            sync_key="gameplay/play_turn_sound",
+        )
+    )
 
     # Audio preferences
     music_volume: int = 10
@@ -57,14 +101,57 @@ class UserPreferences:
     active_tables_filter: str = "all"  # "all", "waiting", "playing"
     game_category_filter: str = "all"  # "all" or a game category id
 
-    # Gameplay preferences
-    allow_custom_bot_names: bool = False
-    confirm_destructive_actions: bool = True  # Confirm risky/irreversible actions
+    # Gameplay preferences (declarative -> Game Options)
+    allow_custom_bot_names: bool = pref_field(
+        PrefMeta(
+            category="gameplay",
+            label="pref-set-allow-custom-bot-names",
+            change_msg="pref-changed-allow-custom-bot-names",
+            description="pref-desc-allow-custom-bot-names",
+            kind="bool",
+            default=False,
+            sync_key="gameplay/allow_custom_bot_names",
+        )
+    )
+    confirm_destructive_actions: bool = pref_field(
+        PrefMeta(
+            category="gameplay",
+            label="pref-set-confirm-destructive-actions",
+            change_msg="pref-changed-confirm-destructive-actions",
+            description="pref-desc-confirm-destructive-actions",
+            kind="bool",
+            default=True,
+            sync_key="gameplay/confirm_destructive_actions",
+        )
+    )
 
-    # Dice game preferences
-    clear_kept_on_roll: bool = False  # Clear kept dice after rolling
-    dice_keeping_style: DiceKeepingStyle = field(
-        default_factory=lambda: DiceKeepingStyle.INDEX_BASED
+    # Dice game preferences (declarative -> Game Options)
+    clear_kept_on_roll: bool = pref_field(
+        PrefMeta(
+            category="dice",
+            label="pref-set-clear-kept-on-roll",
+            change_msg="pref-changed-clear-kept-on-roll",
+            description="pref-desc-clear-kept-on-roll",
+            kind="bool",
+            default=False,
+            sync_key="dice/clear_kept_on_roll",
+        )
+    )
+    dice_keeping_style: DiceKeepingStyle = pref_field(
+        PrefMeta(
+            category="dice",
+            label="pref-set-dice-keeping-style",
+            change_msg="pref-changed-dice-keeping-style",
+            description="pref-desc-dice-keeping-style",
+            kind="menu",
+            default=DiceKeepingStyle.INDEX_BASED,
+            choices=[
+                ("index_based", "dice-keeping-style-indexes"),
+                ("value_based", "dice-keeping-style-values"),
+            ],
+            enum_class=DiceKeepingStyle,
+            sync_key="dice/dice_keeping_style",
+        )
     )
 
     # Per-game overrides: {game_type: {field_name: value}}. A game may override
@@ -138,6 +225,52 @@ class UserPreferences:
             ),
             game_overrides=data.get("game_overrides", {}) or {},
         )
+
+    # ------------------------------------------------------------------
+    # Declarative pref introspection (Game Options menu)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def get_pref_fields(cls) -> list[tuple[str, PrefMeta]]:
+        """Return (field_name, PrefMeta) for every declarative pref, in order."""
+        result: list[tuple[str, PrefMeta]] = []
+        for f in fields(cls):
+            meta = f.metadata.get("pref_meta")
+            if meta is not None:
+                result.append((f.name, meta))
+        return result
+
+    @classmethod
+    def get_fields_for_category(cls, category: str) -> list[tuple[str, PrefMeta]]:
+        """Return declarative prefs in a category, in definition order."""
+        return [(n, m) for n, m in cls.get_pref_fields() if m.category == category]
+
+    @classmethod
+    def get_pref_meta(cls, field_name: str) -> "PrefMeta | None":
+        """Return the PrefMeta for a declarative pref field, if any."""
+        for f in fields(cls):
+            if f.name == field_name:
+                return f.metadata.get("pref_meta")
+        return None
+
+    def _clear_overrides_for(self, field_name: str) -> None:
+        """Drop every per-game override of a given field."""
+        for game_type in list(self.game_overrides):
+            self.game_overrides[game_type].pop(field_name, None)
+            if not self.game_overrides[game_type]:
+                del self.game_overrides[game_type]
+
+    def reset_category(self, category: str) -> None:
+        """Reset declarative prefs in a category to defaults + clear overrides."""
+        for name, meta in self.get_fields_for_category(category):
+            setattr(self, name, meta.default)
+            self._clear_overrides_for(name)
+
+    def reset_all_game_prefs(self) -> None:
+        """Reset all declarative (game) prefs to defaults + clear their overrides."""
+        for name, meta in self.get_pref_fields():
+            setattr(self, name, meta.default)
+            self._clear_overrides_for(name)
 
     # ------------------------------------------------------------------
     # Per-game overrides
