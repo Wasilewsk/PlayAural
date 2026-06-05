@@ -605,14 +605,14 @@ class TwentyOneGame(ActionGuardMixin, Game):
 
         if self._draws_locked_for(p):
             self._play_sound_for_player(p, SOUND_ACTION_FAIL)
-            self.broadcast_l("twentyone-cannot-draw-cards", player=p.name)
+            self.broadcast_l("twentyone-cannot-draw-cards", player=p.name, buffer="game")
             self.rebuild_all_menus()
             return
 
         card = self._draw_card()
         if not card:
             self._play_sound_for_player(p, SOUND_ACTION_FAIL)
-            self.broadcast_l("twentyone-deck-empty-stay")
+            self.broadcast_l("twentyone-deck-empty-stay", buffer="game")
             self.rebuild_all_menus()
             return
 
@@ -642,7 +642,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
         self._play_sound_for_player(p, SOUND_STAND)
         self._play_opponent_stand_sound(p)
         p.stand_pending = True
-        self.broadcast_l("twentyone-player-stands", player=p.name)
+        self.broadcast_l("twentyone-player-stands", player=p.name, buffer="game")
 
         if self._both_players_standing():
             self.play_sound(SOUND_ROUND_RESOLVE, volume=65)
@@ -965,7 +965,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
         self.turn_index = self.round_starter_index
 
         self.broadcast_l(
-            "twentyone-round-begins", round=self.round_number, target=self._current_target()
+            "twentyone-round-begins", round=self.round_number, target=self._current_target(), buffer="game"
         )
         for player in alive:
             shown = self._peek_last_drawn_card(player)
@@ -979,7 +979,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
                     )
                 )
             else:
-                self.broadcast_l("twentyone-player-receives-cards", player=player.name)
+                self.broadcast_l("twentyone-player-receives-cards", player=player.name, buffer="game")
             user = self.get_user(player)
             if user:
                 if player.hand:
@@ -1041,7 +1041,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
             player1=p1.name,
             total1=total_1,
             player2=p2.name,
-            total2=total_2,
+            total2=total_2, buffer="game",
         )
 
         outcome = self._resolve_round_outcome(total_1, total_2, target)
@@ -1082,26 +1082,26 @@ class TwentyOneGame(ActionGuardMixin, Game):
 
         if outcome == "p1_wins":
             self._apply_round_loss_damage(p2)
-            self.broadcast_l("twentyone-player-wins-round", player=p1.name)
+            self.broadcast_l("twentyone-player-wins-round", player=p1.name, buffer="game")
         elif outcome == "p2_wins":
             self._apply_round_loss_damage(p1)
-            self.broadcast_l("twentyone-player-wins-round", player=p2.name)
+            self.broadcast_l("twentyone-player-wins-round", player=p2.name, buffer="game")
         else:
             self._apply_round_loss_damage(p1)
             self._apply_round_loss_damage(p2)
-            self.broadcast_l("twentyone-round-draw-damage")
+            self.broadcast_l("twentyone-round-draw-damage", buffer="game")
         self._play_round_outcome_sounds(outcome, p1, p2, total_1, total_2, bust_1, bust_2)
         self._apply_round_end_change_card_effects(p1, p2)
 
         if bust_1 and bust_2:
-            self.broadcast_l("twentyone-both-busted-closer")
+            self.broadcast_l("twentyone-both-busted-closer", buffer="game")
             self._play_sound_for_player(p1, SOUND_BUST)
             self._play_sound_for_player(p2, SOUND_BUST)
         elif bust_1:
-            self.broadcast_l("twentyone-player-busted", player=p1.name)
+            self.broadcast_l("twentyone-player-busted", player=p1.name, buffer="game")
             self._play_sound_for_player(p1, SOUND_BUST)
         elif bust_2:
-            self.broadcast_l("twentyone-player-busted", player=p2.name)
+            self.broadcast_l("twentyone-player-busted", player=p2.name, buffer="game")
             self._play_sound_for_player(p2, SOUND_BUST)
 
         self._sync_hp_scores()
@@ -1173,7 +1173,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
 
         damage = max(0, self._current_bet(loser))
         if damage <= 0:
-            self.broadcast_l("twentyone-round-loss-zero-bet", player=loser.name)
+            self.broadcast_l("twentyone-round-loss-zero-bet", player=loser.name, buffer="game")
             return
         loser.hp = max(0, loser.hp - damage)
         if damage >= 5:
@@ -1181,17 +1181,17 @@ class TwentyOneGame(ActionGuardMixin, Game):
         else:
             self._play_sound_for_player(loser, SOUND_DAMAGE)
         self.broadcast_l(
-            "twentyone-player-takes-damage", player=loser.name, damage=damage, hp=loser.hp
+            "twentyone-player-takes-damage", player=loser.name, damage=damage, hp=loser.hp, buffer="game"
         )
 
     def _end_game(self, winner: TwentyOnePlayer | None) -> None:
         self.phase = "finished"
         if winner:
             self._play_sound_for_player(winner, SOUND_GAME_WIN, volume=80)
-            self.broadcast_l("twentyone-game-win", player=winner.name, hp=winner.hp)
+            self.broadcast_l("twentyone-game-win", player=winner.name, hp=winner.hp, buffer="game")
         else:
             self.play_sound(SOUND_GAME_NO_WIN, volume=75)
-            self.broadcast_l("twentyone-game-no-winner")
+            self.broadcast_l("twentyone-game-no-winner", buffer="game")
         self.finish_game()
 
     def _play_round_outcome_sounds(
@@ -1676,7 +1676,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
             removed = self._extract_last_drawn_card(opponent)
             if removed:
                 self._return_card_to_top_of_deck(removed)
-                self.broadcast_l("twentyone-last-face-up-returned", player=opponent.name)
+                self.broadcast_l("twentyone-last-face-up-returned", player=opponent.name, buffer="game")
             self._give_random_modifiers(player, 1, announce=True)
             return
 
@@ -1684,7 +1684,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
             removed_count = self._remove_guard_effects(player, limit=3)
             if removed_count > 0:
                 self.broadcast_l(
-                    "twentyone-remove-defend-effects", player=player.name, count=removed_count
+                    "twentyone-remove-defend-effects", player=player.name, count=removed_count, buffer="game"
                 )
             self._place_table_effect(player, modifier)
             return
@@ -1693,7 +1693,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
             removed_count = self._remove_guard_effects(player, limit=2)
             if removed_count > 0:
                 self.broadcast_l(
-                    "twentyone-remove-defend-effects", player=player.name, count=removed_count
+                    "twentyone-remove-defend-effects", player=player.name, count=removed_count, buffer="game"
                 )
             self._place_table_effect(player, modifier)
             return
@@ -1713,7 +1713,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
         ):
             if self._draws_locked_for(player):
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-cannot-draw-cards", player=player.name)
+                self.broadcast_l("twentyone-cannot-draw-cards", player=player.name, buffer="game")
                 return
             rank = int(modifier.split("_")[1])
             card = self._draw_specific_rank(rank)
@@ -1729,7 +1729,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
                 player.stand_pending = False
             else:
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-no-rank-card", rank=rank)
+                self.broadcast_l("twentyone-no-rank-card", rank=rank, buffer="game")
             return
 
         if modifier == MODIFIER_SCRAP:
@@ -1737,10 +1737,10 @@ class TwentyOneGame(ActionGuardMixin, Game):
             if removed:
                 self._play_sound_for_player(player, SOUND_CONTROL_SUCCESS)
                 self._return_card_to_top_of_deck(removed)
-                self.broadcast_l("twentyone-last-face-up-returned", player=opponent.name)
+                self.broadcast_l("twentyone-last-face-up-returned", player=opponent.name, buffer="game")
             else:
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-no-face-up-remove")
+                self.broadcast_l("twentyone-no-face-up-remove", buffer="game")
             return
 
         if modifier == MODIFIER_RECYCLE:
@@ -1748,10 +1748,10 @@ class TwentyOneGame(ActionGuardMixin, Game):
             if removed:
                 self._play_sound_for_player(player, SOUND_CONTROL_SUCCESS)
                 self._return_card_to_top_of_deck(removed)
-                self.broadcast_l("twentyone-own-face-up-returned", player=player.name)
+                self.broadcast_l("twentyone-own-face-up-returned", player=player.name, buffer="game")
             else:
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-no-face-up-return")
+                self.broadcast_l("twentyone-no-face-up-return", buffer="game")
             return
 
         if modifier == MODIFIER_SWAP_DRAW:
@@ -1759,14 +1759,14 @@ class TwentyOneGame(ActionGuardMixin, Game):
             opponent_recent = self._peek_last_drawn_card(opponent)
             if not player_recent or not opponent_recent:
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-exchange-needs-face-up")
+                self.broadcast_l("twentyone-exchange-needs-face-up", buffer="game")
                 return
 
             first = self._extract_last_drawn_card(player)
             second = self._extract_last_drawn_card(opponent)
             if not first or not second:
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-exchange-failed")
+                self.broadcast_l("twentyone-exchange-failed", buffer="game")
                 return
 
             player.hand.append(second)
@@ -1776,7 +1776,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
             player.stand_pending = False
             opponent.stand_pending = False
             self._play_sound_for_player(player, SOUND_CONTROL_SUCCESS)
-            self.broadcast_l("twentyone-exchange-resolves")
+            self.broadcast_l("twentyone-exchange-resolves", buffer="game")
             return
 
         if modifier == MODIFIER_REDRAFT:
@@ -1798,7 +1798,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
             self._discard_random_modifiers(player, 1, announce_sound=True)
             if self._draws_locked_for(opponent):
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-cannot-draw-cards", player=opponent.name)
+                self.broadcast_l("twentyone-cannot-draw-cards", player=opponent.name, buffer="game")
                 return
             card = self._draw_highest_card()
             if card:
@@ -1818,7 +1818,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
                 self.broadcast_l(
                     "twentyone-modifier-found-no-card",
-                    modifier=self._render_modifier("en", MODIFIER_HEX_DRAW),
+                    modifier=self._render_modifier("en", MODIFIER_HEX_DRAW), buffer="game",
                 )
             return
 
@@ -1828,7 +1828,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
             self._discard_random_modifiers(player, discard_count, announce_sound=True)
             if self._draws_locked_for(player):
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-cannot-draw-cards", player=player.name)
+                self.broadcast_l("twentyone-cannot-draw-cards", player=player.name, buffer="game")
                 return
             card = self._draw_best_possible_card(player)
             if card:
@@ -1848,7 +1848,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
                 self.broadcast_l(
                     "twentyone-modifier-found-no-card",
-                    modifier=self._render_modifier("en", MODIFIER_DARK_BARGAIN),
+                    modifier=self._render_modifier("en", MODIFIER_DARK_BARGAIN), buffer="game",
                 )
             return
 
@@ -1856,13 +1856,13 @@ class TwentyOneGame(ActionGuardMixin, Game):
             self.phase = "between_rounds"
             self.next_round_wait_ticks = 0
             self._clear_pending_round_resolution()
-            self.broadcast_l("twentyone-round-erased")
+            self.broadcast_l("twentyone-round-erased", buffer="game")
             return
 
         if modifier in TABLE_EFFECT_MODIFIERS:
             self._place_table_effect(player, modifier)
             if modifier in TARGET_VALUE_MODIFIERS:
-                self.broadcast_l("twentyone-target-changed", target=self._current_target())
+                self.broadcast_l("twentyone-target-changed", target=self._current_target(), buffer="game")
             return
 
         if modifier == MODIFIER_BREAK:
@@ -1874,11 +1874,11 @@ class TwentyOneGame(ActionGuardMixin, Game):
                 self.broadcast_l(
                     "twentyone-player-destroys-effect",
                     player=player.name,
-                    effect=self._render_modifier("en", removed),
+                    effect=self._render_modifier("en", removed), buffer="game",
                 )
             else:
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-no-effect-destroy")
+                self.broadcast_l("twentyone-no-effect-destroy", buffer="game")
             return
 
         if modifier == MODIFIER_BREAK_PLUS:
@@ -1892,17 +1892,17 @@ class TwentyOneGame(ActionGuardMixin, Game):
                 self.broadcast_l(
                     "twentyone-player-destroys-all-effects",
                     player=player.name,
-                    count=count,
+                    count=count, buffer="game",
                 )
             else:
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-no-effects-destroy")
+                self.broadcast_l("twentyone-no-effects-destroy", buffer="game")
             return
 
         if modifier == MODIFIER_LOCKDOWN:
             if opponent.table_modifiers:
                 opponent.table_modifiers.clear()
-                self.broadcast_l("twentyone-player-clears-effects", player=player.name)
+                self.broadcast_l("twentyone-player-clears-effects", player=player.name, buffer="game")
             self._place_table_effect(player, modifier)
             self.play_sound(SOUND_LOCKDOWN_APPLY, volume=75)
             return
@@ -1910,7 +1910,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
         if modifier == MODIFIER_PRECISION_DRAW:
             if self._draws_locked_for(player):
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-cannot-draw-cards", player=player.name)
+                self.broadcast_l("twentyone-cannot-draw-cards", player=player.name, buffer="game")
                 return
             card = self._draw_best_possible_card(player)
             if card:
@@ -1927,14 +1927,14 @@ class TwentyOneGame(ActionGuardMixin, Game):
                 player.stand_pending = False
             else:
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-precision-draw-none")
+                self.broadcast_l("twentyone-precision-draw-none", buffer="game")
             return
 
         if modifier == MODIFIER_PRECISION_DRAW_PLUS:
             self._place_table_effect(player, modifier)
             if self._draws_locked_for(player):
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-cannot-draw-cards", player=player.name)
+                self.broadcast_l("twentyone-cannot-draw-cards", player=player.name, buffer="game")
                 return
             card = self._draw_best_possible_card(player)
             if card:
@@ -1951,13 +1951,13 @@ class TwentyOneGame(ActionGuardMixin, Game):
                 player.stand_pending = False
             else:
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-precision-draw-plus-none")
+                self.broadcast_l("twentyone-precision-draw-plus-none", buffer="game")
             return
 
         if modifier == MODIFIER_PRIME_DRAW:
             if self._draws_locked_for(player):
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-cannot-draw-cards", player=player.name)
+                self.broadcast_l("twentyone-cannot-draw-cards", player=player.name, buffer="game")
                 return
             card = self._draw_best_possible_card(player)
             if card:
@@ -1977,7 +1977,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
 
         if modifier in TARGET_VALUE_MODIFIERS:
             self._place_table_effect(player, modifier)
-            self.broadcast_l("twentyone-target-changed", target=self._current_target())
+            self.broadcast_l("twentyone-target-changed", target=self._current_target(), buffer="game")
             return
 
         if modifier == MODIFIER_SALVAGE:
@@ -1987,7 +1987,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
         if modifier == MODIFIER_AID_RIVAL:
             if self._draws_locked_for(opponent):
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-cannot-draw-cards", player=opponent.name)
+                self.broadcast_l("twentyone-cannot-draw-cards", player=opponent.name, buffer="game")
                 return
             card = self._draw_best_possible_card(opponent)
             if card:
@@ -2004,7 +2004,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
                 opponent.stand_pending = False
             else:
                 self._play_sound_for_player(player, SOUND_ACTION_FAIL)
-                self.broadcast_l("twentyone-aid-rival-none")
+                self.broadcast_l("twentyone-aid-rival-none", buffer="game")
 
     def _alive_players(self) -> list[TwentyOnePlayer]:
         return [p for p in self.get_active_players() if isinstance(p, TwentyOnePlayer) and p.hp > 0]
@@ -2361,7 +2361,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
                 self.broadcast_l(
                     "twentyone-player-receives-hidden-card",
                     player=player.name,
-                    exclude=player,
+                    exclude=player, buffer="game",
                 )
             self._play_near_bust_sounds(player)
 
@@ -2418,7 +2418,7 @@ class TwentyOneGame(ActionGuardMixin, Game):
                 self.broadcast_l(
                     "twentyone-player-gains-change-card",
                     player=player.name,
-                    exclude=player,
+                    exclude=player, buffer="game",
                 )
 
     def _draw_weighted_modifier(self) -> str:

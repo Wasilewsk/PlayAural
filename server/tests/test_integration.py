@@ -234,6 +234,7 @@ class TestGameRegistryIntegration:
         assert registered_games.GameRegistry is GameRegistry
 
         expected_categories = {
+            "ageofheroes": "cards",
             "backgammon": "board",
             "battle": "arcade",
             "battleship": "board",
@@ -251,24 +252,29 @@ class TestGameRegistryIntegration:
             "farkle": "dice",
             "fivecarddraw": "poker",
             "holdem": "poker",
+            "humanitycards": "cards",
             "lastcard": "cards",
             "leftrightcenter": "dice",
             "lightturret": "arcade",
             "ludo": "board",
+            "metalpipe": "misc",
             "midnight": "dice",
             "milebymile": "cards",
+            "nine": "cards",
             "ninetynine": "cards",
             "pig": "dice",
             "pirates": "arcade",
             "pusoydos": "cards",
             "rollingballs": "misc",
             "scopa": "cards",
+            "senet": "board",
             "snakesandladders": "board",
             "sorry": "board",
             "threes": "dice",
             "tienlen": "cards",
             "tossup": "dice",
             "tradeoff": "dice",
+            "twentyone": "cards",
             "yahtzee": "dice",
         }
 

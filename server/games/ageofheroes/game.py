@@ -1964,7 +1964,7 @@ class AgeOfHeroesGame(Game):
                 user = self.get_user(player)
                 if user:
                     cards_str = read_cards(player.hand, user.locale)
-                    user.speak(f"Your cards: {cards_str}")
+                    user.speak(f"Your cards: {cards_str}", buffer="game")
 
     def _draw_cards(self, count: int) -> list[Card]:
         """Draw cards from deck, reshuffling discard pile if needed."""
