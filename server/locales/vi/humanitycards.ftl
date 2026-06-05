@@ -1,105 +1,108 @@
-# Humanity Cards - English localization
+# Bản địa hóa Humanity Cards (Bài Phản Nhân Loại)
 
-# Options
-hc-set-winning-score = Winning score: { $score }
-hc-enter-winning-score = Enter winning score:
-hc-option-changed-winning-score = Winning score set to { $score }.
+# Tùy chọn
+hc-set-winning-score = Điểm để thắng: { $score }
+hc-desc-winning-score = Số điểm cần để giành chiến thắng
+hc-enter-winning-score = Nhập điểm để thắng:
+hc-option-changed-winning-score = Điểm để thắng đã đặt thành { $score }.
 
-hc-set-hand-size = Hand size: { $count }
-hc-enter-hand-size = Enter hand size:
-hc-option-changed-hand-size = Hand size set to { $count }.
+hc-set-hand-size = Số bài trên tay: { $count }
+hc-desc-hand-size = Số lá bài trên tay
+hc-enter-hand-size = Nhập số bài trên tay:
+hc-option-changed-hand-size = Số bài trên tay đã đặt thành { $count }.
 
-hc-set-card-packs = Card packs ({ $count } of { $total } selected)
-hc-option-changed-card-packs = Card pack selection changed.
+hc-set-card-packs = Bộ bài (đã chọn { $count } trên { $total })
+hc-desc-card-packs = Chọn bộ bài sẽ dùng
+hc-option-changed-card-packs = Đã thay đổi lựa chọn bộ bài.
 
-hc-set-czar-selection = Card Czar selection: { $mode }
-hc-select-czar-selection = Select Card Czar selection mode
-hc-option-changed-czar-selection = Card Czar selection set to { $mode }.
+hc-set-czar-selection = Cách chọn Trọng Tài: { $mode }
+hc-select-czar-selection = Chọn cách chỉ định Trọng Tài
+hc-option-changed-czar-selection = Cách chọn Trọng Tài đã đặt thành { $mode }.
 
-hc-set-num-judges = Number of judges: { $count }
-hc-enter-num-judges = Enter number of judges:
-hc-option-changed-num-judges = Number of judges set to { $count }.
+hc-set-num-judges = Số trọng tài: { $count }
+hc-enter-num-judges = Nhập số trọng tài:
+hc-option-changed-num-judges = Số trọng tài đã đặt thành { $count }.
 
-hc-czar-rotating = Rotating
-hc-czar-random = Random
-hc-czar-winner = Most Recent Winner
+hc-czar-rotating = Luân phiên
+hc-czar-random = Ngẫu nhiên
+hc-czar-winner = Người thắng gần nhất
 
-# Game flow
-hc-game-starting = Shuffling the decks...
-hc-dealing-cards = Dealing { $count } cards to each player.
-hc-round-start = Round { $round }.
+# Diễn biến trò chơi
+hc-game-starting = Đang xáo bài...
+hc-dealing-cards = Chia { $count } lá bài cho mỗi người chơi.
+hc-round-start = Vòng { $round }.
 
-# Judge announcement
+# Thông báo trọng tài
 hc-judge-is = { $player } { $count ->
-    [one] is the Card Czar
-   *[other] and { $others } are the Card Czars
+    [one] là Trọng Tài
+   *[other] và { $others } là các Trọng Tài
 }.
-hc-you-are-judge = You are the Card Czar this round.
-hc-you-are-not-judge = You are not the Card Czar this round.
+hc-you-are-judge = Bạn là Trọng Tài vòng này.
+hc-you-are-not-judge = Bạn không phải Trọng Tài vòng này.
 
-# Black card
-hc-black-card = The prompt is: { $text }
-hc-black-card-pick = Pick { $count }.
-hc-view-black-card = View the question card
+# Lá bài đen
+hc-black-card = Câu hỏi là: { $text }
+hc-black-card-pick = Chọn { $count } lá.
+hc-view-black-card = Xem lá bài câu hỏi
 
-# Submission phase
-hc-select-cards = Select { $count } { $count ->
-    [one] card
-   *[other] cards
-} from your hand.
-hc-card-selected = { $text }, selected
+# Giai đoạn nộp bài
+hc-select-cards = Chọn { $count } { $count ->
+    [one] lá bài
+   *[other] lá bài
+} từ tay bạn.
+hc-card-selected = { $text }, đã chọn
 hc-card-not-selected = { $text }
-hc-submit-cards = Submit ({ $selected } of { $required } selected)
-hc-submitted = You submitted your cards.
-hc-player-submitted = { $player } submitted.
-hc-submission-progress = { $submitted } of { $total } players submitted.
-hc-waiting-for-submissions = Waiting for submissions...
-hc-already-submitted = You already submitted your cards.
-hc-wrong-card-count = You need to select exactly { $count } { $count ->
-    [one] card
-   *[other] cards
+hc-submit-cards = Nộp bài (đã chọn { $selected } trên { $required })
+hc-submitted = Bạn đã nộp bài.
+hc-player-submitted = { $player } đã nộp bài.
+hc-submission-progress = { $submitted } trên { $total } người chơi đã nộp bài.
+hc-waiting-for-submissions = Đang chờ mọi người nộp bài...
+hc-already-submitted = Bạn đã nộp bài rồi.
+hc-wrong-card-count = Bạn cần chọn đúng { $count } { $count ->
+    [one] lá bài
+   *[other] lá bài
 }.
 
-# Judging phase
-hc-judging-start = All cards are in! Time to judge.
-hc-select-winner-prompt = Select the winning submission
+# Giai đoạn chấm bài
+hc-judging-start = Đã đủ bài! Đến lúc chấm.
+hc-select-winner-prompt = Chọn bài thắng cuộc
 hc-submission-option = { $text }
 
-# Results
-hc-winner-announcement = { $player } wins the round! Score: { $score }.
-hc-winner-card = Winning answer: { $text }
-hc-round-scores = Scores after round { $round }:
+# Kết quả
+hc-winner-announcement = { $player } thắng vòng này! Điểm: { $score }.
+hc-winner-card = Câu trả lời thắng cuộc: { $text }
+hc-round-scores = Điểm sau vòng { $round }:
 hc-score-line = { $player }: { $score } { $score ->
-    [one] point
-   *[other] points
+    [one] điểm
+   *[other] điểm
 }
-hc-all-submissions = Other submissions:
+hc-all-submissions = Các bài khác:
 hc-submission-reveal = { $player }: { $text }
 
-# View
-hc-preview-submission = Preview your submission
-hc-view-submission = View your submission
-hc-preview-submission-text = Preview: { $text }
-hc-your-submission = Your submission: { $text }
-hc-select-cards-first = Select at least 1 card first.
+# Xem
+hc-preview-submission = Xem trước bài nộp của bạn
+hc-view-submission = Xem bài nộp của bạn
+hc-preview-submission-text = Xem trước: { $text }
+hc-your-submission = Bài nộp của bạn: { $text }
+hc-select-cards-first = Hãy chọn ít nhất 1 lá bài trước.
 
-# Win
-hc-game-winner = { $player } wins with { $score } points!
-hc-you-win = You win with { $score } points!
+# Chiến thắng
+hc-game-winner = { $player } thắng với { $score } điểm!
+hc-you-win = Bạn thắng với { $score } điểm!
 
-# Deck management
-hc-deck-reshuffled = White card discard pile reshuffled into the deck.
-hc-black-deck-reshuffled = Black card discard pile reshuffled into the deck.
-hc-not-enough-cards = Not enough cards. Try enabling more packs.
+# Quản lý bộ bài
+hc-deck-reshuffled = Chồng bài trắng đã bỏ được xáo lại vào bộ bài.
+hc-black-deck-reshuffled = Chồng bài đen đã bỏ được xáo lại vào bộ bài.
+hc-not-enough-cards = Không đủ bài. Hãy thử bật thêm bộ bài.
 
-# Hand management
-hc-view-hand = View hand
+# Quản lý bài trên tay
+hc-view-hand = Xem bài trên tay
 
-# Scores
-hc-view-scores = View scores
-hc-no-scores = No scores yet.
+# Điểm số
+hc-view-scores = Xem điểm
+hc-no-scores = Chưa có điểm.
 
-# Whose turn / whose judge
-hc-whose-judge = Who is judging
-hc-waiting-for = Waiting for { $names } to submit.
-hc-all-submitted-waiting-judge = All players have submitted. Waiting for { $judge } to judge.
+# Lượt của ai / trọng tài là ai
+hc-whose-judge = Ai đang làm trọng tài
+hc-waiting-for = Đang chờ { $names } nộp bài.
+hc-all-submitted-waiting-judge = Tất cả người chơi đã nộp bài. Đang chờ { $judge } chấm bài.
