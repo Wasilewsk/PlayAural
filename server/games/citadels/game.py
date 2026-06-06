@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import TYPE_CHECKING
 import random
 
 from mashumaro.mixins.json import DataClassJSONMixin
@@ -18,6 +19,9 @@ from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
 
 from .bot import bot_think as citadels_bot_think
+
+if TYPE_CHECKING:
+    from ...users.base import User
 
 
 PHASE_SELECTION = "selection_phase"
@@ -195,6 +199,8 @@ class CitadelsPlayer(Player):
 @register_game
 @dataclass
 class CitadelsGame(Game):
+    relevant_preferences = ["brief_announcements"]
+
     players: list[CitadelsPlayer] = field(default_factory=list)
 
     phase: str = PHASE_SELECTION
@@ -558,6 +564,7 @@ class CitadelsGame(Game):
 
         user = self.get_user(player)
         locale = user.locale if user else "en"
+        brief = self._brief_arm(user)
         dynamic_ids: list[str] = []
 
         if self.phase == PHASE_SELECTION and self.current_player == player:
@@ -569,6 +576,7 @@ class CitadelsGame(Game):
                         label=Localization.get(
                             locale,
                             "citadels-select-character-line",
+                            brief=brief,
                             rank=rank,
                             character=self._character_name(rank, locale),
                         ),
@@ -594,6 +602,7 @@ class CitadelsGame(Game):
                         label=Localization.get(
                             locale,
                             "citadels-assassinate-target-line",
+                            brief=brief,
                             rank=rank,
                             character=self._character_name(rank, locale),
                         ),
@@ -616,6 +625,7 @@ class CitadelsGame(Game):
                         label=Localization.get(
                             locale,
                             "citadels-thief-target-line",
+                            brief=brief,
                             rank=rank,
                             character=self._character_name(rank, locale),
                         ),
@@ -1267,6 +1277,7 @@ class CitadelsGame(Game):
                 key: value(user.locale) if callable(value) else value
                 for key, value in kwargs.items()
             }
+            localized_kwargs.setdefault("brief", self._brief_arm(user))
             user.speak_l(message_id, buffer=buffer, **localized_kwargs)
 
     def _schedule_bot_turn(self, player: Player) -> None:
@@ -1455,6 +1466,7 @@ class CitadelsGame(Game):
             user.speak_l(
                 "citadels-thief-targeted",
                 buffer="game",
+                brief=self._brief_arm(user),
                 rank=rank,
                 character=self._character_name(rank, user.locale),
             )
@@ -2118,6 +2130,7 @@ class CitadelsGame(Game):
             user.speak_l(
                 "citadels-character-line",
                 buffer="game",
+                brief=self._brief_arm(user),
                 gold=cit_player.gold,
                 rank=cit_player.selected_character_rank,
                 character=self._character_name(cit_player.selected_character_rank, user.locale),
@@ -2140,14 +2153,20 @@ class CitadelsGame(Game):
         user = self.get_user(player)
         if not user:
             return
-        self._speak_lines(player, self._status_lines(user.locale, detailed=False))
+        self._speak_lines(
+            player,
+            self._status_lines(user.locale, detailed=False, brief=self._brief_arm(user)),
+        )
 
     def _action_read_status_detailed(self, player: Player, action_id: str) -> None:
         _ = action_id
         user = self.get_user(player)
         if not user:
             return
-        self.status_box(player, self._status_lines(user.locale, detailed=True))
+        self.status_box(
+            player,
+            self._status_lines(user.locale, detailed=True, brief=self._brief_arm(user)),
+        )
 
     def _action_check_scores(self, player: Player, action_id: str) -> None:
         _ = action_id
@@ -2514,6 +2533,19 @@ class CitadelsGame(Game):
     def _character_name(self, rank: int, locale: str) -> str:
         return Localization.get(locale, f"citadels-character-{rank}")
 
+    def _brief_arm(self, user: "User | None") -> str:
+        """Fluent select arm for this user's brief-announcement preference.
+
+        Returns "yes" to drop character ranks from announcements/labels, "no"
+        (the verbose default) otherwise. Strings whose select omits `$brief`
+        simply fall through to their `*[no]` arm.
+        """
+        if user and user.preferences.get_effective(
+            "brief_announcements", game_type=self.get_type()
+        ):
+            return "yes"
+        return "no"
+
     def _district_type_name(self, district_type: str, locale: str) -> str:
         return Localization.get(locale, f"citadels-district-type-{district_type}")
 
@@ -2809,7 +2841,7 @@ class CitadelsGame(Game):
         ranked = self._ranked_players_for_results()
         return ranked[0] if ranked else None
 
-    def _status_lines(self, locale: str, *, detailed: bool) -> list[str]:
+    def _status_lines(self, locale: str, *, detailed: bool, brief: str = "no") -> list[str]:
         lines = [Localization.get(locale, "citadels-status-header")]
         crown_holder = self.get_player_by_id(self.crown_holder_id or "")
         if crown_holder:
@@ -2820,7 +2852,7 @@ class CitadelsGame(Game):
                 lines.append(Localization.get(locale, "citadels-status-selection", player=current.name))
         elif self.phase == PHASE_RANK_RESOLUTION:
             rank = self.current_rank or 0
-            lines.append(Localization.get(locale, "citadels-status-rank-resolution", rank=rank, character=self._character_name(rank, locale)))
+            lines.append(Localization.get(locale, "citadels-status-rank-resolution", brief=brief, rank=rank, character=self._character_name(rank, locale)))
         elif self.phase == PHASE_TURN:
             current = self.current_player
             if current and isinstance(current, CitadelsPlayer) and current.revealed_character_rank is not None:
@@ -2828,6 +2860,7 @@ class CitadelsGame(Game):
                     Localization.get(
                         locale,
                         "citadels-status-turn",
+                        brief=brief,
                         player=current.name,
                         rank=current.revealed_character_rank,
                         character=self._character_name(current.revealed_character_rank, locale),
@@ -2842,6 +2875,7 @@ class CitadelsGame(Game):
                     Localization.get(
                         locale,
                         "citadels-status-killed",
+                        brief=brief,
                         rank=self.killed_rank,
                         character=self._character_name(self.killed_rank, locale),
                     )
@@ -2853,6 +2887,7 @@ class CitadelsGame(Game):
                     Localization.get(
                         locale,
                         "citadels-status-robbed",
+                        brief=brief,
                         rank=self.robbed_rank,
                         character=self._character_name(self.robbed_rank, locale),
                     )

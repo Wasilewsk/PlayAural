@@ -52,15 +52,33 @@ citadels-game-start = Ván Thành Phố Trung Cổ đã bắt đầu.
 citadels-selection-start = Vòng { $round }. { $player } chọn nhân vật đầu tiên.
 citadels-selection-prompt = Hãy chọn một nhân vật ngay bây giờ.
 citadels-character-chosen = { $player } đã chọn một nhân vật.
-citadels-select-character-line = Hạng { $rank }: { $character }
+citadels-select-character-line = { $brief ->
+    [yes] { $character }
+   *[no] Hạng { $rank }: { $character }
+}
 citadels-turn-phase-start = Bắt đầu gọi nhân vật.
-citadels-rank-unclaimed = Hạng { $rank }, { $character }, không được chọn trong vòng này.
-citadels-character-revealed = { $player } lật hạng { $rank }, { $character }.
+citadels-rank-unclaimed = { $brief ->
+    [yes] { $character } không được chọn trong vòng này.
+   *[no] Hạng { $rank }, { $character }, không được chọn trong vòng này.
+}
+citadels-character-revealed = { $brief ->
+    [yes] { $player } lật { $character }.
+   *[no] { $player } lật hạng { $rank }, { $character }.
+}
 citadels-crown-taken = { $player } nhận vương miện.
 citadels-king-heir = { $player } lật lá Nhà vua ở cuối vòng và nhận vương miện.
-citadels-assassin-targeted = Sát thủ chỉ định hạng { $rank }, { $character }.
-citadels-character-killed-skip = Hạng { $rank }, { $character }, đã bị ám sát và mất lượt.
-citadels-thief-targeted = Bạn sẽ cướp hạng { $rank }, { $character }.
+citadels-assassin-targeted = { $brief ->
+    [yes] Sát thủ chỉ định { $character }.
+   *[no] Sát thủ chỉ định hạng { $rank }, { $character }.
+}
+citadels-character-killed-skip = { $brief ->
+    [yes] { $character } đã bị ám sát và mất lượt.
+   *[no] Hạng { $rank }, { $character }, đã bị ám sát và mất lượt.
+}
+citadels-thief-targeted = { $brief ->
+    [yes] Bạn sẽ cướp { $character }.
+   *[no] Bạn sẽ cướp hạng { $rank }, { $character }.
+}
 citadels-thief-found-nothing = { $player } không cướp được đồng nào.
 citadels-thief-stole-gold = Kẻ trộm cướp { $amount } vàng.
 citadels-player-took-gold = { $player } lấy { $amount } vàng.
@@ -98,8 +116,14 @@ citadels-read-hand = Đọc tay bài
 citadels-read-cities = Đọc các thành phố
 citadels-read-discards = Đọc các lá bỏ lộ
 
-citadels-assassinate-target-line = Ám sát hạng { $rank }: { $character }
-citadels-thief-target-line = Cướp hạng { $rank }: { $character }
+citadels-assassinate-target-line = { $brief ->
+    [yes] Ám sát { $character }
+   *[no] Ám sát hạng { $rank }: { $character }
+}
+citadels-thief-target-line = { $brief ->
+    [yes] Cướp { $character }
+   *[no] Cướp hạng { $rank }: { $character }
+}
 citadels-magician-swap-line = Đổi với { $player } ({ $cards } lá)
 citadels-warlord-target-line = Phá { $district } của { $player } với giá { $cost } vàng. { $description }
 citadels-build-card-line = Xây { $district } ({ $cost } vàng). { $description }
@@ -129,19 +153,34 @@ citadels-cities-header = Các thành phố trên bàn
 citadels-city-empty = chưa có công trình nào
 citadels-city-line = { $player }: { $count } công trình, { $gold } vàng, { $score } điểm. { $districts }
 citadels-character-none = Hiện tại bạn chưa giữ nhân vật nào. Bạn có { $gold } vàng.
-citadels-character-line = Hạng { $rank }: { $character }. Bạn có { $gold } vàng.
+citadels-character-line = { $brief ->
+    [yes] { $character }. Bạn có { $gold } vàng.
+   *[no] Hạng { $rank }: { $character }. Bạn có { $gold } vàng.
+}
 citadels-discards-none = không có
 citadels-faceup-discards-line = Các nhân vật bị bỏ lộ: { $characters }
 
 citadels-status-header = Trạng thái Thành Phố Trung Cổ
 citadels-status-crown = Người giữ vương miện: { $player }
 citadels-status-selection = Đang chọn nhân vật. { $player } đang chọn.
-citadels-status-rank-resolution = Đang gọi hạng { $rank }: { $character }.
-citadels-status-turn = { $player } đang đi lượt với hạng { $rank }, { $character }.
+citadels-status-rank-resolution = { $brief ->
+    [yes] Đang gọi { $character }.
+   *[no] Đang gọi hạng { $rank }: { $character }.
+}
+citadels-status-turn = { $brief ->
+    [yes] { $player } đang đi lượt với { $character }.
+   *[no] { $player } đang đi lượt với hạng { $rank }, { $character }.
+}
 citadels-status-turn-progress = Đã xây { $builds } trên tổng { $limit } công trình được phép trong lượt này.
-citadels-status-killed = Hạng bị ám sát: { $rank }, { $character }.
+citadels-status-killed = { $brief ->
+    [yes] Bị ám sát: { $character }.
+   *[no] Hạng bị ám sát: { $rank }, { $character }.
+}
 citadels-status-killed-none = Chưa có nhân vật nào bị ám sát trong vòng này.
-citadels-status-robbed = Hạng bị cướp: { $rank }, { $character }.
+citadels-status-robbed = { $brief ->
+    [yes] Bị cướp: { $character }.
+   *[no] Hạng bị cướp: { $rank }, { $character }.
+}
 citadels-status-robbed-none = Chưa có nhân vật nào bị đánh dấu để cướp trong vòng này.
 citadels-status-first-completed = Thành phố hoàn tất đầu tiên: { $player }
 

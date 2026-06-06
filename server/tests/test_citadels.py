@@ -864,6 +864,62 @@ def test_info_actions_remain_visible_while_gameplay_sequences_lock_the_turn() ->
         assert action_id in visible_ids
 
 
+def test_brief_announcements_strip_character_ranks_per_user() -> None:
+    game = make_game(start=True)
+    brief_player = game.players[0]
+    verbose_player = game.players[1]
+    brief_user = game.get_user(brief_player)
+    verbose_user = game.get_user(verbose_player)
+    brief_user.preferences.brief_announcements = True
+
+    # One broadcast event renders per-recipient: the rank is dropped only for the
+    # user who opted into brief announcements.
+    brief_user.clear_messages()
+    verbose_user.clear_messages()
+    game._broadcast_localized(
+        "citadels-character-revealed",
+        buffer="game",
+        player=verbose_player.name,
+        rank=CHARACTER_KING,
+        character=lambda locale: game._character_name(CHARACTER_KING, locale),
+    )
+    brief_text = brief_user.get_last_spoken()
+    verbose_text = verbose_user.get_last_spoken()
+    assert "King" in brief_text and "rank" not in brief_text.lower()
+    assert "King" in verbose_text and "rank 4" in verbose_text.lower()
+
+    # The read-character info action honors the same per-user preference.
+    brief_player.selected_character_rank = CHARACTER_KING
+    brief_user.clear_messages()
+    game.execute_action(brief_player, "read_character")
+    assert "rank" not in brief_user.get_last_spoken().lower()
+
+    verbose_player.selected_character_rank = CHARACTER_KING
+    verbose_user.clear_messages()
+    game.execute_action(verbose_player, "read_character")
+    assert "rank 4" in verbose_user.get_last_spoken().lower()
+
+
+def test_brief_announcements_strip_ranks_from_selection_menu_labels() -> None:
+    game = make_game(start=True)
+    advance_until(game, lambda: not game.has_active_sequence(), max_ticks=100)
+    picker = game.current_player
+    user = game.get_user(picker)
+    user.preferences.brief_announcements = True
+
+    game.rebuild_all_menus()
+    labels = [
+        entry.label
+        for entry in game.get_all_visible_actions(picker)
+        if entry.action.id.startswith("select_character_")
+    ]
+    assert labels  # the picker is mid-selection, so options exist
+    assert all("Rank" not in label for label in labels)
+    # The character name itself survives -- only the rank prefix is gone.
+    character_names = {game._character_name(r, "en") for r in BASE_CHARACTER_RANKS + [CHARACTER_QUEEN]}
+    assert all(label in character_names for label in labels)
+
+
 def test_status_character_and_discards_use_tts_while_detailed_status_opens_a_status_box() -> None:
     game = make_game(start=True)
     player = game.players[0]
