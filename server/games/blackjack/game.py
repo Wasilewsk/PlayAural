@@ -13,6 +13,7 @@ from ...game_utils.cards import Card, Deck, DeckFactory, card_name, read_cards
 from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.options import BoolOption, IntOption, MenuOption, option_field
 from ...game_utils.poker_timer import PokerTurnTimer
+from ...game_utils.sequence_runner_mixin import SequenceBeat, SequenceOperation
 from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
 from .bot import bot_think
@@ -133,6 +134,7 @@ SOUND_WIN_STANDARD = "game_3cardpoker/winbet.ogg"
 SOUND_WIN_BLACKJACK = "game_3cardpoker/win.ogg"
 SOUND_WIN_GAME = "game_3cardpoker/wingame.ogg"
 SOUND_NO_WINNER = "game_blackjack/bust3.ogg"
+DEALER_DRAW_DELAY_TICKS = 28
 
 
 @dataclass
@@ -162,6 +164,7 @@ class BlackjackPlayer(Player):
     insurance_decision_done: bool = False
     took_even_money: bool = False
     next_bet_entered: bool = False
+    in_hand: bool = False
 
 
 @dataclass
@@ -405,6 +408,10 @@ class BlackjackGame(Game):
             errors.append("blackjack-error-bet-below-min")
         if self.options.base_bet > self.options.table_max_bet:
             errors.append("blackjack-error-bet-above-max")
+        if self.options.starting_chips < self.options.table_min_bet:
+            errors.append("blackjack-error-starting-chips-below-min")
+        if self.options.allow_late_surrender and not self.options.dealer_peeks_blackjack:
+            errors.append("blackjack-error-late-surrender-requires-peek")
         return errors
 
     def _handle_option_change(self, option_name: str, value: str) -> None:
@@ -582,6 +589,10 @@ class BlackjackGame(Game):
             return "action-not-available"
         if not self._is_between_hands():
             return "action-not-available"
+        if player.chips <= 0:
+            return "blackjack-out-of-chips"
+        if player.next_bet_entered:
+            return "blackjack-bet-already-locked"
         return None
 
     def _is_set_next_bet_hidden(self, player: Player) -> Visibility:
@@ -706,6 +717,12 @@ class BlackjackGame(Game):
 
     # WEB-SPECIFIC: Target order for Standard Actions
     web_target_order = [
+        "read_hand",
+        "read_bets",
+        "read_dealer",
+        "table_status",
+        "read_rules",
+        "check_turn_timer",
         "check_scores",
         "whose_turn",
         "whos_at_table",
@@ -783,6 +800,7 @@ class BlackjackGame(Game):
                 handler="_action_read_dealer",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
+                include_spectators=True,
             ),
             Action(
                 id="table_status",
@@ -790,6 +808,7 @@ class BlackjackGame(Game):
                 handler="_action_table_status",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
+                include_spectators=True,
             ),
             Action(
                 id="read_rules",
@@ -797,6 +816,7 @@ class BlackjackGame(Game):
                 handler="_action_read_rules",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
+                include_spectators=True,
             ),
             Action(
                 id="check_turn_timer",
@@ -804,6 +824,7 @@ class BlackjackGame(Game):
                 handler="_action_check_turn_timer",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
+                include_spectators=True,
             ),
         ]
 
@@ -827,11 +848,11 @@ class BlackjackGame(Game):
         self.define_keybind("d", "Double down", ["double_down"], state=KeybindState.ACTIVE)
         self.define_keybind("p", "Split", ["split"], state=KeybindState.ACTIVE)
         self.define_keybind("u", "Surrender", ["surrender"], state=KeybindState.ACTIVE)
-        self.define_keybind("b", "Change bet / Read bets", ["change_bet", "read_bets"], state=KeybindState.ACTIVE)
+        self.define_keybind("v", "Change bet / Read bets", ["change_bet", "read_bets"], state=KeybindState.ACTIVE)
         self.define_keybind("i", "Insurance", ["take_insurance"], state=KeybindState.ACTIVE)
         self.define_keybind("n", "Decline insurance", ["decline_insurance"], state=KeybindState.ACTIVE)
         self.define_keybind("m", "Even money", ["even_money"], state=KeybindState.ACTIVE)
-        self.define_keybind("r", "Read hand", ["read_hand"], state=KeybindState.ACTIVE, include_spectators=True)
+        self.define_keybind("r", "Read hand", ["read_hand"], state=KeybindState.ACTIVE)
         self.define_keybind("c", "Read dealer", ["read_dealer"], state=KeybindState.ACTIVE, include_spectators=True)
         self.define_keybind("e", "Table status", ["table_status"], state=KeybindState.ACTIVE, include_spectators=True)
         self.define_keybind("shift+r", "Read rules", ["read_rules"], state=KeybindState.ACTIVE, include_spectators=True)
@@ -849,6 +870,7 @@ class BlackjackGame(Game):
         self.hand_number = 0
         self.next_hand_wait_ticks = 0
         self.awaiting_next_bets = False
+        self.cancel_all_sequences()
 
         active = self.get_active_players()
         self._team_manager.team_mode = "individual"
@@ -884,8 +906,11 @@ class BlackjackGame(Game):
     def on_tick(self) -> None:
         super().on_tick()
         self.process_scheduled_sounds()
+        self.process_sequences()
 
         if not self.game_active:
+            return
+        if self.is_sequence_bot_paused():
             return
 
         if self._is_between_hands():
@@ -907,12 +932,77 @@ class BlackjackGame(Game):
     def bot_think(self, player: BlackjackPlayer) -> str | None:
         return bot_think(self, player)
 
+    def _reset_player_for_new_hand(self, player: BlackjackPlayer) -> None:
+        player.hand = []
+        player.bet = 0
+        player.hand_done = True
+        player.stood = False
+        player.busted = False
+        player.has_blackjack = False
+        player.split_hand = []
+        player.split_bet = 0
+        player.split_hand_done = True
+        player.split_stood = False
+        player.split_busted = False
+        player.split_has_blackjack = False
+        player.active_hand_index = 0
+        player.doubled_main = False
+        player.doubled_split = False
+        player.surrendered_main = False
+        player.surrendered_split = False
+        player.main_from_split_aces = False
+        player.split_from_split_aces = False
+        player.insurance_bet = 0
+        player.insurance_decision_done = True
+        player.took_even_money = False
+        player.next_bet_entered = False
+        player.in_hand = False
+
+    def _clear_settled_hand_state(self, player: BlackjackPlayer) -> None:
+        player.hand = []
+        player.bet = 0
+        player.hand_done = True
+        player.stood = False
+        player.busted = False
+        player.has_blackjack = False
+        player.split_hand = []
+        player.split_bet = 0
+        player.split_hand_done = True
+        player.split_stood = False
+        player.split_busted = False
+        player.split_has_blackjack = False
+        player.active_hand_index = 0
+        player.doubled_main = False
+        player.doubled_split = False
+        player.surrendered_main = False
+        player.surrendered_split = False
+        player.main_from_split_aces = False
+        player.split_from_split_aces = False
+        player.insurance_bet = 0
+        player.insurance_decision_done = True
+        player.took_even_money = False
+        player.in_hand = False
+
+    def _hand_players(self) -> list[BlackjackPlayer]:
+        return [
+            p
+            for p in self.get_active_players()
+            if isinstance(p, BlackjackPlayer)
+            and (
+                p.in_hand
+                or p.bet > 0
+                or p.split_bet > 0
+                or p.insurance_bet > 0
+            )
+        ]
+
     def _start_new_hand(self) -> None:
         self.phase = "players"
         self.hand_number += 1
         self.timer.clear()
         self.next_hand_wait_ticks = 0
         self.awaiting_next_bets = False
+        self.cancel_sequences_by_tag("blackjack_dealer")
 
         total_competitors = [
             p
@@ -933,36 +1023,18 @@ class BlackjackGame(Game):
             self._end_game(active_players[0] if active_players else None)
             return
 
-        for player in active_players:
-            player.hand = []
-            player.bet = 0
-            player.hand_done = False
-            player.stood = False
-            player.busted = False
-            player.has_blackjack = False
-            player.split_hand = []
-            player.split_bet = 0
-            player.split_hand_done = True
-            player.split_stood = False
-            player.split_busted = False
-            player.split_has_blackjack = False
-            player.active_hand_index = 0
-            player.doubled_main = False
-            player.doubled_split = False
-            player.surrendered_main = False
-            player.surrendered_split = False
-            player.main_from_split_aces = False
-            player.split_from_split_aces = False
-            player.insurance_bet = 0
-            player.insurance_decision_done = False
-            player.took_even_money = False
-            player.next_bet_entered = False
+        for player in total_competitors:
+            self._reset_player_for_new_hand(player)
 
         self.dealer_hand = []
         self.dealer_hole_revealed = False
 
         self._ensure_deck(min_cards=len(active_players) * 6)
         self._post_bets(active_players)
+        active_players = [p for p in active_players if p.in_hand and p.bet > 0]
+        if len(active_players) == 0:
+            self._settle_hand()
+            return
         self._deal_initial_cards(active_players)
 
         if self._should_offer_insurance(active_players):
@@ -1000,6 +1072,7 @@ class BlackjackGame(Game):
 
     def _start_player_phase(self, players: list[BlackjackPlayer]) -> None:
         self.phase = "players"
+        players = [p for p in players if p.in_hand and p.bet > 0]
         action_order = [p for p in players if self._player_has_pending_hand(p)]
         self.set_turn_players(action_order, reset_index=True)
         if not self.turn_player_ids:
@@ -1015,6 +1088,7 @@ class BlackjackGame(Game):
         return any(self._can_take_insurance(player) or self._can_take_even_money(player) for player in players)
 
     def _start_insurance_phase(self, players: list[BlackjackPlayer]) -> None:
+        players = [p for p in players if p.in_hand and p.bet > 0]
         self.phase = "insurance"
         self.timer.clear()
         self.broadcast_l("blackjack-insurance-offer", buffer="game")
@@ -1031,7 +1105,7 @@ class BlackjackGame(Game):
     def _start_insurance_turn(self) -> None:
         player = self.current_player
         if not isinstance(player, BlackjackPlayer):
-            self._finish_insurance_phase([p for p in self.get_active_players() if isinstance(p, BlackjackPlayer)])
+            self._finish_insurance_phase(self._hand_players())
             return
 
         if not self._player_needs_insurance_decision(player):
@@ -1060,7 +1134,7 @@ class BlackjackGame(Game):
 
     def _advance_insurance_to_next_player(self) -> None:
         if not self.turn_player_ids:
-            self._finish_insurance_phase([p for p in self.get_active_players() if isinstance(p, BlackjackPlayer)])
+            self._finish_insurance_phase(self._hand_players())
             return
 
         for _ in range(len(self.turn_player_ids)):
@@ -1072,9 +1146,10 @@ class BlackjackGame(Game):
                 self._start_insurance_turn()
                 return
 
-        self._finish_insurance_phase([p for p in self.get_active_players() if isinstance(p, BlackjackPlayer)])
+        self._finish_insurance_phase(self._hand_players())
 
     def _finish_insurance_phase(self, players: list[BlackjackPlayer]) -> None:
+        players = [p for p in players if p.in_hand and p.bet > 0]
         self.timer.clear()
         for player in players:
             if self._player_needs_insurance_decision(player):
@@ -1116,30 +1191,62 @@ class BlackjackGame(Game):
     def _play_dealer_turn(self) -> None:
         self.phase = "dealer"
         self.timer.clear()
+        self.cancel_sequences_by_tag("blackjack_dealer")
         self._reveal_dealer_hand()
 
-        while True:
-            total, is_soft = self.hand_value(self.dealer_hand)
-            should_hit = total < 17
-            if total == 17 and is_soft and self.options.dealer_hits_soft_17:
-                should_hit = True
+        if self._dealer_should_hit():
+            self._schedule_dealer_draw()
+            return
 
-            if not should_hit:
-                break
+        self._finish_dealer_turn()
 
-            card = self._draw_card()
-            if not card:
-                break
-            self.dealer_hand.append(card)
-            self.play_sound(SOUND_HIT)
-            self._broadcast_l_with_locale_args(
-                "blackjack-dealer-hits",
-                lambda locale: {
-                    "card": card_name(card, locale),
-                    "total": self._total_text(locale, *self.hand_value(self.dealer_hand)),
-                },
-            )
+    def _dealer_should_hit(self) -> bool:
+        total, is_soft = self.hand_value(self.dealer_hand)
+        if total < 17:
+            return True
+        return total == 17 and is_soft and self.options.dealer_hits_soft_17
 
+    def _schedule_dealer_draw(self) -> None:
+        self.start_sequence(
+            "blackjack_dealer_draw",
+            [
+                SequenceBeat(
+                    ops=[SequenceOperation.callback_op("blackjack_dealer_draw")],
+                )
+            ],
+            start_delay=DEALER_DRAW_DELAY_TICKS,
+            tag="blackjack_dealer",
+            lock_scope=self.SEQUENCE_LOCK_GAMEPLAY,
+            pause_bots=True,
+        )
+
+    def _dealer_draw_one_card(self) -> None:
+        if self.phase != "dealer":
+            return
+
+        card = self._draw_card()
+        if not card:
+            self._finish_dealer_turn()
+            return
+
+        self.dealer_hand.append(card)
+        self.play_sound(SOUND_HIT)
+        self._broadcast_l_with_locale_args(
+            "blackjack-dealer-hits",
+            lambda locale: {
+                "card": card_name(card, locale),
+                "total": self._total_text(locale, *self.hand_value(self.dealer_hand)),
+            },
+        )
+
+        if self._dealer_should_hit():
+            self._schedule_dealer_draw()
+            return
+
+        self._finish_dealer_turn()
+
+    def _finish_dealer_turn(self) -> None:
+        self.cancel_sequences_by_tag("blackjack_dealer")
         total, is_soft = self.hand_value(self.dealer_hand)
         if total > 21:
             self._play_bust_sound()
@@ -1154,6 +1261,17 @@ class BlackjackGame(Game):
                 lambda locale: {"total": self._total_text(locale, total, is_soft)},
             )
         self._settle_hand()
+
+    def on_sequence_callback(
+        self,
+        sequence_id: str,
+        callback_id: str,
+        payload: dict,
+    ) -> None:
+        if callback_id == "blackjack_dealer_draw":
+            self._dealer_draw_one_card()
+            return
+        super().on_sequence_callback(sequence_id, callback_id, payload)
 
     # ======================================================================
     # Player actions
@@ -1173,11 +1291,11 @@ class BlackjackGame(Game):
 
         hand.append(card)
         self.play_sound(SOUND_HIT)
-        self.broadcast_personal_l(
+        self._broadcast_personal_l_with_locale_args(
             p,
             "blackjack-you-hit",
             "blackjack-player-hits",
-            card=card_name(card, self._player_locale(p)),
+            lambda locale: {"card": card_name(card, locale)},
         )
         self._evaluate_current_hand_after_draw(p)
 
@@ -1242,22 +1360,22 @@ class BlackjackGame(Game):
         if card:
             hand.append(card)
             self.play_sound(SOUND_HIT)
-            self.broadcast_personal_l(
+            self._broadcast_personal_l_with_locale_args(
                 p,
                 "blackjack-you-hit",
                 "blackjack-player-hits",
-                card=card_name(card, self._player_locale(p)),
+                lambda locale: {"card": card_name(card, locale)},
             )
 
         total, is_soft = self.hand_value(hand)
         if total > 21:
             self._play_bust_sound()
             self._set_current_hand_done(p, done=True, busted=True)
-            self.broadcast_personal_l(
+            self._broadcast_personal_l_with_locale_args(
                 p,
                 "blackjack-you-bust",
                 "blackjack-player-bust",
-                total=self._total_text(self._player_locale(p), total, is_soft),
+                lambda locale: {"total": self._total_text(locale, total, is_soft)},
             )
         else:
             self.play_sound(SOUND_STAND)
@@ -1401,6 +1519,9 @@ class BlackjackGame(Game):
         p.next_bet = amount
         p.next_bet_entered = True
         self.play_sound(SOUND_BET)
+        user = self.get_user(p)
+        if user:
+            user.speak_l("blackjack-bet-locked", amount=amount, buffer="game")
         self._start_next_hand_if_ready()
 
     def _action_set_next_bet(self, player: Player, amount_str: str, action_id: str) -> None:
@@ -1414,20 +1535,27 @@ class BlackjackGame(Game):
             return
 
         user = self.get_user(p)
-        if amount < self.options.table_min_bet:
+        minimum = self._minimum_bet_for_player(p)
+        maximum = self._maximum_bet_for_player(p)
+        if amount < minimum:
             if user:
                 user.speak_l("blackjack-error-bet-below-min", buffer="game")
             return
-        if amount > self.options.table_max_bet:
+        if amount > maximum:
             if user:
-                user.speak_l("blackjack-error-bet-above-max", buffer="game")
+                message_id = (
+                    "blackjack-error-bet-above-chips"
+                    if maximum < self.options.table_max_bet
+                    else "blackjack-error-bet-above-max"
+                )
+                user.speak_l(message_id, buffer="game")
             return
 
         p.next_bet = amount
         p.next_bet_entered = True
         self.play_sound(SOUND_BET)
         if user:
-            user.speak_l("blackjack-option-changed-bet", count=amount, buffer="game")
+            user.speak_l("blackjack-bet-locked", amount=amount, buffer="game")
         self._start_next_hand_if_ready()
 
     # ======================================================================
@@ -1440,6 +1568,10 @@ class BlackjackGame(Game):
         if not p or not user:
             return
         self._suppress_keybind_rebuild(player)
+
+        if not p.in_hand and not p.hand and not p.split_hand:
+            user.speak_l("blackjack-no-hand", buffer="game")
+            return
 
         if p.split_bet > 0 and p.split_hand:
             total1, soft1 = self.hand_value(p.hand)
@@ -1475,6 +1607,15 @@ class BlackjackGame(Game):
         lines: list[str] = []
         for other in self.get_active_players():
             if not isinstance(other, BlackjackPlayer):
+                continue
+            if other.chips <= 0 and not other.in_hand:
+                lines.append(
+                    Localization.get(
+                        user.locale,
+                        "blackjack-status-line-out",
+                        player=other.name,
+                    )
+                )
                 continue
             total_bet = other.bet + other.split_bet + other.insurance_bet
             lines.append(
@@ -1526,7 +1667,15 @@ class BlackjackGame(Game):
             if not isinstance(p, BlackjackPlayer):
                 continue
             can_view_cards = self._can_view_player_cards(player, p)
-            if can_view_cards and p.split_bet > 0 and p.hand and p.split_hand:
+            if p.chips <= 0 and not p.in_hand:
+                lines.append(
+                    Localization.get(
+                        user.locale,
+                        "blackjack-status-line-out",
+                        player=p.name,
+                    )
+                )
+            elif can_view_cards and p.split_bet > 0 and p.hand and p.split_hand:
                 total1, soft1 = self.hand_value(p.hand)
                 total2, soft2 = self.hand_value(p.split_hand)
                 lines.append(
@@ -2039,16 +2188,29 @@ class BlackjackGame(Game):
     def _clamp_table_bet(self, amount: int) -> int:
         return max(self.options.table_min_bet, min(amount, self.options.table_max_bet))
 
+    def _minimum_bet_for_player(self, player: BlackjackPlayer) -> int:
+        if player.chips <= 0:
+            return 0
+        return min(self.options.table_min_bet, player.chips)
+
+    def _maximum_bet_for_player(self, player: BlackjackPlayer) -> int:
+        if player.chips <= 0:
+            return 0
+        return min(self.options.table_max_bet, player.chips)
+
+    def _clamp_player_bet(self, player: BlackjackPlayer, amount: int) -> int:
+        if player.chips <= 0:
+            return 0
+        minimum = self._minimum_bet_for_player(player)
+        maximum = self._maximum_bet_for_player(player)
+        return max(minimum, min(amount, maximum))
+
     def _effective_next_bet(self, player: BlackjackPlayer) -> int:
         chosen_bet = player.next_bet if player.next_bet > 0 else self.options.base_bet
-        return self._clamp_table_bet(chosen_bet)
+        return self._clamp_player_bet(player, chosen_bet)
 
     def _posted_bet_for_player(self, player: BlackjackPlayer) -> int:
-        desired_bet = self._effective_next_bet(player)
-        bet = min(player.chips, desired_bet)
-        if player.chips >= self.options.table_min_bet and bet < self.options.table_min_bet:
-            bet = self.options.table_min_bet
-        return max(0, bet)
+        return max(0, self._effective_next_bet(player))
 
     def _post_bets(self, players: list[BlackjackPlayer]) -> None:
         bet_posted = False
@@ -2056,15 +2218,22 @@ class BlackjackGame(Game):
             if player.chips <= 0:
                 player.bet = 0
                 player.hand_done = True
+                player.insurance_decision_done = True
+                player.in_hand = False
                 continue
 
             bet = self._posted_bet_for_player(player)
             if bet <= 0:
                 player.bet = 0
                 player.hand_done = True
+                player.insurance_decision_done = True
+                player.in_hand = False
                 continue
             player.chips -= bet
             player.bet = bet
+            player.hand_done = False
+            player.insurance_decision_done = False
+            player.in_hand = True
             bet_posted = True
             self.broadcast_personal_l(
                 player,
@@ -2100,6 +2269,10 @@ class BlackjackGame(Game):
         self.rebuild_all_menus()
 
     def _deal_initial_cards(self, players: list[BlackjackPlayer]) -> None:
+        players = [p for p in players if p.in_hand and p.bet > 0]
+        if not players:
+            return
+
         self._play_deal_sound()
         for _ in range(2):
             for player in players:
@@ -2228,11 +2401,11 @@ class BlackjackGame(Game):
         if total > 21:
             self._play_bust_sound()
             self._set_current_hand_done(player, done=True, busted=True)
-            self.broadcast_personal_l(
+            self._broadcast_personal_l_with_locale_args(
                 player,
                 "blackjack-you-bust",
                 "blackjack-player-bust",
-                total=self._total_text(self._player_locale(player), total, is_soft),
+                lambda locale: {"total": self._total_text(locale, total, is_soft)},
             )
             self._advance_to_next_player()
             return
@@ -2260,10 +2433,7 @@ class BlackjackGame(Game):
         dealer_blackjack = self.is_blackjack(self.dealer_hand)
         dealer_bust = dealer_total > 21
 
-        for player in self.get_active_players():
-            if not isinstance(player, BlackjackPlayer):
-                continue
-
+        for player in self._hand_players():
             if player.insurance_bet > 0:
                 if dealer_blackjack:
                     insurance_profit = player.insurance_bet * 2
@@ -2344,6 +2514,8 @@ class BlackjackGame(Game):
                     "blackjack-you-broke",
                     "blackjack-player-broke",
                 )
+
+            self._clear_settled_hand_state(player)
 
         self._sync_team_scores()
 

@@ -100,7 +100,7 @@ def test_games_with_non_point_scores_declare_score_unit(game_cls, unit_key) -> N
             BlackjackGame,
             {"final_chips": {"Alice": 1, "Bob": 2}},
             ["1. Bob: 2 chips", "2. Alice: 1 chip"],
-            ["1. Bob: 2 xu", "2. Alice: 1 xu"],
+            ["1. Bob: 2 chip", "2. Alice: 1 chip"],
         ),
         (
             FiveCardDrawGame,

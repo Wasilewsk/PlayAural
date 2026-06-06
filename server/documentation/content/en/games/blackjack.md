@@ -14,11 +14,19 @@ The game is played with a standard 52-card deck (or multiple decks, depending on
 
 
 
+Only players who have chips and lock in a bet are dealt into a hand. Players who run out of chips stay at the table but sit out future hands unless the game has already ended.
+
+
+
 The goal is to beat the dealer by having a hand total closer to 21 than the dealer's hand, without exceeding 21 (busting). Face cards (Jacks, Queens, Kings) are worth 10. Aces are worth 1 or 11, whichever is more favorable. All other cards are worth their face value.
 
 
 
 If you are dealt an Ace and a 10-value card as your first two cards, you have a Blackjack! This typically pays out at higher odds unless the dealer also has a Blackjack (which results in a tie, or push).
+
+
+
+After all player hands are complete, the dealer reveals the hole card and draws one card at a time until reaching the table's dealer rule. Dealer draw announcements are paced so the table can follow each card and total clearly.
 
 
 
@@ -42,6 +50,8 @@ On your turn, you have several choices:
 
 \* \*\*Insurance / Even Money:\*\* If the dealer's face-up card is an Ace, you can place a side bet (insurance) that the dealer has a 10-value card in the hole. If you have a Blackjack yourself, you can take Even Money to guarantee a 1 to 1 payout regardless of the dealer's hole card.
 
+\* \*\*Bet Locking:\*\* Between hands, choose your next chip bet once. Confirming the bet locks it immediately for the upcoming hand.
+
 
 
 \*\*Customizable Options\*\*
@@ -52,7 +62,7 @@ The host can tweak several settings at the table:
 
 
 
-\* \*\*Rules Profile:\*\* Select pre-configured rule sets (like Vegas, Atlantic City, or European) which adjust multiple settings at once.
+\* \*\*Rules Profile:\*\* Select pre-configured rule sets (Vegas, European, or Friendly) which adjust multiple settings at once.
 
 \* \*\*Decks:\*\* The number of standard 52-card decks used in the shoe (default 4, range 1-8).
 
@@ -71,6 +81,8 @@ The host can tweak several settings at the table:
 \* \*\*Allow Insurance:\*\* Whether the insurance side bet is available (default on).
 
 \* \*\*Allow Late Surrender:\*\* Whether players can surrender after seeing their hand (default on).
+
+  Late surrender requires Dealer Peeks for Blackjack to be enabled. Without a dealer peek, surrender would become early surrender instead.
 
 \* \*\*Blackjack Payout:\*\* The payout ratio for a natural Blackjack (default 3:2).
 
@@ -110,7 +122,7 @@ The host can tweak several settings at the table:
 
 \* \*\*M:\*\* Take even money.
 
-\* \*\*B:\*\* Change bet (between rounds) or Read current bets (during play).
+\* \*\*V:\*\* Change bet (between rounds) or Read current bets (during play).
 
 \* \*\*R:\*\* Read your hand.
 

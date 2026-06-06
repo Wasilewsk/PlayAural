@@ -879,7 +879,7 @@ class Database:
             SELECT id, username, admin_username, reason_key, issued_at, expires_at
             FROM bans
             WHERE username = ? AND (expires_at IS NULL OR expires_at > ?)
-            ORDER BY issued_at DESC
+            ORDER BY issued_at DESC, id DESC
             LIMIT 1
             """,
             (username, now),
@@ -953,7 +953,7 @@ class Database:
             SELECT id, username, admin_username, reason, issued_at, expires_at
             FROM mutes
             WHERE username = ? AND (expires_at IS NULL OR expires_at > ?)
-            ORDER BY issued_at DESC
+            ORDER BY issued_at DESC, id DESC
             LIMIT 1
             """,
             (username, now),
