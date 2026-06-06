@@ -53,15 +53,26 @@ def test_distinct_menu_ids_both_survive():
     assert {m["menu_id"] for m in menus} == {"turn_menu", "status_box"}
 
 
-def test_last_menu_selection_id_survives_coalescing():
-    # The 99 land-on-drawn-card flow: a plain refresh of everyone, then a
-    # targeted refresh of the drawer; only the targeted packet must survive.
+def test_focus_intent_survives_a_later_blanket_rebuild():
+    # The real 99 land-on-drawn-card ordering: the handler targets the drawn
+    # card's slot, then the event framework fires a post-action rebuild with no
+    # focus on the same tick. The targeted focus must survive the later repaint.
     user = _user()
-    user.update_menu("turn_menu", _items("card_slot_1", "card_slot_2"))
     user.update_menu(
         "turn_menu", _items("card_slot_1", "card_slot_2"), selection_id="card_slot_2"
     )
+    user.show_menu("turn_menu", _items("card_slot_1", "card_slot_2"))  # blanket rebuild
 
     menus = [m for m in user.get_queued_messages() if m["type"] == "menu"]
     assert len(menus) == 1
     assert menus[0]["selection_id"] == "card_slot_2"
+
+
+def test_latest_explicit_focus_wins():
+    user = _user()
+    user.update_menu("turn_menu", _items("a", "b", "c"), selection_id="a")
+    user.update_menu("turn_menu", _items("a", "b", "c"), selection_id="c")
+
+    menus = [m for m in user.get_queued_messages() if m["type"] == "menu"]
+    assert len(menus) == 1
+    assert menus[0]["selection_id"] == "c"

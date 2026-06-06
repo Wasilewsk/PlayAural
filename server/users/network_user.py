@@ -109,13 +109,27 @@ class NetworkUser(User):
         messages = self._message_queue
         self._message_queue = []
 
-        # Index of the final repaint queued for each menu_id this flush.
+        # For each menu_id: the index of the final repaint (whose items win) and
+        # the most recent *explicit* focus directive in the batch. A handler that
+        # targets a specific item (e.g. the freshly drawn card in Ninety Nine)
+        # commonly does so just before the event framework fires a blanket
+        # rebuild with no focus; a plain repaint means "keep focus", never "reset
+        # it", so the explicit directive must survive the later repaint.
         last_menu_index: dict[str, int] = {}
+        last_focus: dict[str, dict[str, Any]] = {}
         for i, packet in enumerate(messages):
             if packet.get("type") == "menu":
                 menu_id = packet.get("menu_id")
                 if menu_id is not None:
                     last_menu_index[menu_id] = i
+                    if (
+                        packet.get("selection_id") is not None
+                        or packet.get("position") is not None
+                    ):
+                        last_focus[menu_id] = {
+                            "selection_id": packet.get("selection_id"),
+                            "position": packet.get("position"),
+                        }
 
         if not last_menu_index:
             return messages
@@ -124,8 +138,22 @@ class NetworkUser(User):
         for i, packet in enumerate(messages):
             if packet.get("type") == "menu":
                 menu_id = packet.get("menu_id")
-                if menu_id is not None and last_menu_index.get(menu_id) != i:
-                    continue  # superseded by a later repaint of the same menu
+                if menu_id is not None:
+                    if last_menu_index.get(menu_id) != i:
+                        continue  # superseded by a later repaint of the same menu
+                    focus = last_focus.get(menu_id)
+                    if (
+                        focus is not None
+                        and packet.get("selection_id") is None
+                        and packet.get("position") is None
+                    ):
+                        # Carry the batch's latest explicit focus onto the
+                        # surviving repaint without mutating the original packet.
+                        packet = {**packet}
+                        if focus["selection_id"] is not None:
+                            packet["selection_id"] = focus["selection_id"]
+                        if focus["position"] is not None:
+                            packet["position"] = focus["position"]
             coalesced.append(packet)
         return coalesced
 
