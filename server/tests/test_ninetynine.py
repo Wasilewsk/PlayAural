@@ -575,6 +575,11 @@ class TestNinetyNinePlayTest:
         game.count = 95
         player1.hand = [Card(id=901, rank=12, suit=SUIT_HEARTS)]
         player2.hand = [Card(id=902, rank=5, suit=SUIT_HEARTS)]
+        # Rebuild player1's turn actions so card_slot_1 reflects the overridden
+        # hand. Without this it keeps the input-request of whatever card on_start
+        # randomly dealt to slot 1 (an ace/ten opens a choice dialog instead of
+        # playing), making the test depend on the deal rather than the rules.
+        game._update_turn_actions(player1)
         round_before = game.round
 
         game.execute_action(player1, "card_slot_1")
@@ -736,8 +741,12 @@ class TestNinetyNineChoiceDialogs:
 
     def test_legacy_single_valid_choice_auto_resolves(self):
         """Saved pending choices with one valid outcome should not reopen a dialog."""
+        # Use a synthetic id well outside the deck's range so the auto-drawn
+        # replacement card can't coincidentally share it (the deck contains a
+        # real id=1 card; colliding made this assertion depend on the deal).
+        ace_id = 9001
         self.game.count = 97
-        self.player1.hand = [Card(id=1, rank=1, suit=SUIT_HEARTS)]
+        self.player1.hand = [Card(id=ace_id, rank=1, suit=SUIT_HEARTS)]
         self.game.pending_choice = "ace"
         self.game.pending_card_index = 0
         self.game._update_turn_actions(self.player1)
@@ -746,7 +755,7 @@ class TestNinetyNineChoiceDialogs:
 
         assert "action_input_menu" not in self.user1.menus
         assert self.game.count == 98
-        assert all(card.id != 1 for card in self.player1.hand)
+        assert all(card.id != ace_id for card in self.player1.hand)
 
     def test_subtract_ten_floors_at_zero(self):
         """Negative-value plays should never push the count below zero."""
