@@ -85,6 +85,7 @@ class Game(
     class Config(BaseConfig):
         # Serialize all fields (don't omit defaults - breaks state restoration)
         serialize_by_alias = True
+        lazy_compilation = True
 
     #: User preference names this game is relevant to (for per-game overrides).
     relevant_preferences: ClassVar[list[str]] = []
