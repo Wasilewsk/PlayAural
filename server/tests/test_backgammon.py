@@ -645,3 +645,68 @@ class TestGameLifecycle:
         # The cube-state reader ("d") must survive — it is not a gnubg hint.
         assert "h" not in game._keybinds or not game._keybinds["h"]
         assert "shift+h" not in game._keybinds or not game._keybinds["shift+h"]
+
+
+# ==========================================================================
+# Square (per-point highlight) sounds
+# ==========================================================================
+
+
+def _expected_point_sound(val: int, owns_positive: bool) -> str | None:
+    """Mirror the perspective-relative mapping the game uses."""
+    if val == 0:
+        return None
+    is_own = (val > 0) == owns_positive
+    count = abs(val)
+    if is_own:
+        return "game_squares/token1.ogg" if count == 1 else "game_squares/token3.ogg"
+    return "game_squares/token7.ogg" if count == 1 else "game_squares/token4.ogg"
+
+
+class TestSquareSounds:
+    def test_point_actions_carry_get_sound(self):
+        game = make_game(start=True)
+        red = next(p for p in game.players if p.color == "red")
+        action_set = game.create_turn_action_set(red)
+        for idx in range(24):
+            action = action_set.get_action(f"point_{idx}")
+            assert action is not None
+            assert action.get_sound == "_get_point_sound"
+
+    def test_get_point_sound_is_perspective_relative(self):
+        game = make_game(start=True)
+        red = next(p for p in game.players if p.color == "red")
+        white = next(p for p in game.players if p.color == "white")
+        points = game.game_state.board.points
+        for idx, val in enumerate(points):
+            assert game._get_point_sound(red, f"point_{idx}") == _expected_point_sound(
+                val, owns_positive=True
+            )
+            assert game._get_point_sound(white, f"point_{idx}") == _expected_point_sound(
+                val, owns_positive=False
+            )
+        # A checker reads as "mine" to its owner and "theirs" to the opponent.
+        occupied = next(i for i, v in enumerate(points) if v > 0)
+        assert game._get_point_sound(red, f"point_{occupied}").startswith("game_squares/token1") or \
+            game._get_point_sound(red, f"point_{occupied}").startswith("game_squares/token3")
+        assert game._get_point_sound(white, f"point_{occupied}").startswith("game_squares/token7") or \
+            game._get_point_sound(white, f"point_{occupied}").startswith("game_squares/token4")
+
+    def test_get_point_sound_handles_malformed_id(self):
+        game = make_game(start=True)
+        red = next(p for p in game.players if p.color == "red")
+        assert game._get_point_sound(red, "garbage") is None
+        assert game._get_point_sound(red, "point_") is None
+
+    def test_resolved_action_propagates_sound(self):
+        """End-to-end: get_sound resolves onto ResolvedAction.sound."""
+        game = make_game(start=True)
+        red = next(p for p in game.players if p.color == "red")
+        action_set = game.create_turn_action_set(red)
+        occupied = next(
+            i for i, v in enumerate(game.game_state.board.points) if v != 0
+        )
+        action = action_set.get_action(f"point_{occupied}")
+        resolved = action_set.resolve_action(game, red, action)
+        assert resolved.sound == game._get_point_sound(red, f"point_{occupied}")
+        assert resolved.sound is not None
