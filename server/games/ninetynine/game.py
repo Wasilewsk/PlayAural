@@ -434,22 +434,10 @@ class NinetyNineGame(Game):
                  user = self.get_user(player)
         locale = user.locale if user else "en"
 
-        # Number keys for card slots (1-9, then 0 for 10)
-        for i in range(1, 10):
-            self.define_keybind(
-                str(i), f"Play card {i}", [f"card_slot_{i}"], state=KeybindState.ACTIVE
-            )
-        self.define_keybind(
-            "0", "Play card 10", ["card_slot_10"], state=KeybindState.ACTIVE
-        )
-
-        # Draw card (Space or D)
-        self.define_keybind(
-            "space", Localization.get(locale, "ninetynine-draw-card"), ["draw_card"], state=KeybindState.ACTIVE
-        )
-        self.define_keybind(
-            "d", Localization.get(locale, "ninetynine-draw-card"), ["draw_card"], state=KeybindState.ACTIVE
-        )
+        # Card-slot and draw keybinds depend on the options (hand size,
+        # autodraw), so they live in a helper that is also refreshed at
+        # on_start once the host's options are locked. See _define_card_keybinds.
+        self._define_card_keybinds()
 
         # Count check
         self.define_keybind(
@@ -459,6 +447,48 @@ class NinetyNineGame(Game):
             state=KeybindState.ACTIVE,
             include_spectators=True,
         )
+
+    def _define_card_keybinds(self) -> None:
+        """(Re)define the card-slot and draw keybinds to match current options.
+
+        Card slots map to the keys 1-9 then 0, but only for as many cards as a
+        hand can actually hold (``hand_size``, capped at the ten available
+        keys) — so no keybind ever points at a ``card_slot`` action the game
+        never creates. The draw keybind exists only in manual-draw mode; with
+        autodraw on, the game refills automatically and a draw key would be a
+        dead binding.
+
+        Called from setup_keybinds (lobby) and refreshed at on_start once the
+        host's options are locked.
+        """
+        user = None
+        host_name = getattr(self, "host", None)
+        if host_name:
+            player = self.get_player_by_name(host_name)
+            if player:
+                user = self.get_user(player)
+        locale = user.locale if user else "en"
+
+        # Clear any prior definitions so a refresh replaces rather than
+        # duplicates them (define_keybind appends per key).
+        for key in [str(i) for i in range(1, 10)] + ["0", "space", "d"]:
+            self._keybinds.pop(key, None)
+
+        slot_count = min(self.options.hand_size, 10)
+        for i in range(1, slot_count + 1):
+            key = str(i) if i < 10 else "0"
+            self.define_keybind(
+                key, f"Play card {i}", [f"card_slot_{i}"], state=KeybindState.ACTIVE
+            )
+
+        if not self.options.autodraw:
+            for key in ("space", "d"):
+                self.define_keybind(
+                    key,
+                    Localization.get(locale, "ninetynine-draw-card"),
+                    ["draw_card"],
+                    state=KeybindState.ACTIVE,
+                )
 
     def _update_card_actions(self, player: NinetyNinePlayer) -> None:
         """Update card slot actions based on player's hand."""
@@ -904,6 +934,10 @@ class NinetyNineGame(Game):
         self._sync_table_status()
         self.game_active = True
         self.round = 0
+
+        # Options are locked now; align card-slot/draw keybinds to them so the
+        # keys offered match the actual hand size and draw mode.
+        self._define_card_keybinds()
 
         # Set up teams (individual mode)
         active_players = self.get_active_players()
