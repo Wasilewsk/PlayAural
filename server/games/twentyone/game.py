@@ -760,14 +760,20 @@ class TwentyOneGame(ActionGuardMixin, Game):
             return
 
         locale = self._player_locale(p)
-        user.speak_l("twentyone-change-card-guide-header", "game")
+        lines = [Localization.get(locale, "twentyone-change-card-guide-header")]
         for modifier_id in MODIFIER_HELP:
             name = self._render_modifier(locale, modifier_id)
             description = self._modifier_help(locale, modifier_id)
-            user.speak_l(
-                "twentyone-change-card-guide-entry", "game", name=name, description=description
+            lines.append(
+                Localization.get(
+                    locale,
+                    "twentyone-change-card-guide-entry",
+                    name=name,
+                    description=description,
+                )
             )
-        user.speak_l("twentyone-change-card-guide-footer", "game")
+        lines.append(Localization.get(locale, "twentyone-change-card-guide-footer"))
+        self.status_box(p, lines)
 
     def _action_read_opponent_face_up(self, player: Player, action_id: str) -> None:
         p = player if isinstance(player, TwentyOnePlayer) else None
