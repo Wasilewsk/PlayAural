@@ -29,10 +29,8 @@ draw-not-betting = Bạn không thể cược trong giai đoạn đổi bài.
 draw-fold-not-available = Bạn không thể bỏ bài trong giai đoạn đổi bài.
 
 draw-toggle-discard = Chọn đổi lá bài thứ { $index }
-draw-card-keep = Giữ { $card }
-draw-card-discard = Bỏ { $card }
-draw-card-kept = Giữ { $card }.
-draw-card-discarded = Bỏ { $card }.
+draw-card-keep = { $card }
+draw-card-discard = { $card } đã chọn
 draw-draw-cards = Đổi bài
 draw-draw-cards-count = Đổi { $count } { $count ->
     [one] lá bài

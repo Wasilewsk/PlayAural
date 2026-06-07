@@ -29,10 +29,8 @@ draw-not-betting = You cannot bet during the draw phase.
 draw-fold-not-available = You cannot fold during the draw phase.
 
 draw-toggle-discard = Toggle discard for card { $index }
-draw-card-keep = Keep { $card }
-draw-card-discard = Discard { $card }
-draw-card-kept = Keep { $card }.
-draw-card-discarded = Discard { $card }.
+draw-card-keep = { $card }
+draw-card-discard = { $card } selected
 draw-draw-cards = Draw cards
 draw-draw-cards-count = Draw { $count } { $count ->
     [one] card

@@ -859,7 +859,6 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
             return
         self._set_discard(p, idx, discard=idx not in p.to_discard)
         self.update_player_menu(p)
-        self._announce_discard_status(p, idx)
 
     # ==========================================================================
     # Action helpers
@@ -1248,18 +1247,6 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
         else:
             player.to_discard.discard(idx)
 
-    def _announce_discard_status(self, player: FiveCardDrawPlayer, idx: int) -> None:
-        user = self.get_user(player)
-        if not user:
-            return
-        if idx < 0 or idx >= len(player.hand):
-            return
-        card = card_name(player.hand[idx], user.locale)
-        if idx in player.to_discard:
-            user.speak_l("draw-card-discarded", buffer="game", card=card)
-        else:
-            user.speak_l("draw-card-kept", buffer="game", card=card)
-
     def _action_card_key(self, player: Player, action_id: str) -> None:
         p = self._require_active_player(player)
         if not p or self.phase != "draw":
@@ -1272,7 +1259,6 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
             return
         self._set_discard(p, idx, discard=idx not in p.to_discard)
         self.update_player_menu(p)
-        self._announce_discard_status(p, idx)
 
     def _is_check_enabled(self, player: Player) -> str | None:
         if self.status != "playing":
