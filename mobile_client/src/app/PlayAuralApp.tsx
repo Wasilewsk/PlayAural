@@ -721,6 +721,13 @@ export function PlayAuralApp() {
     });
   }, [moveNativeAccessibilityFocus, nativeScreenReaderMode]);
 
+  const clearNativeTabTextInputFocusTimers = useCallback(() => {
+    nativeTabTextInputFocusTimersRef.current.forEach((timer) => {
+      clearTimeout(timer);
+    });
+    nativeTabTextInputFocusTimersRef.current.clear();
+  }, []);
+
   const handleTextInputFocus = useCallback((key: string, onFocus?: () => void) => {
     activeTextInputKeyRef.current = key;
     setActiveTextInputKey(key);
@@ -2899,6 +2906,7 @@ export function PlayAuralApp() {
   const openNativeTab = (nextMode: AppMode) => {
     void audio.handleUserInteraction();
     playMenuActivateSound();
+    clearNativeTabTextInputFocusTimers();
 
     if (nextMode === "main") {
       const previousMode = mode;
