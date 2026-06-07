@@ -890,7 +890,7 @@ class AgeOfHeroesGame(Game):
             return "ageofheroes-not-your-turn"
 
         # Additional checks for specific actions
-        if action_id == f"action_{ActionType.CONSTRUCTION}":
+        if action_id == f"action_{ActionType.CONSTRUCTION.value}":
             if isinstance(player, AgeOfHeroesPlayer):
                 from .construction import get_affordable_buildings
 
@@ -898,7 +898,7 @@ class AgeOfHeroesGame(Game):
                 if not affordable:
                     return "ageofheroes-no-resources"
 
-        if action_id == f"action_{ActionType.WAR}":
+        if action_id == f"action_{ActionType.WAR.value}":
             if isinstance(player, AgeOfHeroesPlayer):
                 war_error = can_declare_war(self, player)
                 if war_error:
@@ -906,13 +906,18 @@ class AgeOfHeroesGame(Game):
 
         return None
 
-    def _is_main_action_hidden(self, player: Player) -> Visibility:
-        """Main actions are visible during action selection."""
+    def _is_main_action_hidden(self, player: Player, action_id: str = "") -> Visibility:
+        """Main actions are visible during action selection, unless unavailable."""
         if self.phase != GamePhase.PLAY:
             return Visibility.HIDDEN
         if self.sub_phase != PlaySubPhase.SELECT_ACTION:
             return Visibility.HIDDEN
         if self.current_player != player:
+            return Visibility.HIDDEN
+        # Hide actions that are disabled for this player (e.g. construction with
+        # no affordable buildings, or a war that cannot legally be declared)
+        # rather than showing them greyed out.
+        if self._is_main_action_enabled(player, action_id) is not None:
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 
@@ -997,8 +1002,14 @@ class AgeOfHeroesGame(Game):
         return None
 
     def _is_build_hidden(self, player: Player, action_id: str) -> Visibility:
-        """Building actions hidden outside construction subphase."""
-        return self._is_construction_menu_hidden(player)
+        """Building actions hidden outside construction subphase or if unaffordable."""
+        if self._is_construction_menu_hidden(player) == Visibility.HIDDEN:
+            return Visibility.HIDDEN
+        # Hide buildings the player cannot currently afford rather than listing
+        # them disabled.
+        if self._is_build_enabled(player, action_id) is not None:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
 
     def _get_build_label(self, player: Player, action_id: str) -> str:
         """Get label for build action with cost."""
