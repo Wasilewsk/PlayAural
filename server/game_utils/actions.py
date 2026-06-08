@@ -4,6 +4,7 @@ import copy
 import inspect
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from mashumaro.mixins.json import DataClassJSONMixin
@@ -11,6 +12,23 @@ from mashumaro.mixins.json import DataClassJSONMixin
 if TYPE_CHECKING:
     from ..games.base import Game
     from .player import Player
+
+
+@lru_cache(maxsize=None)
+def _accepts_action_id(func) -> bool:
+    """Whether a callback declares an ``action_id`` parameter.
+
+    Resolved via ``inspect.signature``, which is expensive and was previously
+    called up to three times per action on every resolution — a hot path hit
+    once per action per player per tick, both in the test sims and on the live
+    server. The answer depends only on the underlying function, which never
+    changes at runtime, so we cache it keyed on the function object (stable per
+    class, shared across game instances).
+    """
+    try:
+        return "action_id" in inspect.signature(func).parameters
+    except (TypeError, ValueError):
+        return False
 
 
 class Visibility(str, Enum):
@@ -149,8 +167,7 @@ class ActionSet(DataClassJSONMixin):
             method = getattr(game, action.is_enabled, None)
             if method:
                 # Check if method accepts action_id kwarg
-                sig = inspect.signature(method)
-                if 'action_id' in sig.parameters:
+                if _accepts_action_id(method.__func__):
                     disabled_reason = method(player, action_id=action.id)
                 else:
                     disabled_reason = method(player)
@@ -161,8 +178,7 @@ class ActionSet(DataClassJSONMixin):
             method = getattr(game, action.is_hidden, None)
             if method:
                 # Check if method accepts action_id kwarg
-                sig = inspect.signature(method)
-                if 'action_id' in sig.parameters:
+                if _accepts_action_id(method.__func__):
                     visibility = method(player, action_id=action.id)
                 else:
                     visibility = method(player)
@@ -181,8 +197,7 @@ class ActionSet(DataClassJSONMixin):
             method = getattr(game, action.get_sound, None)
             if method:
                 # Check if method accepts action_id kwarg
-                sig = inspect.signature(method)
-                if 'action_id' in sig.parameters:
+                if _accepts_action_id(method.__func__):
                     sound = method(player, action_id=action.id)
                 else:
                     sound = method(player)

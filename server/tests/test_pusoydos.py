@@ -488,7 +488,9 @@ class TestConfirmToPass:
 
 class TestEliminationMode:
     def test_player_eliminated_after_winning_rounds(self):
-        game, players = _make_game(4, game_mode="elimination", rounds_to_win=1)
+        game, players = _make_game(
+            4, game_mode="elimination", rounds_to_win=1, instant_wins=False
+        )
         game.on_start()
 
         p = game._playing_players()[0]
@@ -499,7 +501,9 @@ class TestEliminationMode:
         assert p.round_wins == 1
 
     def test_game_ends_when_one_remains(self):
-        game, players = _make_game(4, game_mode="elimination", rounds_to_win=1)
+        game, players = _make_game(
+            4, game_mode="elimination", rounds_to_win=1, instant_wins=False
+        )
         game.on_start()
 
         active = game._playing_players()

@@ -30,9 +30,19 @@ python -m pytest server/tests/test_file.py::test_function
 ```
 
 During iteration, run only the tests covering the files you touched and their
-dependents. The suite is ~1400 tests and takes 3-4 minutes; running it whole as
-an inner-loop step is a waste. Run the full suite before committing anything that
+dependents. The suite is ~1530 tests and takes about 23 seconds serially (or
+~15s under `pytest-xdist -n8`) on a modern machine; running it whole as an inner-
+loop step is still a waste. Run the full suite before committing anything that
 crosses subsystems, and before landing a feature — not after every edit.
+
+The suite is parallel-safe under `pytest-xdist` (`-n 6` runs ~40s here vs ~70s
+serial). An autouse `_isolate_localization` fixture in
+`server/tests/conftest.py` snapshots and restores the class-level `Localization`
+state around every test, so a test that repoints or wipes the global Fluent
+bundle cache (e.g. the MOTD fixture) can no longer leak to siblings on the same
+worker. Keep new tests RNG-deterministic — disable random-outcome options
+(e.g. pusoydos `instant_wins=False`) when asserting on exact game state, since
+parallel runs surface latent RNG flakiness fast.
 
 ### Desktop Client
 ```bash

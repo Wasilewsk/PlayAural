@@ -42,6 +42,13 @@ class Bot(User):
     def speak(self, text: str, buffer: str = "misc") -> None:
         pass
 
+    def speak_l(self, message_id: str, buffer: str = "misc", **kwargs) -> None:
+        # Bots discard all UI, so skip the Fluent render entirely rather than
+        # formatting a localized string only for the no-op speak() to drop it.
+        # Action resolution in a bot-heavy game calls this thousands of times
+        # per game; the base implementation would pay Localization.get each time.
+        pass
+
     def play_sound(
         self, name: str, volume: int = 100, pan: int = 0, pitch: int = 100
     ) -> None:

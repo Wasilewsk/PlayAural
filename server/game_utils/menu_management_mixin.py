@@ -34,6 +34,13 @@ class MenuManagementMixin:
         if self._destroyed:
             return  # Don't rebuild menus after game is destroyed
             
+        if player.is_bot:
+            # Bots discard all UI (show_menu is a no-op), so skip building the
+            # menu entirely. Otherwise every rebuild resolves the full action set
+            # and renders each label through Fluent for a player that never sees
+            # it — a large per-tick cost in bot-heavy games and on the live server.
+            return
+
         if self.status == "finished":
             # BUGFIX: If game is finished, we should restore the end screen
             # instead of doing nothing (which leaves user with no menu)
@@ -135,6 +142,8 @@ class MenuManagementMixin:
         """Update the turn menu for a player, preserving focus position."""
         if self._destroyed:
             return
+        if player.is_bot:
+            return  # Bots discard all UI; skip menu resolution + label render.
         if self.status == "finished":
             return
         user = self.get_user(player)

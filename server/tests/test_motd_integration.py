@@ -14,7 +14,10 @@ def mock_server(tmp_path):
     server._db.connect()
     server._auth = AuthManager(server._db)
 
-    # Mock localization for tests
+    # Mock localization for tests. The autouse _isolate_localization fixture
+    # snapshots and restores this class state, so wiping it here cannot leak to
+    # other tests; we still null it explicitly to force raw-key output in this
+    # flow.
     Localization._locales_dir = None
     Localization._bundles = {}
 

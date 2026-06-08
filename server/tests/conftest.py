@@ -17,6 +17,32 @@ _locales_dir = Path(__file__).parent.parent / "locales"
 Localization.init(_locales_dir)
 
 
+@pytest.fixture(autouse=True)
+def _isolate_localization():
+    """Give every test an isolated localization environment.
+
+    ``Localization`` keeps its loaded bundles and active locales dir in
+    class-level state. Some tests deliberately repoint or wipe that state
+    (e.g. the MOTD fixture nulls ``_locales_dir``/``_bundles`` to force raw
+    keys). Without isolation that leaks to whichever test runs next in the same
+    process — invisible serially because of ordering luck, but a source of
+    intermittent, order-dependent failures under ``pytest-xdist``. Snapshotting
+    and restoring the class state around each test makes the suite parallel-safe
+    and keeps the leak contained no matter what a test does internally.
+    """
+    saved_dir = Localization._locales_dir
+    saved_bundles = Localization._bundles
+    saved_cache = Localization._bundle_cache_by_dir
+    # Re-pin the canonical locales dir in case a prior test left it nulled.
+    Localization.init(_locales_dir)
+    try:
+        yield
+    finally:
+        Localization._locales_dir = saved_dir
+        Localization._bundles = saved_bundles
+        Localization._bundle_cache_by_dir = saved_cache
+
+
 @pytest.fixture
 def tmp_path() -> Path:
     """Use a dedicated temp root that is writable for pytest and SQLite."""
