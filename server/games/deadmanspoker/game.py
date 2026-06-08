@@ -1404,80 +1404,96 @@ class DeadMansPokerGame(Game):
         best_score = max(score for _player, score in scored)
         winners = [player for player, score in scored if score == best_score]
         losers = [player for player, score in scored if score != best_score]
-        for winner in winners:
-            winner.showdowns_won += 1
         for loser in losers:
             loser.showdowns_lost += 1
             loser.active_in_hand = False
             loser.folded_this_hand = True
 
+        if len(winners) > 1:
+            self._announce_showdown_draw(winners, best_score)
+            if not losers:
+                self.broadcast_l("deadmanspoker-showdown-tie-no-penalty", buffer="game")
+                self._start_new_hand()
+                return
+            self.pending_roulette_ids = [player.id for player in losers]
+            self.pending_roulette_context = "showdown"
+            self._start_pending_roulette()
+            return
+
+        winner = winners[0]
+        winner.showdowns_won += 1
         if not losers:
-            self._announce_showdown_winners(winners, best_score, award_hand=False)
-            self.broadcast_l("deadmanspoker-showdown-tie-no-penalty", buffer="game")
+            self._announce_showdown_winner(winner, best_score)
             self._start_new_hand()
             return
 
-        for winner in winners:
-            self._award_hand_win(winner)
-        self._announce_showdown_winners(winners, best_score, award_hand=True)
+        self._award_hand_win(winner)
+        self._announce_showdown_winner(winner, best_score)
 
         self.pending_roulette_ids = [player.id for player in losers]
         self.pending_roulette_context = "showdown"
         self._start_pending_roulette()
 
-    def _announce_showdown_winners(
+    def _announce_showdown_winner(
         self,
-        winners: list[DeadMansPokerPlayer],
+        winner: DeadMansPokerPlayer,
         best_score: tuple[int, tuple[int, ...]],
-        *,
-        award_hand: bool,
     ) -> None:
-        """Announce showdown winners with first-person wording where applicable."""
-        if not winners:
-            return
-        winner_ids = {winner.id for winner in winners}
-        winner_names = [winner.name for winner in winners]
+        """Announce a non-tied showdown winner with detailed hand context."""
         for listener in self.players:
             user = self.get_user(listener)
             if not user:
                 continue
             best_text = describe_hand(best_score, user.locale)
-            if isinstance(listener, DeadMansPokerPlayer) and listener.id in winner_ids:
-                other_winners = [
-                    winner.name for winner in winners if winner.id != listener.id
-                ]
-                if other_winners:
-                    user.speak_l(
-                        "deadmanspoker-showdown-you-tie-win",
-                        buffer="game",
-                        players=Localization.format_list_and(
-                            user.locale,
-                            other_winners,
-                        ),
-                        hand=best_text,
-                    )
-                else:
-                    user.speak_l(
-                        "deadmanspoker-showdown-you-win",
-                        buffer="game",
-                        hand=best_text,
-                    )
+            if isinstance(listener, DeadMansPokerPlayer) and listener.id == winner.id:
+                user.speak_l(
+                    "deadmanspoker-showdown-you-win",
+                    buffer="game",
+                    hand=best_text,
+                )
                 continue
 
             user.speak_l(
-                "deadmanspoker-showdown-winners",
+                "deadmanspoker-showdown-winner",
                 buffer="game",
-                players=Localization.format_list_and(user.locale, winner_names),
+                player=winner.name,
                 hand=best_text,
             )
-        if award_hand:
-            for winner in winners:
-                self.broadcast_personal_l(
-                    winner,
-                    "deadmanspoker-you-win-showdown-hand",
-                    "deadmanspoker-player-wins-showdown-hand",
+
+    def _announce_showdown_draw(
+        self,
+        tied_players: list[DeadMansPokerPlayer],
+        best_score: tuple[int, tuple[int, ...]],
+    ) -> None:
+        """Announce a top-score tie without treating tied players as winners."""
+        if not tied_players:
+            return
+        tied_ids = {player.id for player in tied_players}
+        tied_names = [player.name for player in tied_players]
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+            best_text = describe_hand(best_score, user.locale)
+            if isinstance(listener, DeadMansPokerPlayer) and listener.id in tied_ids:
+                other_tied = [
+                    player.name
+                    for player in tied_players
+                    if player.id != listener.id
+                ]
+                user.speak_l(
+                    "deadmanspoker-showdown-you-draw",
                     buffer="game",
+                    players=Localization.format_list_and(user.locale, other_tied),
+                    hand=best_text,
                 )
+                continue
+            user.speak_l(
+                "deadmanspoker-showdown-draw",
+                buffer="game",
+                players=Localization.format_list_and(user.locale, tied_names),
+                hand=best_text,
+            )
 
     def _start_hand_win_sequence(self, winner: DeadMansPokerPlayer | None) -> None:
         self.phase = PHASE_HAND_CLEANUP

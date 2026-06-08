@@ -596,11 +596,66 @@ def test_showdown_tie_has_no_roulette_sequence() -> None:
     for player in game.players:
         player.active_in_hand = True
         player.committed_bullets = 2
+    for player in game.players:
+        user = game.get_user(player)
+        assert user is not None
+        user.clear_messages()
 
     game._resolve_showdown()
 
     assert not game.has_active_sequence(tag="deadmanspoker_roulette")
     assert all(not player.eliminated for player in game.players)
+    assert all(player.showdowns_won == 0 for player in game.players)
+    assert all(player.hands_won == 0 for player in game.players)
+    first_user = game.get_user(game.players[0])
+    assert first_user is not None
+    assert any("tie the showdown" in text for text in speech_texts(first_user))
+    assert any("complete draw" in text for text in speech_texts(first_user))
+
+
+def test_showdown_top_tie_is_draw_and_penalizes_only_lower_hands() -> None:
+    game = make_game(3)
+    game.status = "playing"
+    game.game_active = True
+    first_tied = game.players[0]
+    second_tied = game.players[1]
+    lower_hand = game.players[2]
+    game.community = [
+        Card(id=1, rank=10, suit=1),
+        Card(id=2, rank=11, suit=2),
+        Card(id=3, rank=12, suit=3),
+        Card(id=4, rank=13, suit=4),
+        Card(id=5, rank=2, suit=1),
+    ]
+    game.revealed_community_count = 5
+    first_tied.hand = [Card(id=6, rank=1, suit=1), Card(id=7, rank=3, suit=2)]
+    second_tied.hand = [Card(id=8, rank=1, suit=2), Card(id=9, rank=4, suit=3)]
+    lower_hand.hand = [Card(id=10, rank=9, suit=1), Card(id=11, rank=9, suit=2)]
+    for player in game.players:
+        player.active_in_hand = True
+        player.committed_bullets = 2
+        user = game.get_user(player)
+        assert user is not None
+        user.clear_messages()
+
+    game._resolve_showdown()
+
+    assert first_tied.showdowns_won == 0
+    assert second_tied.showdowns_won == 0
+    assert first_tied.hands_won == 0
+    assert second_tied.hands_won == 0
+    assert lower_hand.showdowns_lost == 1
+    assert not lower_hand.active_in_hand
+    assert lower_hand.folded_this_hand
+    assert game.pending_roulette_ids == [lower_hand.id]
+    assert game.pending_roulette_context == "showdown"
+    assert game.has_active_sequence(tag="deadmanspoker_roulette")
+    tied_user = game.get_user(first_tied)
+    assert tied_user is not None
+    tied_text = " ".join(speech_texts(tied_user))
+    assert "tie the showdown" in tied_text
+    assert "do not win this hand" in tied_text
+    assert "win the showdown" not in tied_text
 
 
 def test_showdown_win_counts_as_hand_win_in_results() -> None:
@@ -623,6 +678,9 @@ def test_showdown_win_counts_as_hand_win_in_results() -> None:
     for player in game.players:
         player.active_in_hand = True
         player.committed_bullets = 2
+        user = game.get_user(player)
+        assert user is not None
+        user.clear_messages()
 
     game._resolve_showdown()
 
@@ -630,6 +688,11 @@ def test_showdown_win_counts_as_hand_win_in_results() -> None:
     assert winner.hands_won == 1
     result = game.build_game_result()
     assert result.custom_data["player_stats"][winner.name]["hands_won"] == 1
+    winner_user = game.get_user(winner)
+    assert winner_user is not None
+    winner_texts = speech_texts(winner_user)
+    assert any("You win the showdown with" in text for text in winner_texts)
+    assert not any("win the hand at showdown" in text for text in winner_texts)
 
 
 def test_roulette_uses_eight_bullet_god_save_rule(monkeypatch) -> None:
