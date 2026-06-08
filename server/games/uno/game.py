@@ -231,12 +231,6 @@ class UnoGame(Game):
     def get_supported_leaderboards(cls) -> list[str]:
         return ["wins", "rating", "games_played"]
 
-    def broadcast_sound(self, name: str, volume: int = 100, pan: int = 0, pitch: int = 100) -> None:
-        """Suppress default join/leave sounds (custom seat sounds handle them)."""
-        if name in ("join.ogg", "leave.ogg", "join_spectator.ogg", "leave_spectator.ogg"):
-            return
-        super().broadcast_sound(name, volume, pan, pitch)
-
     # ==========================================================================
     # Lobby roster
     # ==========================================================================
@@ -247,12 +241,14 @@ class UnoGame(Game):
             return
         self.add_player(bot_name, Bot(bot_name))
         self.broadcast_l("table-joined", buffer="game", player=bot_name)
+        self.broadcast_sound("join.ogg")
         self.rebuild_all_menus()
 
     def _action_remove_bot(self, player: Player, action_id: str) -> None:
         for i in range(len(self.players) - 1, -1, -1):
             if self.players[i].is_bot:
                 self.remove_player(self.players[i].id)
+                self.broadcast_sound("leave.ogg")
                 break
         self.rebuild_all_menus()
 
@@ -261,7 +257,7 @@ class UnoGame(Game):
             self.remove_spectator(player.id)
             if self._table:
                 self._table.remove_member(player.name)
-            super().broadcast_sound("leave_spectator.ogg")
+            self.broadcast_sound("leave_spectator.ogg")
             self.rebuild_all_menus()
             return
 
@@ -271,11 +267,13 @@ class UnoGame(Game):
                 for p in self.players
             )
             if other_humans:
-                self._replace_with_bot(player)
+                if self._replace_with_bot(player):
+                    self.broadcast_sound("leave.ogg")
                 self.rebuild_all_menus()
                 return
 
         self.remove_player(player.id)
+        self.broadcast_sound("leave.ogg")
         if self.status == "waiting" and self._table:
             self._table.remove_member(player.name)
 
@@ -362,6 +360,8 @@ class UnoGame(Game):
                 "read_color",
                 "read_counts",
                 "read_hand",
+                "sort_color",
+                "sort_number",
                 "check_scores",
                 "whose_turn",
                 "whos_at_table",
@@ -383,7 +383,7 @@ class UnoGame(Game):
         self.define_keybind("r", "Choose red", ["color_red"], state=KeybindState.ACTIVE)
         self.define_keybind("y", "Choose yellow", ["color_yellow"], state=KeybindState.ACTIVE)
         self.define_keybind("g", "Choose green", ["color_green"], state=KeybindState.ACTIVE)
-        self.define_keybind("b", "Choose blue", ["color_blue"], state=KeybindState.ACTIVE)
+        self.define_keybind("l", "Choose blue", ["color_blue"], state=KeybindState.ACTIVE)
 
     # ==========================================================================
     # Menu syncing
@@ -521,6 +521,17 @@ class UnoGame(Game):
     # ==========================================================================
     # Game flow
     # ==========================================================================
+
+    def prestart_validate(self) -> list[str | tuple[str, dict]]:
+        errors = super().prestart_validate()
+        if not self.options.responses:
+            if self.options.advanced_responses:
+                errors.append("uno-error-advanced-responses-require-responses")
+            if self.options.wait_for_draw_responses:
+                errors.append("uno-error-wait-responses-require-responses")
+        if not self.options.interceptions and self.options.super_interceptions:
+            errors.append("uno-error-super-interceptions-require-interceptions")
+        return errors
 
     def on_start(self) -> None:
         self.status = "playing"

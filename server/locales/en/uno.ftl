@@ -57,6 +57,11 @@ uno-set-free-draws = Free draws per turn: { $count }
 uno-enter-free-draws = Enter free draws per turn
 uno-option-changed-free-draws = Free draws per turn set to { $count }.
 
+# Option validation
+uno-error-advanced-responses-require-responses = Advanced responses require Stacking responses to be enabled.
+uno-error-wait-responses-require-responses = Wait for draw responses requires Stacking responses to be enabled.
+uno-error-super-interceptions-require-interceptions = Super interceptions require Interceptions to be enabled.
+
 # Actions
 uno-draw = Draw
 uno-say-uno = UNO

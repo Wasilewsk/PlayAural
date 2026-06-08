@@ -22,6 +22,7 @@ from ..games.pusoydos.game import PusoyDosGame
 from ..games.rollingballs.game import RollingBallsGame
 from ..games.senet.game import SenetGame
 from ..games.twentyone.game import TwentyOneGame
+from ..games.uno.game import UnoGame
 from ..messages.localization import Localization
 from ..users.test_user import MockUser
 
@@ -187,6 +188,21 @@ def _new_game_with_players(game_cls, player_count: int, client_type: str = "mobi
                 "whos_at_table",
             ],
         ),
+        (
+            UnoGame,
+            2,
+            [
+                "read_top",
+                "read_color",
+                "read_counts",
+                "read_hand",
+                "sort_color",
+                "sort_number",
+                "check_scores",
+                "whose_turn",
+                "whos_at_table",
+            ],
+        ),
     ],
 )
 def test_new_games_touch_standard_actions_follow_touch_order(
@@ -225,6 +241,11 @@ def test_new_games_touch_standard_actions_follow_touch_order(
                 "read_21_bets",
                 "read_21_active_effects",
             ],
+        ),
+        (
+            UnoGame,
+            2,
+            ["read_top", "read_color", "read_counts", "read_hand", "sort_color", "sort_number"],
         ),
     ],
 )
@@ -338,6 +359,7 @@ def test_rollingballs_shortcut_utilities_are_touch_only_turn_buttons() -> None:
         (RollingBallsGame, 2),
         (SenetGame, 2),
         (TwentyOneGame, 2),
+        (UnoGame, 2),
     ],
 )
 def test_recent_games_mobile_turn_menu_has_static_table_controls(

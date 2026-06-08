@@ -33,6 +33,32 @@ def test_uno_options_defaults():
     assert game.options.interceptions is False
 
 
+def test_uno_blocks_dependent_option_conflicts():
+    game = UnoGame(
+        options=UnoOptions(
+            responses=False,
+            advanced_responses=True,
+            wait_for_draw_responses=True,
+            interceptions=False,
+            super_interceptions=True,
+        )
+    )
+
+    assert game.prestart_validate() == [
+        "uno-error-advanced-responses-require-responses",
+        "uno-error-wait-responses-require-responses",
+        "uno-error-super-interceptions-require-interceptions",
+    ]
+
+
+def test_uno_blue_color_keybind_does_not_shadow_add_bot():
+    game = UnoGame()
+    game.setup_keybinds()
+
+    assert all(keybind.actions == ["add_bot"] for keybind in game._keybinds["b"])
+    assert any(keybind.actions == ["color_blue"] for keybind in game._keybinds["l"])
+
+
 def test_uno_deck_composition():
     deck = cards.build_deck()
     assert len(deck) == 108
@@ -75,6 +101,34 @@ def test_spectator_excluded_from_uno_scores_after_start():
     assert any("Alice: 12/500" in m for m in spoken)
     assert any("Bob: 4/500" in m for m in spoken)
     assert all("Watcher" not in m for m in spoken)
+
+
+def test_uno_uses_standard_roster_audio():
+    game = UnoGame()
+    alice_user = MockUser("Alice", uuid="p1")
+    watcher_user = MockUser("Watcher", uuid="p2")
+    alice = game.add_player("Alice", alice_user)
+    watcher = game.add_player("Watcher", watcher_user)
+    alice_user.clear_messages()
+    watcher_user.clear_messages()
+
+    game.broadcast_sound("join.ogg")
+    assert alice_user.get_sounds_played() == ["join.ogg"]
+    assert watcher_user.get_sounds_played() == ["join.ogg"]
+
+    alice_user.clear_messages()
+    watcher_user.clear_messages()
+
+    game._action_toggle_spectator(watcher, "toggle_spectator")
+    assert "join_spectator.ogg" in alice_user.get_sounds_played()
+    assert "join_spectator.ogg" in watcher_user.get_sounds_played()
+
+    alice_user.clear_messages()
+    watcher_user.clear_messages()
+
+    game._action_add_bot(alice, "Botty", "add_bot")
+    assert "join.ogg" in alice_user.get_sounds_played()
+    assert "join.ogg" in watcher_user.get_sounds_played()
 
 
 # ---------------------------------------------------------------------------

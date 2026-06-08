@@ -60,6 +60,11 @@ uno-set-free-draws = Số lần rút tự do mỗi lượt: { $count }
 uno-enter-free-draws = Nhập số lần rút tự do mỗi lượt
 uno-option-changed-free-draws = Số lần rút tự do mỗi lượt đã được đặt là { $count }.
 
+# Option validation
+uno-error-advanced-responses-require-responses = Muốn bật Phản đòn nâng cao thì trước hết phải bật Chồng lá phản đòn.
+uno-error-wait-responses-require-responses = Muốn bật Chờ phản đòn rút bài thì trước hết phải bật Chồng lá phản đòn.
+uno-error-super-interceptions-require-interceptions = Muốn bật Cướp lượt nâng cao thì trước hết phải bật Cướp lượt.
+
 # Actions
 uno-draw = Rút bài
 uno-say-uno = UNO
