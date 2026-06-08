@@ -253,7 +253,6 @@ class TestGameRegistryIntegration:
             "fivecarddraw": "poker",
             "holdem": "poker",
             "humanitycards": "cards",
-            "lastcard": "cards",
             "leftrightcenter": "dice",
             "lightturret": "arcade",
             "ludo": "board",
@@ -275,6 +274,7 @@ class TestGameRegistryIntegration:
             "tossup": "dice",
             "tradeoff": "dice",
             "twentyone": "cards",
+            "uno": "cards",
             "yahtzee": "dice",
         }
 

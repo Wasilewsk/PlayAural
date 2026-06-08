@@ -26,7 +26,6 @@ from .coup.game import CoupGame
 from .pusoydos.game import PusoyDosGame
 from .rollingballs.game import RollingBallsGame
 from .blackjack.game import BlackjackGame
-from .lastcard.game import LastCardGame
 from .dominos.game import DominosGame
 from .battleship.game import BattleshipGame
 from .ludo.game import LudoGame
@@ -46,6 +45,7 @@ from .senet.game import SenetGame
 from .humanitycards.game import HumanityCardsGame
 from .twentyone.game import TwentyOneGame
 from .ageofheroes.game import AgeOfHeroesGame
+from .uno.game import UnoGame
 
 __all__ = [
     "Game",
@@ -74,7 +74,6 @@ __all__ = [
     "PusoyDosGame",
     "RollingBallsGame",
     "BlackjackGame",
-    "LastCardGame",
     "DominosGame",
     "BattleshipGame",
     "LudoGame",
@@ -94,4 +93,5 @@ __all__ = [
     "HumanityCardsGame",
     "TwentyOneGame",
     "AgeOfHeroesGame",
+    "UnoGame",
 ]

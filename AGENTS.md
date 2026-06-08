@@ -1,6 +1,6 @@
 # Agents.md — AI Development Guide for PlayAural
 
-This document is the authoritative reference for any AI assistant (Claude, Codex, or other) contributing to the PlayAural codebase. Follow every rule exactly. When in doubt, read the existing code — especially `lastcard/game.py` and `dominos/game.py` as canonical examples.
+This document is the authoritative reference for any AI assistant (Claude, Codex, or other) contributing to the PlayAural codebase. Follow every rule exactly. When in doubt, read the existing code — especially `crazyeights/game.py` and `dominos/game.py` as canonical examples.
 
 ## 1. Project Overview
 
@@ -740,7 +740,7 @@ Always test that a bot game completes: use `advance_until` with a high `max_tick
 - Game class: `<Name>Game` (e.g., `DominosGame`)
 - Player class: `<Name>Player` (e.g., `DominosPlayer`)
 - Options class: `<Name>Options` (e.g., `DominosOptions`)
-- Game type string: lowercase, no separators (e.g., `"dominos"`, `"lastcard"`)
+- Game type string: lowercase, no separators (e.g., `"dominos"`, `"crazyeights"`)
 - Action IDs: `snake_case` (e.g., `"play_tile"`, `"draw"`, `"read_hand"`)
 - Handler methods: `_action_<id>` (e.g., `_action_draw`)
 - Visibility methods: `_is_<id>_hidden` (e.g., `_is_draw_hidden`)
