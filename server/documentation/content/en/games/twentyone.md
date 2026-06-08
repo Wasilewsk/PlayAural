@@ -14,11 +14,11 @@ The game is played in rounds. Each round, both players are dealt two cards from 
 
 
 
-On your turn you may hit (draw another face-up card), stand (lock in your total), or play a change card from your hand. Hitting has a chance to award you an additional random change card.
+On your turn you may hit (draw another face-up card), stand (lock in your total), or play a change card from your hand. Hitting has a chance to award you an additional random change card. If the deck is empty, or if an opponent's draw-blocking effect is active, you cannot hit and should stand or use another legal action.
 
 
 
-A round ends when both players stand. Totals are then compared against the current target. The player closer to the target without going over wins. If one player busts (exceeds the target) and the other does not, the non-busted player wins. If both bust, whoever is closer to the target wins. If totals are exactly tied, both players take damage.
+A round ends when both players stand. Both hidden cards are revealed, then totals are compared against the current target. The player closer to the target without going over wins. If one player busts (exceeds the target) and the other does not, the non-busted player wins. If both bust, whoever is closer to the target wins. If totals are exactly tied, both players take damage.
 
 
 
@@ -46,7 +46,7 @@ The deck contains cards ranked 1 through 11, with one copy of each rank per deck
 
 
 
-Change cards are the tactical heart of the game. On your turn, instead of hitting or standing, you may play one change card from your hand. Some are instant effects that resolve immediately and are discarded. Others are table effects that persist for the rest of the round. Each player can have up to 5 table effects active at once; if you add a sixth, your oldest effect is removed.
+Change cards are the tactical heart of the game. On your turn, instead of hitting or standing, you may play one change card from your hand. The play menu shows all change cards in your hand; cards that cannot currently resolve include a reason in the menu, and selecting one explains exactly why it cannot be played. Some are instant effects that resolve immediately and are discarded. Others are table effects that persist for the rest of the round. Each player can have up to 5 table effects active at once; if you add a sixth, your oldest effect is removed.
 
 
 
@@ -174,7 +174,7 @@ The host can configure these settings at the table before starting:
 
 \* \*\*Starting Health:\*\* How much HP each player begins with. Default 10, range 1 to 100.
 
-\* \*\*Base Bet:\*\* The base damage dealt to the round loser before modifier adjustments. Default 1, range 0 to 50.
+\* \*\*Base Bet:\*\* The base damage dealt to the round loser before modifier adjustments. Default 1, range 0 to 50. If this is set to 0, the game must still have a way to create damage through change cards; a setup with 0 base bet, 0 starting change cards, and 0 percent draw change chance is blocked because it can never end.
 
 \* \*\*Starting Change Cards Per Round:\*\* How many random change cards each player receives at the start of each round. Default 1, range 0 to 10.
 

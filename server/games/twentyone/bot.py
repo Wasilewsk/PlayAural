@@ -25,8 +25,8 @@ def bot_think(game: "TwentyOneGame", player: "TwentyOnePlayer") -> str | None:
         if game._bot_choose_modifier_to_play(player):
             return "play_modifier"
 
-    # Draw-lock effects make hit impossible; avoid infinite bot retry loops.
-    if game._draws_locked_for(player):
+    # Draw-lock effects and empty decks make hit impossible; avoid infinite bot retry loops.
+    if game._draws_locked_for(player) or not game.deck or game.deck.is_empty():
         return "stand"
 
     return game._bot_choose_hit_or_stand(opponent, total, estimated_opp_total, target)

@@ -14,11 +14,11 @@ Trò chơi diễn ra theo từng vòng. Đầu mỗi vòng, cả hai người ch
 
 
 
-Đến lượt của mình, bạn có thể rút thêm (thêm một lá bài lộ vào tay), dừng lại (chốt tổng điểm), hoặc chơi một lá Biến từ tay. Mỗi lần rút thêm có cơ hội nhận thêm một lá Biến ngẫu nhiên.
+Đến lượt của mình, bạn có thể rút thêm (thêm một lá bài lộ vào tay), dừng lại (chốt tổng điểm), hoặc chơi một lá Biến từ tay. Mỗi lần rút thêm có cơ hội nhận thêm một lá Biến ngẫu nhiên. Nếu bộ bài đã hết, hoặc đối thủ đang có hiệu ứng chặn rút, bạn không thể rút thêm và nên dừng hoặc chọn một hành động hợp lệ khác.
 
 
 
-Vòng kết thúc khi cả hai người chơi đều dừng. Tổng điểm sau đó được so sánh với con số mục tiêu. Người chơi có tổng gần hơn mà không vượt quá sẽ thắng. Nếu một người vượt quá (vỡ bài) còn người kia không vượt, người không vỡ thắng. Nếu cả hai cùng vỡ, người gần mục tiêu hơn thắng. Nếu tổng điểm bằng nhau, cả hai người cùng chịu sát thương.
+Vòng kết thúc khi cả hai người chơi đều dừng. Hai lá úp được lật cho mọi người biết, rồi tổng điểm được so sánh với con số mục tiêu. Người chơi có tổng gần hơn mà không vượt quá sẽ thắng. Nếu một người vượt quá (vỡ bài) còn người kia không vượt, người không vỡ thắng. Nếu cả hai cùng vỡ, người gần mục tiêu hơn thắng. Nếu tổng điểm bằng nhau, cả hai người cùng chịu sát thương.
 
 
 
@@ -46,7 +46,7 @@ Bộ bài gồm các lá bài được xếp hạng từ 1 đến 11, mỗi hạ
 
 
 
-Lá Biến là phần chiến thuật cốt lõi của trò chơi. Thay vì rút thêm hay dừng, bạn có thể chơi một lá Biến từ tay. Một số lá có hiệu lực tức thì rồi bị loại khỏi ván. Số khác là hiệu ứng bàn kéo dài đến hết vòng. Mỗi người chơi chỉ có thể có tối đa 5 hiệu ứng bàn cùng lúc; nếu thêm lá thứ sáu, hiệu ứng cũ nhất bị xóa.
+Lá Biến là phần chiến thuật cốt lõi của trò chơi. Thay vì rút thêm hay dừng, bạn có thể chơi một lá Biến từ tay. Menu chơi hiển thị toàn bộ Lá Biến trên tay bạn; lá nào chưa thể dùng sẽ có lý do ngay trong menu, và nếu bạn chọn lá đó, trò chơi sẽ giải thích chính xác vì sao nó chưa đánh được. Một số lá có hiệu lực tức thì rồi bị loại khỏi ván. Số khác là hiệu ứng bàn kéo dài đến hết vòng. Mỗi người chơi chỉ có thể có tối đa 5 hiệu ứng bàn cùng lúc; nếu thêm lá thứ sáu, hiệu ứng cũ nhất bị xóa.
 
 
 
@@ -174,7 +174,7 @@ Chủ bàn có thể điều chỉnh các thiết lập sau trước khi trò ch
 
 \* \*\*Máu ban đầu:\*\* Điểm máu mỗi người chơi bắt đầu. Mặc định 10, phạm vi từ 1 đến 100.
 
-\* \*\*Cược cơ bản:\*\* Sát thương cơ bản người thua chịu mỗi vòng trước khi tính điều chỉnh từ hiệu ứng. Mặc định 1, phạm vi từ 0 đến 50.
+\* \*\*Cược cơ bản:\*\* Sát thương cơ bản người thua chịu mỗi vòng trước khi tính điều chỉnh từ hiệu ứng. Mặc định 1, phạm vi từ 0 đến 50. Nếu đặt giá trị này là 0, trò chơi vẫn phải có cách tạo sát thương thông qua Lá Biến; thiết lập gồm cược cơ bản 0, Lá Biến đầu vòng 0 và tỉ lệ nhận Lá Biến khi rút 0% sẽ bị chặn vì ván đấu không thể kết thúc.
 
 \* \*\*Lá Biến đầu vòng:\*\* Số lá Biến ngẫu nhiên mỗi người nhận khi bắt đầu mỗi vòng. Mặc định 1, phạm vi từ 0 đến 10.
 
