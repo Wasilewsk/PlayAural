@@ -398,6 +398,52 @@ class Database:
         if deleted_games > 0 or deleted_saves > 0 or deleted_bans > 0 or deleted_requests > 0 or deleted_notifications > 0 or deleted_mutes > 0 or deleted_tokens > 0:
              print(f"Database Pruning: Cleaned up {deleted_games} game_results, {deleted_saves} saved_tables, {deleted_bans} bans, {deleted_requests} friend requests, {deleted_notifications} notifications, {deleted_expired_mutes} expired mutes, {deleted_orphaned_mutes} orphaned mutes, {deleted_tokens} expired tokens.")
 
+    @staticmethod
+    def _quote_identifier(identifier: str) -> str:
+        """Quote a SQLite identifier discovered from the local schema."""
+        return '"' + identifier.replace('"', '""') + '"'
+
+    def _user_table_names(self, cursor: sqlite3.Cursor) -> list[str]:
+        cursor.execute(
+            """
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+            ORDER BY name
+            """
+        )
+        return [row["name"] for row in cursor.fetchall()]
+
+    def _table_columns(self, cursor: sqlite3.Cursor, table_name: str) -> set[str]:
+        cursor.execute(f"PRAGMA table_info({self._quote_identifier(table_name)})")
+        return {row["name"] for row in cursor.fetchall()}
+
+    def _game_type_table_names(self, cursor: sqlite3.Cursor) -> list[str]:
+        """Return tables that are directly scoped by a game_type column."""
+        return [
+            table_name
+            for table_name in self._user_table_names(cursor)
+            if "game_type" in self._table_columns(cursor, table_name)
+        ]
+
+    def _game_result_child_tables(self, cursor: sqlite3.Cursor) -> list[tuple[str, str]]:
+        """Return (table, column) pairs that reference game_results.id."""
+        result: list[tuple[str, str]] = []
+        for table_name in self._user_table_names(cursor):
+            cursor.execute(
+                f"PRAGMA foreign_key_list({self._quote_identifier(table_name)})"
+            )
+            for row in cursor.fetchall():
+                if row["table"] == "game_results" and row["to"] == "id":
+                    result.append((table_name, row["from"]))
+        return result
+
+    @staticmethod
+    def _format_cleanup_counts(counts: dict[str, int]) -> str:
+        if not counts:
+            return "none"
+        return ", ".join(f"{key}={counts[key]}" for key in sorted(counts))
+
     def prune_unregistered_game_data(
         self,
         valid_game_types: set[str] | list[str] | tuple[str, ...],
@@ -409,95 +455,120 @@ class Database:
         no-op to avoid destructive cleanup during a startup/import failure.
         """
         valid = sorted({game_type for game_type in valid_game_types if game_type})
-        counts = {
-            "tables": 0,
-            "saved_tables": 0,
-            "game_results": 0,
-            "game_result_players": 0,
-            "orphaned_game_result_players": 0,
-            "player_game_stats": 0,
-            "player_ratings": 0,
-        }
         logger = logging.getLogger("playaural.db.prune")
-        if not valid:
-            logger.warning(
-                "Skipped unregistered-game cleanup because the registered game list was empty."
-            )
-            return counts
-
-        placeholders = ", ".join("?" for _ in valid)
-        not_registered = f"NOT IN ({placeholders})"
-        params = tuple(valid)
         cursor = self._conn.cursor()
         self._conn.execute("PRAGMA foreign_keys = ON;")
 
-        with self._conn:
-            cursor.execute(
-                f"DELETE FROM tables WHERE game_type {not_registered}",
-                params,
-            )
-            counts["tables"] = cursor.rowcount
+        game_type_tables = self._game_type_table_names(cursor)
+        game_result_children = self._game_result_child_tables(cursor)
+        checked_tables = sorted(
+            set(game_type_tables) | {table for table, _ in game_result_children}
+        )
+        counts = {table: 0 for table in checked_tables}
+        for table, _ in game_result_children:
+            counts.setdefault(f"orphaned_{table}", 0)
 
-            cursor.execute(
-                f"DELETE FROM saved_tables WHERE game_type {not_registered}",
-                params,
-            )
-            counts["saved_tables"] = cursor.rowcount
+        startup_scan_msg = (
+            "Database Pruning: Checking unregistered game data "
+            f"against {len(valid)} registered games. "
+            f"Tables checked: {', '.join(checked_tables) if checked_tables else 'none'}."
+        )
+        logger.info(startup_scan_msg)
+        print(startup_scan_msg)
 
-            cursor.execute(
-                f"DELETE FROM player_game_stats WHERE game_type {not_registered}",
-                params,
+        if not valid:
+            skip_msg = (
+                "Database Pruning: Skipped unregistered-game cleanup because "
+                "the registered game list was empty."
             )
-            counts["player_game_stats"] = cursor.rowcount
+            logger.warning(skip_msg)
+            print(skip_msg)
+            return counts
 
-            cursor.execute(
-                f"DELETE FROM player_ratings WHERE game_type {not_registered}",
-                params,
-            )
-            counts["player_ratings"] = cursor.rowcount
-
+        placeholders = ", ".join("?" for _ in valid)
+        not_registered = f"game_type NOT IN ({placeholders})"
+        params = tuple(valid)
+        stale_game_types: set[str] = set()
+        for table in game_type_tables:
             cursor.execute(
                 f"""
-                SELECT COUNT(*) AS count
-                FROM game_result_players
-                WHERE result_id IN (
-                    SELECT id FROM game_results WHERE game_type {not_registered}
-                )
+                SELECT DISTINCT game_type
+                FROM {self._quote_identifier(table)}
+                WHERE {not_registered}
                 """,
                 params,
             )
-            counts["game_result_players"] = cursor.fetchone()["count"] or 0
-
-            cursor.execute(
-                f"DELETE FROM game_results WHERE game_type {not_registered}",
-                params,
+            stale_game_types.update(
+                row["game_type"] for row in cursor.fetchall() if row["game_type"]
             )
-            counts["game_results"] = cursor.rowcount
 
-            cursor.execute(
-                """
-                DELETE FROM game_result_players
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM game_results
-                    WHERE game_results.id = game_result_players.result_id
+        stale_label = ", ".join(sorted(stale_game_types)) if stale_game_types else "none"
+        logger.info(
+            "Database Pruning: Unregistered game types detected: %s",
+            stale_label,
+        )
+        print(f"Database Pruning: Unregistered game types detected: {stale_label}.")
+
+        with self._conn:
+            if "game_results" in game_type_tables:
+                for child_table, child_column in game_result_children:
+                    cursor.execute(
+                        f"""
+                        DELETE FROM {self._quote_identifier(child_table)}
+                        WHERE {self._quote_identifier(child_column)} IN (
+                            SELECT id
+                            FROM game_results
+                            WHERE {not_registered}
+                        )
+                        """,
+                        params,
+                    )
+                    counts[child_table] += cursor.rowcount
+
+            direct_tables = [table for table in game_type_tables if table != "game_results"]
+            for table in direct_tables:
+                cursor.execute(
+                    f"""
+                    DELETE FROM {self._quote_identifier(table)}
+                    WHERE {not_registered}
+                    """,
+                    params,
                 )
-                """
-            )
-            counts["orphaned_game_result_players"] = cursor.rowcount
+                counts[table] += cursor.rowcount
 
-        if any(counts.values()):
-            logger.info(
-                "Unregistered-game cleanup removed: %s",
-                ", ".join(f"{key}={value}" for key, value in counts.items()),
-            )
-            print(
-                "Database Pruning: Removed stale unregistered game data "
-                + ", ".join(f"{key}={value}" for key, value in counts.items())
-                + "."
-            )
-        else:
-            logger.info("Unregistered-game cleanup: 0 records deleted.")
+            if "game_results" in game_type_tables:
+                cursor.execute(
+                    f"DELETE FROM game_results WHERE {not_registered}",
+                    params,
+                )
+                counts["game_results"] += cursor.rowcount
+
+            for child_table, child_column in game_result_children:
+                orphan_key = f"orphaned_{child_table}"
+                cursor.execute(
+                    f"""
+                    DELETE FROM {self._quote_identifier(child_table)}
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM game_results
+                        WHERE game_results.id =
+                            {self._quote_identifier(child_table)}.{self._quote_identifier(child_column)}
+                    )
+                    """
+                )
+                counts[orphan_key] += cursor.rowcount
+
+        total_deleted = sum(counts.values())
+        detail = self._format_cleanup_counts(counts)
+        logger.info(
+            "Database Pruning: Unregistered-game cleanup removed %d rows. Details: %s",
+            total_deleted,
+            detail,
+        )
+        print(
+            "Database Pruning: Unregistered-game cleanup removed "
+            f"{total_deleted} rows. Details: {detail}."
+        )
 
         return counts
 

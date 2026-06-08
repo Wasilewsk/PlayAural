@@ -122,7 +122,7 @@ def test_connect_can_skip_pruning_for_short_cli_operations(tmp_path):
     assert cursor.fetchone()[0] == 0
     database.close()
 
-def test_prune_unregistered_game_data_removes_only_stale_game_types(db):
+def test_prune_unregistered_game_data_removes_only_stale_game_types(db, capsys):
     cursor = db._conn.cursor()
 
     cursor.execute(
@@ -207,20 +207,62 @@ def test_prune_unregistered_game_data_removes_only_stale_game_types(db):
         "INSERT INTO player_ratings (player_id, game_type, mu, sigma) VALUES (?, ?, ?, ?)",
         ("p2", "lastcard", 28.0, 7.0),
     )
+    cursor.execute(
+        """
+        CREATE TABLE future_game_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_type TEXT NOT NULL,
+            note TEXT NOT NULL
+        )
+        """
+    )
+    cursor.execute(
+        "INSERT INTO future_game_events (game_type, note) VALUES (?, ?)",
+        ("pig", "keep"),
+    )
+    cursor.execute(
+        "INSERT INTO future_game_events (game_type, note) VALUES (?, ?)",
+        ("lastcard", "delete"),
+    )
+    cursor.execute(
+        """
+        CREATE TABLE future_result_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            result_id INTEGER REFERENCES game_results(id),
+            note TEXT NOT NULL
+        )
+        """
+    )
+    cursor.execute(
+        "INSERT INTO future_result_notes (result_id, note) VALUES (?, ?)",
+        (valid_result_id, "keep"),
+    )
+    cursor.execute(
+        "INSERT INTO future_result_notes (result_id, note) VALUES (?, ?)",
+        (stale_result_id, "delete"),
+    )
     db._conn.commit()
 
     counts = db.prune_unregistered_game_data({"pig", "uno"})
+    printed = capsys.readouterr().out
 
     assert counts["tables"] == 1
     assert counts["saved_tables"] == 1
     assert counts["game_results"] == 1
     assert counts["game_result_players"] == 1
+    assert counts["future_game_events"] == 1
+    assert counts["future_result_notes"] == 1
     assert counts["player_game_stats"] == 1
     assert counts["player_ratings"] == 1
+    assert "Database Pruning: Checking unregistered game data" in printed
+    assert "Unregistered game types detected: lastcard" in printed
+    assert "future_game_events=1" in printed
+    assert "future_result_notes=1" in printed
 
     for table_name in (
         "tables",
         "saved_tables",
+        "future_game_events",
         "game_results",
         "player_game_stats",
         "player_ratings",
@@ -229,6 +271,8 @@ def test_prune_unregistered_game_data_removes_only_stale_game_types(db):
         assert [row[0] for row in cursor.fetchall()] == ["pig"]
 
     cursor.execute("SELECT result_id FROM game_result_players")
+    assert [row[0] for row in cursor.fetchall()] == [valid_result_id]
+    cursor.execute("SELECT result_id FROM future_result_notes")
     assert [row[0] for row in cursor.fetchall()] == [valid_result_id]
 
 
