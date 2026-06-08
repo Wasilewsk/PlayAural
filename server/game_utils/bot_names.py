@@ -195,6 +195,20 @@ def get_valid_bot_name_pool(
     return tuple(valid_names)
 
 
+def is_reserved_bot_name(
+    name: str,
+    name_pool: Sequence[str] = DEFAULT_BOT_NAME_POOL,
+) -> bool:
+    """Return whether a human account name is reserved for generated bots."""
+    normalized = normalize_bot_name(name)
+    if not normalized:
+        return False
+    reserved_keys = {
+        bot_name_key(bot_name) for bot_name in get_valid_bot_name_pool(name_pool)
+    }
+    return bot_name_key(normalized) in reserved_keys
+
+
 def generate_unique_bot_name(
     existing_names: Iterable[str],
     name_pool: Sequence[str] = DEFAULT_BOT_NAME_POOL,

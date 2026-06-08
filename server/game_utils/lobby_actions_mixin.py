@@ -1,5 +1,6 @@
 """Mixin providing lobby action handlers for games."""
 
+import secrets
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -93,6 +94,7 @@ class LobbyActionsMixin:
                 player = self.get_player_by_id(user.uuid) if user else None
                 if player:
                     self.remove_spectator(player.id)
+                    self.play_table_leave_sound(player, is_spectator=True)
                 table.remove_member(
                     member.username,
                     voice_reason="voice-status-connection-lost",
@@ -116,7 +118,11 @@ class LobbyActionsMixin:
                 and not player.is_bot
                 and self._replace_with_bot(player, allow_waiting=True)
             ):
-                self.broadcast_sound("leave.ogg")
+                self.play_table_leave_sound(
+                    player,
+                    is_bot=False,
+                    is_spectator=False,
+                )
                 changed = True
 
         return changed
@@ -539,14 +545,28 @@ class LobbyActionsMixin:
 
     def _generate_available_bot_name(self, existing_names: list[str] | None = None) -> str:
         """Generate a bot name that avoids table names and registered accounts."""
-        existing_names = list(existing_names) if existing_names is not None else self._existing_player_names()
-        max_attempts = len(get_valid_bot_name_pool()) + 100
+        existing_names = (
+            list(existing_names) if existing_names is not None else self._existing_player_names()
+        )
+        max_attempts = len(get_valid_bot_name_pool()) * 100
         for _ in range(max_attempts):
             bot_name = generate_unique_bot_name(existing_names)
             if not self._is_registered_username(bot_name):
                 return bot_name
             existing_names.append(bot_name)
-        return generate_unique_bot_name(existing_names)
+        return self._generate_emergency_bot_name(existing_names)
+
+    def _generate_emergency_bot_name(self, existing_names: list[str]) -> str:
+        """Generate a non-pool bot name if every configured bot name is unavailable."""
+        for _ in range(1000):
+            bot_name = f"Bot {secrets.randbelow(1_000_000):06d}"
+            if validate_custom_bot_name(bot_name, existing_names) is not None:
+                continue
+            if self._is_registered_username(bot_name):
+                existing_names.append(bot_name)
+                continue
+            return bot_name
+        raise RuntimeError("Unable to generate an unregistered bot name")
 
     def _resolve_add_bot_name(
         self,
@@ -590,7 +610,7 @@ class LobbyActionsMixin:
         # Set up action sets for the bot
         self.setup_player_actions(bot_player)
         self.broadcast_l("table-joined", buffer="system", player=bot_name)
-        self.broadcast_sound("join.ogg")
+        self.play_table_join_sound(bot_player, is_bot=True)
         self.rebuild_all_menus()
 
     def _action_remove_bot(self, player: "Player", action_id: str) -> None:
@@ -605,7 +625,7 @@ class LobbyActionsMixin:
                 self.player_action_sets.pop(bot.id, None)
                 self._users.pop(bot.id, None)
                 self.broadcast_l("table-left", buffer="system", player=bot.name)
-                self.broadcast_sound("leave.ogg")
+                self.play_table_leave_sound(bot, is_bot=True)
                 break
         self.rebuild_all_menus()
 
@@ -673,7 +693,7 @@ class LobbyActionsMixin:
             if self._table:
                 self._table.remove_member(player.name)
                 
-            self.broadcast_sound("leave_spectator.ogg")
+            self.play_table_leave_sound(player, is_spectator=True)
             self.rebuild_all_menus()
             return
 
@@ -684,8 +704,13 @@ class LobbyActionsMixin:
             
             if other_humans:
                 # Mid-game AND other humans exist: replace with bot
+                was_bot = player.is_bot
                 if self._replace_with_bot(player):
-                    self.broadcast_sound("leave.ogg")
+                    self.play_table_leave_sound(
+                        player,
+                        is_bot=was_bot,
+                        is_spectator=False,
+                    )
                 self.rebuild_all_menus()
                 return
 
@@ -695,9 +720,15 @@ class LobbyActionsMixin:
 
         # Lobby or bot leaving: fully remove the player
         # Use centralized helper to ensure consistent cleanup
+        was_bot = player.is_bot
+        was_spectator = player.is_spectator
         self.remove_player(player.id)
 
-        self.broadcast_sound("leave.ogg")
+        self.play_table_leave_sound(
+            player,
+            is_bot=was_bot,
+            is_spectator=was_spectator,
+        )
 
         # Check if any humans remain (excluding spectators)
         has_humans = any(not p.is_bot and not p.is_spectator for p in self.players)

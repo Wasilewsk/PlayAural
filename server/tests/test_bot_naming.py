@@ -4,6 +4,7 @@ from ..game_utils.bot_names import (
     DEFAULT_BOT_NAME_POOL,
     generate_unique_bot_name,
     get_valid_bot_name_pool,
+    is_reserved_bot_name,
     normalize_pool_bot_name,
     PLAYPALACE_BOT_NAMES,
     validate_custom_bot_name,
@@ -176,6 +177,13 @@ def test_playpalace_names_are_extracted_and_sanitized_for_generated_pool() -> No
     assert normalize_pool_bot_name("Music_and_lasers") == "Music And Lasers"
 
 
+def test_generated_pool_names_are_reserved_for_bots() -> None:
+    assert is_reserved_bot_name("Pho Pixel")
+    assert is_reserved_bot_name("pho pixel")
+    assert is_reserved_bot_name("  Omega   Alpha  ")
+    assert not is_reserved_bot_name("Human Player")
+
+
 def test_custom_bot_name_validation_matches_expected_shape() -> None:
     assert validate_custom_bot_name(" Abc  123 ") is None
     assert validate_custom_bot_name("ab") == "bot-name-invalid-length"
@@ -205,6 +213,7 @@ def test_new_bot_name_localization_keys_have_en_vi_parity() -> None:
         "bot-name-invalid-characters",
         "bot-name-already-used",
         "bot-name-registered-account",
+        "auth-username-reserved-bot",
         "table-name-already-used",
     ]
 

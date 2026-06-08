@@ -104,6 +104,54 @@ class TestAuthSecurity:
         assert user is not None
 
     @pytest.mark.asyncio
+    async def test_registration_rejects_generated_bot_name(self):
+        client = MockClient()
+        packet = {
+            "username": "Pho Pixel",
+            "password": "Password123",
+            "email": "botname@test.com",
+        }
+
+        await self.server._handle_register(client, packet)
+
+        assert client.sent_messages[-1]["status"] == "error"
+        assert client.sent_messages[-1]["error"] == "username_reserved_bot"
+        assert self.db.get_user("Pho Pixel") is None
+
+    @pytest.mark.asyncio
+    async def test_registration_rejects_active_runtime_bot_name(self):
+        class FakePlayer:
+            def __init__(self, name, is_bot):
+                self.name = name
+                self.is_bot = is_bot
+
+        class FakeGame:
+            players = [FakePlayer("Pho Pixel 2", True), FakePlayer("Human", False)]
+
+        class FakeTable:
+            game = FakeGame()
+
+        self.server._tables.get_all_tables = lambda: [FakeTable()]
+        client = MockClient()
+        packet = {
+            "username": "pho pixel 2",
+            "password": "Password123",
+            "email": "runtimebot@test.com",
+        }
+
+        await self.server._handle_register(client, packet)
+
+        assert client.sent_messages[-1]["status"] == "error"
+        assert client.sent_messages[-1]["error"] == "username_reserved_bot"
+        assert self.db.get_user("pho pixel 2") is None
+
+    def test_auth_manager_rejects_generated_bot_name(self):
+        result = self.server._auth.register("Omega Alpha", "Password123")
+
+        assert result == "username_reserved_bot"
+        assert self.db.get_user("Omega Alpha") is None
+
+    @pytest.mark.asyncio
     async def test_email_mandatory_registration(self):
         client = MockClient()
 

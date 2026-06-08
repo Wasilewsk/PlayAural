@@ -42,6 +42,7 @@ from ..game_utils.client_types import (
     is_web_client_type,
     uses_self_voicing_settings_type,
 )
+from ..game_utils.bot_names import bot_name_key
 from ..game_utils.game_result import GameResult
 
 
@@ -1283,6 +1284,15 @@ PlayAural Server
             })
             return
 
+        if self._active_bot_name_exists(username):
+            await client.send({
+                "type": "register_response",
+                "status": "error",
+                "error": "username_reserved_bot",
+                "text": Localization.get(locale, "auth-username-reserved-bot")
+            })
+            return
+
         # Check if this will be a user that needs approval (not the first user)
         needs_approval = self._db.get_user_count() > 0
 
@@ -1305,6 +1315,13 @@ PlayAural Server
                 "status": "error",
                 "error": "username_taken",
                 "text": Localization.get(locale, "auth-username-taken")
+            })
+        elif reg_result == "username_reserved_bot":
+            await client.send({
+                "type": "register_response",
+                "status": "error",
+                "error": "username_reserved_bot",
+                "text": Localization.get(locale, "auth-username-reserved-bot")
             })
         else:
             logging.getLogger("playaural").error(
@@ -4772,21 +4789,21 @@ PlayAural Server
                 if not table.add_member(user.username, user, as_spectator=False):
                     user.speak_l("table-name-already-used", buffer="system")
                     return
-                game.add_player(user.username, user)
+                joined_player = game.add_player(user.username, user)
                 self._set_in_game_state(user, table_id)
                 game.broadcast_l("table-joined", buffer="system", player=user.username)
-                game.broadcast_sound("join.ogg")
+                game.play_table_join_sound(joined_player, is_spectator=False)
                 game.rebuild_all_menus()
             else:
                 # Join as spectator
                 if not table.add_member(user.username, user, as_spectator=True):
                     user.speak_l("table-name-already-used", buffer="system")
                     return
-                game.add_spectator(user.username, user)
+                joined_player = game.add_spectator(user.username, user)
                 self._set_in_game_state(user, table_id)
                 user.speak_l("spectator-joined", buffer="system", host=table.host)
                 game.broadcast_l("now-spectating", buffer="system", player=user.username)
-                game.broadcast_sound("join_spectator.ogg")
+                game.play_table_join_sound(joined_player, is_spectator=True)
                 game.rebuild_all_menus()
 
     def _find_reclaimable_bot_player(self, game: Any, user: NetworkUser) -> Any | None:
@@ -4815,6 +4832,29 @@ PlayAural Server
             user.username,
             allowed_user_uuid=allowed_user_uuid,
         )
+
+    def _active_bot_name_exists(self, username: str) -> bool:
+        """Return whether any live table currently has a bot using this name."""
+        username_key = bot_name_key(username)
+        if not username_key:
+            return False
+
+        for table in self._tables.get_all_tables():
+            for table_user in getattr(table, "_users", {}).values():
+                if not getattr(table_user, "is_bot", False):
+                    continue
+                if bot_name_key(table_user.username) == username_key:
+                    return True
+
+            game = table.game
+            if not game:
+                continue
+            for player in game.players:
+                if not getattr(player, "is_bot", False):
+                    continue
+                if bot_name_key(player.name) == username_key:
+                    return True
+        return False
 
     def _reclaim_bot_replaced_slot(
         self,
@@ -4868,7 +4908,14 @@ PlayAural Server
             player=human_name,
             bot=bot_name,
         )
-        game.broadcast_sound(sound_name)
+        if sound_name in ("join.ogg", "join_spectator.ogg"):
+            game.play_table_join_sound(
+                reclaimed_player,
+                is_bot=False,
+                is_spectator=reclaimed_player.is_spectator,
+            )
+        else:
+            game.broadcast_sound(sound_name)
         if hasattr(game, "_on_replacement_slot_reclaimed"):
             game._on_replacement_slot_reclaimed(bot_name, human_name)
         game.rebuild_all_menus()
@@ -5478,12 +5525,26 @@ PlayAural Server
         # Remove from game state
         if target_player.is_spectator:
             table.game.remove_spectator(target_player.id)
+            table.game.play_table_leave_sound(
+                target_player,
+                is_bot=False,
+                is_spectator=True,
+            )
         elif table.game.status == "waiting":
             table.game.remove_player(target_player.id)
+            table.game.play_table_leave_sound(
+                target_player,
+                is_bot=False,
+                is_spectator=False,
+            )
         else:
             # Mid-game: bot replacement preserves game continuity
             if table.game._replace_with_bot(target_player):
-                table.game.broadcast_sound("leave.ogg")
+                table.game.play_table_leave_sound(
+                    target_player,
+                    is_bot=False,
+                    is_spectator=False,
+                )
 
         table.remove_member(target_name)
 
@@ -5549,10 +5610,10 @@ PlayAural Server
                         user.speak_l("table-name-already-used", buffer="system")
                         self._return_from_join_menu(user, state)
                         return
-                    game.add_spectator(user.username, user)
+                    joined_player = game.add_spectator(user.username, user)
                     user.speak_l("spectator-joined", buffer="system", host=table.host)
                     game.broadcast_l("now-spectating", buffer="system", player=user.username)
-                    game.broadcast_sound("join_spectator.ogg")
+                    game.play_table_join_sound(joined_player, is_spectator=True)
                     game.rebuild_all_menus()
                     self._set_in_game_state(user, table_id)
                     return
@@ -5573,9 +5634,9 @@ PlayAural Server
                 user.speak_l("table-name-already-used", buffer="system")
                 self._return_from_join_menu(user, state)
                 return
-            game.add_player(user.username, user)
+            joined_player = game.add_player(user.username, user)
             game.broadcast_l("table-joined", buffer="system", player=user.username)
-            game.broadcast_sound("join.ogg")
+            game.play_table_join_sound(joined_player, is_spectator=False)
             game.rebuild_all_menus()
             self._set_in_game_state(user, table_id)
 
@@ -5588,10 +5649,10 @@ PlayAural Server
                 user.speak_l("table-name-already-used", buffer="system")
                 self._return_from_join_menu(user, state)
                 return
-            game.add_spectator(user.username, user)
+            joined_player = game.add_spectator(user.username, user)
             user.speak_l("spectator-joined", buffer="system", host=table.host)
             game.broadcast_l("now-spectating", buffer="system", player=user.username)
-            game.broadcast_sound("join_spectator.ogg")
+            game.play_table_join_sound(joined_player, is_spectator=True)
             game.rebuild_all_menus()
             self._set_in_game_state(user, table_id)
 

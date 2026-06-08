@@ -354,9 +354,25 @@ class Table(DataClassJSONMixin):
                                 user_record = self._users.get(member.username)
                                 if user_record:
                                     if member.is_spectator:
+                                        player = self._game.get_player_by_id(
+                                            user_record.uuid
+                                        )
                                         self._game.remove_spectator(user_record.uuid)
+                                        if player:
+                                            self._game.play_table_leave_sound(
+                                                player,
+                                                is_spectator=True,
+                                            )
                                     else:
+                                        player = self._game.get_player_by_id(
+                                            user_record.uuid
+                                        )
                                         self._game.remove_player(user_record.uuid)
+                                        if player:
+                                            self._game.play_table_leave_sound(
+                                                player,
+                                                is_spectator=False,
+                                            )
 
                             self.remove_member(
                                 member.username,

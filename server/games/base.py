@@ -365,7 +365,7 @@ class Game(
         # Spectators should just be removed, not replaced by bots
         if player.is_spectator:
             self.remove_spectator(player_id)
-            # We don't play sound here because Server plays offline sound
+            self.play_table_leave_sound(player, is_spectator=True)
             return
 
         if remaining_humans == 0:
@@ -374,7 +374,11 @@ class Game(
              return
 
         if self._replace_with_bot(player):
-            self.broadcast_sound("leave.ogg")
+            self.play_table_leave_sound(
+                player,
+                is_bot=False,
+                is_spectator=False,
+            )
             if hasattr(self, "rebuild_all_menus"):
                 self.rebuild_all_menus()
 

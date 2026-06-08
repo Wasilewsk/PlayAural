@@ -8,6 +8,11 @@ from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
 import logging
 
+try:
+    from ..game_utils.bot_names import is_reserved_bot_name
+except ImportError:  # pragma: no cover - supports direct server/cli imports
+    from game_utils.bot_names import is_reserved_bot_name
+
 if TYPE_CHECKING:
     from ..persistence.database import Database, UserRecord
 
@@ -54,11 +59,14 @@ class AuthManager:
 
         Returns "ok" on success, or an error key:
         - "username_taken" if the username already exists
+        - "username_reserved_bot" if the username is reserved for generated bots
         - "db_error" if the INSERT failed unexpectedly
         The first user ever registered becomes a developer (trust level 3) and is auto-approved.
         """
         if self._db.user_exists(username):
             return "username_taken"
+        if is_reserved_bot_name(username):
+            return "username_reserved_bot"
 
         # Check if this is the first user - they become developer and are auto-approved
         is_first_user = self._db.get_user_count() == 0

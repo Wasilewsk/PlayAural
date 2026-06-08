@@ -100,6 +100,52 @@ class GameSoundMixin:
         """Alias for broadcast_sound."""
         self.broadcast_sound(name, volume, pan, pitch)
 
+    def _table_presence_flags(
+        self,
+        player: "Player | None" = None,
+        *,
+        is_bot: bool | None = None,
+        is_spectator: bool | None = None,
+    ) -> tuple[bool, bool]:
+        """Resolve bot/spectator flags for table presence sounds."""
+        resolved_bot = bool(getattr(player, "is_bot", False)) if is_bot is None else is_bot
+        resolved_spectator = (
+            bool(getattr(player, "is_spectator", False))
+            if is_spectator is None
+            else is_spectator
+        )
+        return resolved_bot, resolved_spectator
+
+    def play_table_join_sound(
+        self,
+        player: "Player | None" = None,
+        *,
+        is_bot: bool | None = None,
+        is_spectator: bool | None = None,
+    ) -> None:
+        """Play the appropriate table-entry sound for this game."""
+        _, spectator = self._table_presence_flags(
+            player,
+            is_bot=is_bot,
+            is_spectator=is_spectator,
+        )
+        self.broadcast_sound("join_spectator.ogg" if spectator else "join.ogg")
+
+    def play_table_leave_sound(
+        self,
+        player: "Player | None" = None,
+        *,
+        is_bot: bool | None = None,
+        is_spectator: bool | None = None,
+    ) -> None:
+        """Play the appropriate table-exit sound for this game."""
+        _, spectator = self._table_presence_flags(
+            player,
+            is_bot=is_bot,
+            is_spectator=is_spectator,
+        )
+        self.broadcast_sound("leave_spectator.ogg" if spectator else "leave.ogg")
+
     def play_music(self, name: str, looping: bool = True) -> None:
         """Play music for all players and store as current."""
         self.current_music = name

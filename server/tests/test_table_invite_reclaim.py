@@ -6,6 +6,7 @@ import pytest
 
 from server.auth.auth import AuthManager
 from server.core.server import Server
+from server.games.crazyeights.game import CrazyEightsGame
 from server.games.pig.game import PigGame, PigOptions
 from server.messages.localization import Localization
 from server.persistence.database import Database
@@ -54,6 +55,16 @@ class TestTableInviteReclaim:
         table.add_member(guest.username, guest, as_spectator=False)
         game.add_player(guest.username, guest)
         game.on_start()
+        return table, game
+
+    def _create_waiting_table(self, host: MockUser, guest: MockUser, game):
+        table = self.server._tables.create_table(game.get_type(), host.username, host)
+        table.game = game
+        game._table = table
+        game.initialize_lobby(host.username, host)
+        table.add_member(guest.username, guest, as_spectator=False)
+        game.add_player(guest.username, guest)
+        game.rebuild_all_menus()
         return table, game
 
     def _get_menu_action_ids(self, user: MockUser, menu_id: str) -> list[str]:
@@ -531,6 +542,45 @@ class TestTableInviteReclaim:
             player=guest.username,
             bot=replacement.name,
         ) in host.get_spoken_messages()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("is_ban", [False, True])
+    async def test_host_kick_plays_default_table_leave_sound(self, is_ban):
+        host = self._create_online_user("Host")
+        guest = self._create_online_user("Guest")
+        table, _ = self._create_waiting_table(
+            host,
+            guest,
+            PigGame(options=PigOptions(target_score=25)),
+        )
+        host.clear_messages()
+
+        await self.server._handle_host_kick_selection(
+            host,
+            f"kick_{guest.username}",
+            {"table_id": table.table_id, "ban": is_ban},
+        )
+
+        assert "leave.ogg" in self._sound_names(host)
+        assert all(member.username != guest.username for member in table.members)
+
+    @pytest.mark.asyncio
+    async def test_host_kick_uses_crazyeights_custom_table_leave_sound(self):
+        host = self._create_online_user("Host")
+        guest = self._create_online_user("Guest")
+        table, _ = self._create_waiting_table(host, guest, CrazyEightsGame())
+        host.clear_messages()
+
+        await self.server._handle_host_kick_selection(
+            host,
+            f"kick_{guest.username}",
+            {"table_id": table.table_id, "ban": True},
+        )
+
+        sounds = self._sound_names(host)
+        assert "game_crazyeights/personleave.ogg" in sounds
+        assert "leave.ogg" not in sounds
+        assert all(member.username != guest.username for member in table.members)
 
     def test_last_human_disconnect_survives_stale_waiting_table_status(
         self, monkeypatch

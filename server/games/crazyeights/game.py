@@ -137,10 +137,58 @@ class CrazyEightsGame(Game, TurnTimerMixin):
             return
         super().broadcast_sound(name, volume, pan, pitch)
 
+    def play_table_join_sound(
+        self,
+        player: Player | None = None,
+        *,
+        is_bot: bool | None = None,
+        is_spectator: bool | None = None,
+    ) -> None:
+        bot, spectator = self._table_presence_flags(
+            player,
+            is_bot=is_bot,
+            is_spectator=is_spectator,
+        )
+        if spectator:
+            super().play_table_join_sound(
+                player,
+                is_bot=bot,
+                is_spectator=spectator,
+            )
+            return
+        self.play_sound(
+            "game_crazyeights/botsit.ogg"
+            if bot
+            else "game_crazyeights/personsit.ogg"
+        )
+
+    def play_table_leave_sound(
+        self,
+        player: Player | None = None,
+        *,
+        is_bot: bool | None = None,
+        is_spectator: bool | None = None,
+    ) -> None:
+        bot, spectator = self._table_presence_flags(
+            player,
+            is_bot=is_bot,
+            is_spectator=is_spectator,
+        )
+        if spectator:
+            super().play_table_leave_sound(
+                player,
+                is_bot=bot,
+                is_spectator=spectator,
+            )
+            return
+        self.play_sound(
+            "game_crazyeights/botleave.ogg"
+            if bot
+            else "game_crazyeights/personleave.ogg"
+        )
+
     def add_player(self, name: str, user: User) -> CrazyEightsPlayer:
         player = super().add_player(name, user)
-        sound = "game_crazyeights/botsit.ogg" if player.is_bot else "game_crazyeights/personsit.ogg"
-        self.play_sound(sound)
         return player
 
     def add_spectator(self, name: str, user: User) -> Player:
@@ -152,8 +200,9 @@ class CrazyEightsGame(Game, TurnTimerMixin):
             return
 
         bot_user = Bot(bot_name)
-        self.add_player(bot_name, bot_user)
+        bot_player = self.add_player(bot_name, bot_user)
         self.broadcast_l("table-joined", buffer="game", player=bot_name)
+        self.play_table_join_sound(bot_player)
         self.rebuild_all_menus()
 
     def _action_remove_bot(self, player: Player, action_id: str) -> None:
@@ -162,7 +211,7 @@ class CrazyEightsGame(Game, TurnTimerMixin):
                 bot = self.players[i]
                 # remove_player already broadcasts "table-left"
                 self.remove_player(bot.id)
-                self.play_sound("game_crazyeights/botleave.ogg")
+                self.play_table_leave_sound(bot, is_bot=True)
                 break
         self.rebuild_all_menus()
 
@@ -173,7 +222,7 @@ class CrazyEightsGame(Game, TurnTimerMixin):
             if self._table:
                 self._table.remove_member(player.name)
             # Standard spectator leave sound
-            self.broadcast_sound("leave_spectator.ogg")
+            self.play_table_leave_sound(player, is_spectator=True)
             self.rebuild_all_menus()
             return
 
@@ -183,7 +232,11 @@ class CrazyEightsGame(Game, TurnTimerMixin):
             
             if other_humans:
                 self._replace_with_bot(player)
-                self.play_sound("game_crazyeights/personleave.ogg")
+                self.play_table_leave_sound(
+                    player,
+                    is_bot=False,
+                    is_spectator=False,
+                )
                 self.rebuild_all_menus()
                 return
 
@@ -193,8 +246,11 @@ class CrazyEightsGame(Game, TurnTimerMixin):
         if self.status == "waiting" and self._table:
             self._table.remove_member(player.name)
         
-        leave_sound = "game_crazyeights/botleave.ogg" if player.is_bot else "game_crazyeights/personleave.ogg"
-        self.play_sound(leave_sound)
+        self.play_table_leave_sound(
+            player,
+            is_bot=player.is_bot,
+            is_spectator=False,
+        )
 
         # Correct spectator eviction / destruction logic
         has_humans = any(not p.is_bot and not p.is_spectator for p in self.players)

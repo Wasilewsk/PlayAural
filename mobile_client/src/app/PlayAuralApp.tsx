@@ -99,6 +99,7 @@ const SERVER_AUTH_RESPONSE_KEYS: Record<ServerAuthResponseContext, Record<string
     server_error: "auth-registration-error",
     username_invalid_chars: "auth-error-username-invalid-chars",
     username_length: "auth-error-username-length",
+    username_reserved_bot: "auth-username-reserved-bot",
     username_taken: "auth-username-taken",
   },
   reset_code: {
