@@ -273,6 +273,95 @@ def test_say_uno_protects_from_callout():
     assert len(first.hand) == 1
 
 
+def test_stale_said_uno_cleared_when_drawing_back_above_one_card():
+    # Bug A: once a player reaches one card, says UNO, and then draws back above
+    # one card, the stale said_uno flag must clear so they can declare again the
+    # next time they reach a single card.
+    game, first, second = _two_player_game()
+    first.hand = [_card(1, cards.RED, cards.NUMBER, 1)]
+    first.said_uno = True
+    second.hand = [_card(2, cards.GREEN, cards.NUMBER, 7)]
+    game.set_turn_players([first, second])
+
+    # Draw back up to two cards; a tick clears the stale declaration.
+    first.hand.append(_card(3, cards.BLUE, cards.NUMBER, 4))
+    game._tick_uno_window()
+    assert first.said_uno is False
+
+    # Back down to one card, the player can announce UNO again.
+    first.hand = [_card(1, cards.RED, cards.NUMBER, 1)]
+    game.rebuild_all_menus()
+    assert game._is_uno_enabled(first) is None
+    game.execute_action(first, "uno")
+    assert first.said_uno is True
+
+
+def test_draw_hidden_during_wild_transition():
+    # Bug C: after a player plays a Wild Draw Four and picks a color, the brief
+    # wild_wait transition still has them as current player with a pending draw,
+    # but the draw action must not appear for them during the animation.
+    game, first, second = _two_player_game()
+    game.deck = cards.build_deck()
+    game.discard_pile = [_card(100, cards.RED, cards.NUMBER, 5)]
+    game.current_color = cards.RED
+    first.hand = [
+        _card(1, cards.WILD, cards.WILD_DRAW_FOUR),
+        _card(2, cards.BLUE, cards.NUMBER, 9),
+    ]
+    second.hand = [_card(3, cards.GREEN, cards.NUMBER, 7)]
+    game.set_turn_players([first, second])
+    game.rebuild_all_menus()
+
+    game.execute_action(first, "play_card_1")
+    game.execute_action(first, "color_green")
+    assert game.wild_wait_ticks > 0
+    assert game.current_player is first
+    assert game.cards_to_draw == 4
+    # Draw stays hidden/disabled for the wild player during the transition.
+    assert game._is_draw_enabled(first) == "action-not-available"
+    assert game.find_action(first, "draw") is None
+
+
+def test_bot_play_announced_before_uno(monkeypatch):
+    # Bug B: a bot dropping to one card must have its card play announced before
+    # its UNO declaration, not the other way around.
+    import server.games.uno.game as uno_module
+
+    monkeypatch.setattr(uno_module.random, "random", lambda: 0.0)  # force auto-UNO
+    game = UnoGame()
+    game.setup_keybinds()
+    observer = MockUser("Alice", uuid="p1")
+    alice = game.add_player("Alice", observer)
+    botb = game.add_player("BotB", Bot("BotB"))
+    game.status = "playing"
+    game.game_active = True
+    game.deck = cards.build_deck()
+    game.discard_pile = [_card(100, cards.GREEN, cards.NUMBER, 5)]
+    game.current_color = cards.GREEN
+    botb.hand = [
+        _card(2, cards.GREEN, cards.NUMBER, 7),
+        _card(3, cards.GREEN, cards.NUMBER, 8),
+    ]
+    alice.hand = [_card(4, cards.BLUE, cards.NUMBER, 1)]
+    game.set_turn_players([botb, alice])
+    game.rebuild_all_menus()
+    observer.clear_messages()
+
+    game.execute_action(botb, "play_card_2")
+
+    spoken = observer.get_spoken_messages()
+    from ..messages.localization import Localization
+
+    play_text = Localization.get(
+        "en", "uno-player-plays", player="BotB",
+        card=cards.format_card(_card(2, cards.GREEN, cards.NUMBER, 7), "en"),
+    )
+    uno_text = Localization.get("en", "uno-says-uno", player="BotB")
+    assert play_text in spoken
+    assert uno_text in spoken
+    assert spoken.index(play_text) < spoken.index(uno_text)
+
+
 # ---------------------------------------------------------------------------
 # Full bot games (both scoring modes terminate)
 # ---------------------------------------------------------------------------
@@ -347,6 +436,66 @@ def test_draw_two_auto_accept_when_no_response():
     game.execute_action(a, "play_card_1")
     assert len(b.hand) == 3  # auto-drew 2
     assert game.current_player is b  # keeps turn (skip-after-draw off)
+    assert game.cards_to_draw == 0
+
+
+def test_skip_response_passes_obligation_in_two_player():
+    # With advanced responses, a Skip played against a Draw Two must pass the
+    # obligation to the opponent, not bounce back and trap the responder. A holds
+    # a second draw-two so the obligation visibly stays pending after it passes.
+    opts = UnoOptions(responses=True, advanced_responses=True, bluff=False)
+    game, (a, b) = _n_player_game(["A", "B"], opts)
+    a.hand = [
+        _card(1, cards.RED, cards.DRAW_TWO),
+        _card(7, cards.RED, cards.DRAW_TWO),
+        _card(2, cards.BLUE, cards.NUMBER, 9),
+    ]
+    b.hand = [_card(3, cards.RED, cards.SKIP), _card(5, cards.GREEN, cards.NUMBER, 8)]
+    game.rebuild_all_menus()
+
+    game.execute_action(a, "play_card_1")  # obligation 2 -> B
+    assert game.current_player is b
+    assert game.cards_to_draw == 2
+
+    game.execute_action(b, "play_card_3")  # B skips defensively
+    assert len(b.hand) == 1  # B did NOT draw
+    assert game.current_player is a  # obligation passed to A
+    assert game.cards_to_draw == 2  # still owed, now by A (who can still respond)
+    assert game.draw_type == cards.DRAW_TWO
+
+
+def test_reverse_response_passes_obligation_in_two_player():
+    opts = UnoOptions(responses=True, advanced_responses=True, bluff=False)
+    game, (a, b) = _n_player_game(["A", "B"], opts)
+    a.hand = [
+        _card(1, cards.RED, cards.DRAW_TWO),
+        _card(7, cards.RED, cards.DRAW_TWO),
+        _card(2, cards.BLUE, cards.NUMBER, 9),
+    ]
+    b.hand = [_card(3, cards.RED, cards.REVERSE), _card(5, cards.GREEN, cards.NUMBER, 8)]
+    game.rebuild_all_menus()
+
+    game.execute_action(a, "play_card_1")  # obligation 2 -> B
+    game.execute_action(b, "play_card_3")  # B reverses defensively
+    assert len(b.hand) == 1  # B did NOT draw
+    assert game.current_player is a  # obligation passed to A
+    assert game.cards_to_draw == 2
+
+
+def test_skip_response_passes_obligation_in_three_player():
+    # The obligation still moves to the immediate next player with three players.
+    opts = UnoOptions(responses=True, advanced_responses=True, bluff=False)
+    game, (a, b, c) = _n_player_game(["A", "B", "C"], opts)
+    a.hand = [_card(1, cards.RED, cards.DRAW_TWO), _card(2, cards.BLUE, cards.NUMBER, 9)]
+    b.hand = [_card(3, cards.RED, cards.SKIP), _card(5, cards.GREEN, cards.NUMBER, 8)]
+    c.hand = [_card(4, cards.YELLOW, cards.NUMBER, 3)]
+    game.rebuild_all_menus()
+
+    game.execute_action(a, "play_card_1")  # obligation 2 -> B
+    game.execute_action(b, "play_card_3")  # B skips
+    assert len(b.hand) == 1  # B did NOT draw
+    assert game.current_player is c  # obligation moved on to C
+    assert len(c.hand) == 3  # C had no response and auto-drew the 2
     assert game.cards_to_draw == 0
 
 
@@ -439,6 +588,122 @@ def test_seven_swaps_with_chosen_player():
     assert game.awaiting_swap_target is False
     assert sorted(card.id for card in a.hand) == [3, 5]
     assert [card.id for card in b.hand] == [2]
+
+
+def test_seven_can_decline_swap():
+    game, (a, b) = _n_player_game(["A", "B"], UnoOptions(zero_seven_rule=True))
+    a.hand = [_card(1, cards.RED, cards.NUMBER, 7), _card(2, cards.BLUE, cards.NUMBER, 9)]
+    b.hand = [_card(3, cards.GREEN, cards.NUMBER, 3)]
+    game.rebuild_all_menus()
+
+    game.execute_action(a, "play_card_1")
+    assert game.awaiting_swap_target is True
+
+    game.execute_action(a, "swap_target_none")  # keep own hand
+    assert game.awaiting_swap_target is False
+    assert [card.id for card in a.hand] == [2]  # unchanged
+    assert [card.id for card in b.hand] == [3]  # unchanged
+    assert game.current_player is b  # in-turn seven still advances the turn
+
+
+def test_swap_hides_other_actions_while_choosing():
+    game, (a, b) = _n_player_game(["A", "B"], UnoOptions(zero_seven_rule=True))
+    a.hand = [_card(1, cards.RED, cards.NUMBER, 7), _card(2, cards.BLUE, cards.NUMBER, 9)]
+    b.hand = [_card(3, cards.GREEN, cards.NUMBER, 3)]
+    game.rebuild_all_menus()
+
+    game.execute_action(a, "play_card_1")
+    assert game.awaiting_swap_target is True
+
+    # The remaining card and the draw must be hidden during swap selection.
+    visible = {ra.action.id for ra in game.get_all_visible_actions(a)}
+    assert "play_card_2" not in visible
+    assert "draw" not in visible
+    assert f"swap_target_{b.id}" in visible
+    assert "swap_target_none" in visible
+
+
+def test_straight_seven_triggers_swap():
+    # A seven played as a straight continuation must still trigger the swap, and
+    # because it is an out-of-turn play, the turn pointer must not move.
+    game, (a, b) = _n_player_game(["A", "B"], UnoOptions(straights=True, zero_seven_rule=True))
+    game.discard_pile = [_card(900, cards.RED, cards.NUMBER, 6)]
+    game.current_color = cards.RED
+    a.hand = [
+        _card(1, cards.RED, cards.NUMBER, 6),
+        _card(2, cards.RED, cards.NUMBER, 7),
+        _card(8, cards.BLUE, cards.NUMBER, 1),
+    ]
+    b.hand = [_card(3, cards.GREEN, cards.NUMBER, 3), _card(5, cards.GREEN, cards.NUMBER, 4)]
+    game.rebuild_all_menus()
+
+    game.execute_action(a, "play_card_1")  # in-turn red 6 -> B
+    assert game.current_player is b
+
+    game.execute_action(a, "play_card_2")  # A straights red 7 out of turn
+    assert game.awaiting_swap_target is True
+    assert game.swap_player_id == a.id
+
+    game.execute_action(a, f"swap_target_{b.id}")
+    assert game.awaiting_swap_target is False
+    assert sorted(card.id for card in a.hand) == [3, 5]  # took B's hand
+    assert [card.id for card in b.hand] == [8]  # A's remaining card
+    assert game.current_player is b  # out-of-turn straight does not move the turn
+
+
+def test_intercepted_seven_opens_swap_then_replays():
+    # An intercepted seven must open the swap (freezing play), and after the swap
+    # the interceptor keeps the floor and plays again (number-interception rule).
+    game, (a, b, c) = _n_player_game(
+        ["A", "B", "C"], UnoOptions(interceptions=True, zero_seven_rule=True)
+    )
+    game.discard_pile = [_card(900, cards.RED, cards.NUMBER, 7)]
+    game.current_color = cards.RED
+    a.hand = [_card(1, cards.BLUE, cards.NUMBER, 9)]
+    b.hand = [_card(3, cards.GREEN, cards.NUMBER, 8)]
+    c.hand = [_card(4, cards.RED, cards.NUMBER, 7), _card(6, cards.BLUE, cards.NUMBER, 2)]
+    game.turn_index = 0  # A current; C intercepts the red 7 out of turn
+    game.rebuild_all_menus()
+
+    game.execute_action(c, "play_card_4")  # exact-match interception of red 7
+    assert game.awaiting_swap_target is True
+    assert game.swap_player_id == c.id
+    # Frozen: another player cannot play during the swap.
+    game.execute_action(a, "play_card_1")
+    assert game.top_card.id == 4
+
+    game.execute_action(c, f"swap_target_{a.id}")
+    assert game.awaiting_swap_target is False
+    assert [card.id for card in c.hand] == [1]  # took A's hand
+    assert sorted(card.id for card in a.hand) == [6]  # C's remaining card
+    assert game.current_player is c  # interceptor replays after the swap
+
+
+def test_straight_zero_rotates_hands():
+    game, (a, b, c) = _n_player_game(
+        ["A", "B", "C"], UnoOptions(straights=True, zero_seven_rule=True)
+    )
+    game.discard_pile = [_card(900, cards.RED, cards.NUMBER, 1)]
+    game.current_color = cards.RED
+    a.hand = [
+        _card(1, cards.RED, cards.NUMBER, 1),
+        _card(2, cards.RED, cards.NUMBER, 0),
+        _card(8, cards.BLUE, cards.NUMBER, 9),
+    ]
+    b.hand = [_card(3, cards.GREEN, cards.NUMBER, 3)]
+    c.hand = [_card(4, cards.YELLOW, cards.NUMBER, 5)]
+    game.rebuild_all_menus()
+
+    game.execute_action(a, "play_card_1")  # in-turn red 1 -> B
+    game.execute_action(a, "play_card_2")  # A straights red 0 out of turn
+    # Hands rotated by +1: A<-B, B<-C, C<-A(remaining blue 9).
+    assert [card.id for card in a.hand] == [3]
+    assert [card.id for card in c.hand] == [8]
+
+
+def test_default_sort_is_number():
+    game, (a, b) = _n_player_game(["A", "B"])
+    assert a.card_sort_mode == "number"
 
 
 def test_stuck_turn_auto_resolves():
@@ -605,6 +870,65 @@ def test_bot_game_completes_with_interceptions_and_straights():
         interceptions=True,
         super_interceptions=True,
         straights=True,
+    )
+    game = UnoGame(options=options)
+    for i in range(4):
+        game.add_player(f"Bot{i}", Bot(f"Bot{i}"))
+    game.on_start()
+    for _ in range(120000):
+        if game.status == "finished":
+            break
+        game.on_tick()
+    assert game.status == "finished"
+
+
+def test_bot_game_completes_with_advanced_responses():
+    # Skip/reverse draw responses must keep terminating (each response consumes a
+    # card, so the exchange is finite) and never deadlock.
+    options = UnoOptions(
+        winning_score=30,
+        responses=True,
+        advanced_responses=True,
+    )
+    game = UnoGame(options=options)
+    for i in range(3):
+        game.add_player(f"Bot{i}", Bot(f"Bot{i}"))
+    game.on_start()
+    for _ in range(120000):
+        if game.status == "finished":
+            break
+        game.on_tick()
+    assert game.status == "finished"
+
+
+def test_bot_game_completes_with_all_advanced_rules():
+    # Interceptions, straights, and zero/seven together exercise every bot-driven
+    # seven-swap path (in-turn, straight, interception); must not deadlock.
+    options = UnoOptions(
+        winning_score=30,
+        interceptions=True,
+        super_interceptions=True,
+        straights=True,
+        zero_seven_rule=True,
+    )
+    game = UnoGame(options=options)
+    for i in range(4):
+        game.add_player(f"Bot{i}", Bot(f"Bot{i}"))
+    game.on_start()
+    for _ in range(120000):
+        if game.status == "finished":
+            break
+        game.on_tick()
+    assert game.status == "finished"
+
+
+def test_bot_game_completes_with_straights_and_zero_seven():
+    # Exercises the out-of-turn straight-seven swap path driven by bots; must not
+    # deadlock waiting for a swap chooser who never acts.
+    options = UnoOptions(
+        winning_score=30,
+        straights=True,
+        zero_seven_rule=True,
     )
     game = UnoGame(options=options)
     for i in range(4):

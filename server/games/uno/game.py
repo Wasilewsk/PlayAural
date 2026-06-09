@@ -148,7 +148,7 @@ class UnoPlayer(Player):
     uno_grace_ticks: int = 0
     uno_window_ticks: int = 0
     free_draws_used: int = 0
-    card_sort_mode: str = "color"  # color | number | none
+    card_sort_mode: str = "number"  # color | number | none
     turn_has_drawn: bool = False
 
 
@@ -189,6 +189,9 @@ class UnoGame(Game):
     # Seven-swap target selection (Phase 2, zero_seven_rule).
     awaiting_swap_target: bool = False
     swap_player_id: str = ""
+    # When a seven is intercepted, the interceptor "takes the floor" and replays
+    # after the swap, instead of the turn advancing.
+    swap_replay: bool = False
 
     # Straights (Phase 3).
     straight_color: int | None = None
@@ -470,6 +473,17 @@ class UnoGame(Game):
                         show_in_actions_menu=False,
                     )
                 )
+            # Declining the swap is a legitimate choice for a seven.
+            turn_set.add(
+                Action(
+                    id="swap_target_none",
+                    label=Localization.get(locale, "uno-swap-none"),
+                    handler="_action_choose_swap",
+                    is_enabled="_is_swap_choice_enabled",
+                    is_hidden="_is_swap_choice_hidden",
+                    show_in_actions_menu=False,
+                )
+            )
 
         # Bluff challenge (the player facing a Wild Draw Four, never its player).
         if (
@@ -504,7 +518,7 @@ class UnoGame(Game):
         # card skips the turn automatically.
         if (
             self.current_player == player
-            and not self.awaiting_wild_color
+            and not self._is_wild_locked()
             and not self.awaiting_swap_target
         ):
             turn_set.add(
@@ -638,6 +652,7 @@ class UnoGame(Game):
         self.pending_round_winner_id = ""
         self.awaiting_swap_target = False
         self.swap_player_id = ""
+        self.swap_replay = False
         self.last_player_id = ""
         self.consecutive_passes = 0
         self._clear_straight()
@@ -874,10 +889,10 @@ class UnoGame(Game):
         self.bluff_challenge_available = False
         self.consecutive_passes = 0
         self.play_sound(f"game_uno/intercept{random.randint(1, 4)}.ogg")
-        if len(player.hand) == 1 and not player.said_uno:
-            self._open_uno_window(player)
         self.current_color = card.color
         self._broadcast_intercept(player, card)
+        # Announce UNO only after the play, so the card is heard first.
+        self._maybe_open_uno_window(player)
         self._set_straight_anchor(card)
         self._jolt_reaction_bots()
         if len(player.hand) == 0:
@@ -886,6 +901,10 @@ class UnoGame(Game):
         self.current_player = player
         if card.type == cards.NUMBER:
             # Number interception: the interceptor takes the floor and plays again.
+            # A seven first opens the swap (and freezes), then replays after it.
+            if self._is_seven_swap(card):
+                self._begin_seven_swap(player, replay=True)
+                return
             self._apply_card_effects(card)  # 0-rotate when the rule is on
             self.current_player = player
             self._start_turn()
@@ -903,18 +922,25 @@ class UnoGame(Game):
         self.last_player_id = player.id
         self.consecutive_passes = 0
         self.play_sound(f"game_cards/play{random.randint(1, 4)}.ogg")
-        if len(player.hand) == 1 and not player.said_uno:
-            self._open_uno_window(player)
         if self.straight_dir == 0 and self.straight_value is not None:
             self.straight_dir = 1 if card.value > self.straight_value else -1
         self.straight_color = card.color
         self.straight_value = card.value
         self.current_color = card.color
         self._broadcast_play(player, card)
+        # Announce UNO only after the play, so the card is heard first.
+        self._maybe_open_uno_window(player)
         self._jolt_reaction_bots()
         if len(player.hand) == 0:
             self._end_round(player)
             return
+        # The seven-swap / zero-rotate effects apply even when the number is
+        # played as a straight continuation.
+        if self._is_seven_swap(card):
+            self._begin_seven_swap(player)
+            return
+        if card.value == 0 and self.options.zero_seven_rule:
+            self._rotate_hands()
         # A straight is an extra play; the turn pointer does not move.
         self.rebuild_all_menus()
 
@@ -952,10 +978,6 @@ class UnoGame(Game):
 
         is_wild = card.type in cards.WILD_TYPES
 
-        # UNO state when dropping to a single card.
-        if len(player.hand) == 1 and not player.said_uno:
-            self._open_uno_window(player)
-
         if is_wild and len(player.hand) > 0:
             # Record bluff potential before the color changes: a Wild Draw Four is
             # a bluff if the player still holds a card of the current color.
@@ -965,6 +987,8 @@ class UnoGame(Game):
                 and any(c.color == self.current_color for c in player.hand)
             )
             self._broadcast_play(player, card)
+            # Announce UNO only after the play, so the card is heard first.
+            self._maybe_open_uno_window(player)
             self.awaiting_wild_color = True
             self.wild_color_player_id = player.id
             self.pending_wild_type = card.type
@@ -977,6 +1001,8 @@ class UnoGame(Game):
         if not is_wild:
             self.current_color = card.color
         self._broadcast_play(player, card)
+        # Announce UNO only after the play, so the card is heard first.
+        self._maybe_open_uno_window(player)
 
         if len(player.hand) == 0:
             self._resolve_winning_play(player, card)
@@ -988,18 +1014,43 @@ class UnoGame(Game):
             self._advance_turn()
             return
 
-        # Seven-swap: defer the turn until a swap target is chosen.
+        # Advanced response: a skip/reverse played against a pending draw
+        # obligation is defensive — it passes the obligation to the next player
+        # rather than absorbing it. Crucially it must NOT apply its normal
+        # skip/bounce effect, which in a two-player game would send the turn
+        # straight back to the responder and trap them with the very draw they
+        # are deflecting. Reverse still flips direction with three or more.
+        if self.cards_to_draw > 0:
+            if card.type == cards.REVERSE and len(self.turn_player_ids) > 2:
+                self.reverse_turn_direction()
+                self.broadcast_l("uno-direction-reversed", buffer="game")
+            self._clear_straight()
+            self._advance_turn()
+            return
+
+        # Seven-swap: freeze the game until a swap target is chosen.
         if self._is_seven_swap(card):
-            self.awaiting_swap_target = True
-            self.swap_player_id = player.id
-            if player.is_bot:
-                BotHelper.jolt_bot(player, ticks=random.randint(15, 25))
-            self.rebuild_all_menus()
+            self._begin_seven_swap(player)
             return
 
         self._set_straight_anchor(card)
         self._apply_card_effects(card)
         self._advance_turn()
+
+    def _begin_seven_swap(self, player: UnoPlayer, replay: bool = False) -> None:
+        """Open the swap menu for the player who played a seven and freeze play
+        for everyone else until they choose (or decline). With ``replay`` the
+        player keeps the floor and plays again after the swap (interception);
+        otherwise the post-swap turn flow is decided in ``_action_choose_swap``."""
+        self.awaiting_swap_target = True
+        self.swap_player_id = player.id
+        self.swap_replay = replay
+        user = self.get_user(player)
+        if user and not player.is_bot:
+            user.speak_l("uno-choose-swap", buffer="game")
+        if player.is_bot:
+            BotHelper.jolt_bot(player, ticks=random.randint(15, 25))
+        self.rebuild_all_menus()
 
     def _resolve_winning_play(self, player: UnoPlayer, card: UnoCard) -> None:
         """Handle a play that empties the hand (round end)."""
@@ -1140,27 +1191,46 @@ class UnoGame(Game):
             return
         if not self.awaiting_swap_target or self.swap_player_id != player.id:
             return
+        # Post-swap turn flow:
+        #   - replay: an intercepted seven keeps the floor and plays again
+        #   - in-turn seven: the turn advances
+        #   - out-of-turn straight seven: the turn pointer does not move
+        replay = self.swap_replay
+        self.swap_replay = False
+        was_current = self.current_player is not None and self.current_player.id == player.id
         target_id = action_id[len("swap_target_"):]
-        target = self.get_player_by_id(target_id)
-        if not isinstance(target, UnoPlayer) or target.id == player.id:
-            return
-        player.hand, target.hand = target.hand, player.hand
-        self.awaiting_swap_target = False
-        self.swap_player_id = ""
-        self.play_sound("game_uno/handchange.ogg")
-        for q in self.players:
-            user = self.get_user(q)
-            if not user:
-                continue
-            if q.id == player.id:
-                user.speak_l("uno-you-swap", buffer="game", target=target.name)
-            elif q.id == target.id:
-                user.speak_l("uno-swap-with-you", buffer="game", player=player.name)
-            else:
-                user.speak_l(
-                    "uno-swap-hands", buffer="game", player=player.name, target=target.name
-                )
-        self._advance_turn()
+        if target_id == "none":
+            # Declining to swap is a valid choice for a seven.
+            self.awaiting_swap_target = False
+            self.swap_player_id = ""
+            self._broadcast_actor(player, "uno-you-swap-none", "uno-swap-none-other")
+        else:
+            target = self.get_player_by_id(target_id)
+            if not isinstance(target, UnoPlayer) or target.id == player.id:
+                return
+            player.hand, target.hand = target.hand, player.hand
+            self.awaiting_swap_target = False
+            self.swap_player_id = ""
+            self.play_sound("game_uno/handchange.ogg")
+            for q in self.players:
+                user = self.get_user(q)
+                if not user:
+                    continue
+                if q.id == player.id:
+                    user.speak_l("uno-you-swap", buffer="game", target=target.name)
+                elif q.id == target.id:
+                    user.speak_l("uno-swap-with-you", buffer="game", player=player.name)
+                else:
+                    user.speak_l(
+                        "uno-swap-hands", buffer="game", player=player.name, target=target.name
+                    )
+        if replay:
+            self.current_player = player
+            self._start_turn()
+        elif was_current:
+            self._advance_turn()
+        else:
+            self.rebuild_all_menus()
 
     def _action_bluff_challenge(self, player: Player, action_id: str) -> None:
         p = self._require_current(player)
@@ -1390,6 +1460,10 @@ class UnoGame(Game):
     def _is_play_card_hidden(self, player: Player, *, action_id: str | None = None) -> Visibility:
         if self.status != "playing" or player.is_spectator:
             return Visibility.HIDDEN
+        # While a seven-swap target is being chosen, no card may be played; the
+        # swap chooser sees only the swap options.
+        if self.awaiting_swap_target:
+            return Visibility.HIDDEN
         if not isinstance(player, UnoPlayer) or not action_id:
             return Visibility.HIDDEN
         try:
@@ -1401,7 +1475,7 @@ class UnoGame(Game):
         return Visibility.VISIBLE
 
     def _is_draw_enabled(self, player: Player) -> str | None:
-        if self.awaiting_wild_color or self.awaiting_swap_target:
+        if self._is_wild_locked() or self.awaiting_swap_target:
             return "action-not-available"
         if self.current_player != player:
             return "action-not-your-turn"
@@ -1505,6 +1579,11 @@ class UnoGame(Game):
     # UNO call-out window
     # ==========================================================================
 
+    def _maybe_open_uno_window(self, player: UnoPlayer) -> None:
+        """Open the UNO window if the player just dropped to a single card."""
+        if len(player.hand) == 1 and not player.said_uno:
+            self._open_uno_window(player)
+
     def _open_uno_window(self, player: UnoPlayer) -> None:
         player.uno_grace_ticks = UNO_GRACE_TICKS
         player.uno_window_ticks = 0
@@ -1517,7 +1596,14 @@ class UnoGame(Game):
 
     def _tick_uno_window(self) -> None:
         for p in self.alive_players:
-            if len(p.hand) != 1 or p.said_uno:
+            if len(p.hand) != 1:
+                # Drawing back above one card clears a stale UNO declaration, so a
+                # player who later returns to one card must announce again (and can).
+                p.said_uno = False
+                p.uno_grace_ticks = 0
+                p.uno_window_ticks = 0
+                continue
+            if p.said_uno:
                 p.uno_grace_ticks = 0
                 p.uno_window_ticks = 0
                 continue
@@ -1541,7 +1627,23 @@ class UnoGame(Game):
     # ==========================================================================
 
     def _tick_out_of_turn_bots(self) -> None:
-        if self.awaiting_wild_color or self.awaiting_swap_target or self.wild_wait_ticks > 0:
+        if self.awaiting_wild_color or self.wild_wait_ticks > 0:
+            return
+        if self.awaiting_swap_target:
+            # A seven-swap freezes normal out-of-turn play. Only the swap chooser
+            # acts, and only when they are not the current player (an in-turn
+            # seven is driven by the normal bot tick instead).
+            swapper = self.get_player_by_id(self.swap_player_id)
+            if (
+                isinstance(swapper, UnoPlayer)
+                and swapper.is_bot
+                and swapper is not self.current_player
+            ):
+                BotHelper.process_bot_action(
+                    bot=swapper,
+                    think_fn=lambda: bot_think_out_of_turn(self, swapper),
+                    execute_fn=lambda action_id: self.execute_action(swapper, action_id),
+                )
             return
         for p in list(self.alive_players):
             if not p.is_bot or p is self.current_player:

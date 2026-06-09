@@ -113,6 +113,10 @@ uno-swap-hands = { $player } đổi bài với { $target }!
 uno-you-swap = Bạn đổi bài với { $target }!
 uno-swap-with-you = { $player } đổi bài với bạn!
 uno-swap-with = Đổi bài với { $player }
+uno-choose-swap = Chọn người để đổi bài, hoặc từ chối.
+uno-swap-none = Không đổi
+uno-you-swap-none = Bạn giữ nguyên bài của mình.
+uno-swap-none-other = { $player } giữ nguyên bài của mình.
 
 # Interceptions / straights
 uno-player-intercepts = { $player } cướp lượt bằng { $card }!

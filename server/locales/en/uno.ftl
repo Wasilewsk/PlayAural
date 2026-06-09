@@ -110,6 +110,10 @@ uno-swap-hands = { $player } swaps hands with { $target }!
 uno-you-swap = You swap hands with { $target }!
 uno-swap-with-you = { $player } swaps hands with you!
 uno-swap-with = Swap hands with { $player }
+uno-choose-swap = Choose a player to swap hands with, or decline.
+uno-swap-none = Don't swap
+uno-you-swap-none = You keep your hand.
+uno-swap-none-other = { $player } keeps their hand.
 
 # Interceptions / straights
 uno-player-intercepts = { $player } intercepts with { $card }!

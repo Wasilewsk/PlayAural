@@ -130,6 +130,10 @@ def bot_think_out_of_turn(game: "UnoGame", player: "UnoPlayer") -> str | None:
     if player.is_spectator or player not in game.alive_players:
         return None
 
+    # Choosing a seven-swap target after playing a seven out of turn (straight).
+    if game.awaiting_swap_target and game.swap_player_id == player.id:
+        return _choose_swap_target(game, player)
+
     # Continue a straight run we started.
     if game.options.straights and game.last_player_id == player.id:
         for c in player.hand:
