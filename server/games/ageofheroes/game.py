@@ -57,10 +57,10 @@ from .state import (
 from .construction import (
     can_build,
     get_affordable_buildings,
-    build,
     get_road_targets,
     build_road,
     execute_single_build,
+    spend_resources,
     start_construction,
 )
 from .trading import (
@@ -903,8 +903,6 @@ class AgeOfHeroesGame(Game):
         # Additional checks for specific actions
         if action_id == f"action_{ActionType.CONSTRUCTION.value}":
             if isinstance(player, AgeOfHeroesPlayer):
-                from .construction import get_affordable_buildings
-
                 affordable = get_affordable_buildings(self, player)
                 if not affordable:
                     return "ageofheroes-no-resources"
@@ -1005,8 +1003,6 @@ class AgeOfHeroesGame(Game):
         building_type = action_id.replace("build_", "")
 
         # Check if player can build this
-        from .construction import can_build
-
         if not can_build(self, player, building_type):
             return "ageofheroes-no-resources"
 
@@ -2329,8 +2325,6 @@ class AgeOfHeroesGame(Game):
             return
 
         # Check if player can still build more things
-        from .construction import get_affordable_buildings
-
         available = get_affordable_buildings(self, player)
 
         if available:
@@ -2454,8 +2448,6 @@ class AgeOfHeroesGame(Game):
             return
 
         # Spend resources and build road
-        from .construction import spend_resources, build_road, get_affordable_buildings
-
         spend_resources(builder, BUILDING_COSTS[BuildingType.ROAD], self.discard_pile)
         self.road_supply -= 1
         build_road(self, builder, player_index, direction)
@@ -2472,8 +2464,6 @@ class AgeOfHeroesGame(Game):
 
         # If builder is a bot, resume construction
         if builder.is_bot:
-            from .construction import get_affordable_buildings
-
             available = get_affordable_buildings(self, builder)
             if available:
                 # Continue building
@@ -2514,6 +2504,8 @@ class AgeOfHeroesGame(Game):
         if self.road_request_from < 0 or self.road_request_from >= len(active_players):
             return
         builder = active_players[self.road_request_from]
+        if not isinstance(builder, AgeOfHeroesPlayer) or not builder.tribe_state:
+            return
 
         # Notify
         user = self.get_user(player)
@@ -2524,9 +2516,8 @@ class AgeOfHeroesGame(Game):
             builder_user.speak_l("ageofheroes-road-request-denied", denier=player.name, buffer="game")
 
         # Track that this target declined so bot won't ask them again during this construction action
-        if isinstance(builder, AgeOfHeroesPlayer):
-            builder.declined_road_targets.append(player_index)
-            builder.pending_road_targets = []
+        builder.declined_road_targets.append(player_index)
+        builder.pending_road_targets = []
         self.road_request_from = -1
         self.road_request_to = -1
 
@@ -2535,9 +2526,7 @@ class AgeOfHeroesGame(Game):
         self.rebuild_all_menus()
 
         # If builder is a bot, resume construction (or end action)
-        if builder.is_bot and isinstance(builder, AgeOfHeroesPlayer):
-            from .construction import get_affordable_buildings
-
+        if builder.is_bot:
             available = get_affordable_buildings(self, builder)
             if available:
                 # Continue building
@@ -2547,11 +2536,7 @@ class AgeOfHeroesGame(Game):
                 self._end_action(builder)
         else:
             # For human players, return to construction menu
-            available = (
-                get_affordable_buildings(self, builder)
-                if isinstance(builder, AgeOfHeroesPlayer)
-                else []
-            )
+            available = get_affordable_buildings(self, builder)
             if available:
                 self.sub_phase = PlaySubPhase.CONSTRUCTION
                 self.rebuild_all_menus()
@@ -2559,8 +2544,7 @@ class AgeOfHeroesGame(Game):
                     builder_user.speak_l("ageofheroes-construction-menu", buffer="game")
             else:
                 # No more resources
-                if isinstance(builder, AgeOfHeroesPlayer):
-                    self._end_action(builder)
+                self._end_action(builder)
 
     def _action_select_war_target(self, player: Player, action_id: str) -> None:
         """Handle war target selection."""

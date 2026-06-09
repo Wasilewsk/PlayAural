@@ -4,6 +4,7 @@ from pathlib import Path
 
 from ..game_utils.actions import Visibility
 from ..games.ageofheroes.cards import Card, CardType, ResourceType
+from ..games.ageofheroes import game as ageofheroes_game_module
 from ..games.ageofheroes.game import AgeOfHeroesGame, ActionType, GamePhase, PlaySubPhase
 from ..messages.localization import Localization
 from ..users.test_user import MockUser
@@ -74,6 +75,73 @@ def test_build_action_hidden_when_unaffordable() -> None:
     # A fortress needs iron + wood + stone, which the player cannot cover.
     assert game._is_build_enabled(player, "build_fortress") == "ageofheroes-no-resources"
     assert game._is_build_hidden(player, "build_fortress") == Visibility.HIDDEN
+
+
+def test_deny_road_request_returns_human_builder_to_construction() -> None:
+    """Denying a road request must not crash the construction flow."""
+    game = make_started_game()
+    active_players = game.get_active_players()
+    builder = active_players[0]
+    target = active_players[1]
+    assert not builder.is_bot
+
+    game.phase = GamePhase.PLAY
+    game.sub_phase = PlaySubPhase.ROAD_PERMISSION
+    game.set_turn_players(active_players)
+    builder.hand = [
+        Card(id=101, card_type=CardType.RESOURCE, subtype=ResourceType.STONE),
+        Card(id=102, card_type=CardType.RESOURCE, subtype=ResourceType.STONE),
+    ]
+    builder.pending_road_targets = [(1, "right")]
+    game.road_request_from = 0
+    game.road_request_to = 1
+
+    game._action_deny_road(target, "deny_road")
+
+    assert game.road_request_from == -1
+    assert game.road_request_to == -1
+    assert builder.pending_road_targets == []
+    assert builder.declined_road_targets == [1]
+    assert game.sub_phase == PlaySubPhase.CONSTRUCTION
+
+
+def test_deny_road_request_resumes_bot_builder_construction(monkeypatch) -> None:
+    """Bot road denials should route through the same safe handler path."""
+    game = make_started_game()
+    active_players = game.get_active_players()
+    builder = active_players[0]
+    target = active_players[1]
+    builder.is_bot = True
+
+    resumed: list[object] = []
+
+    def fake_bot_perform_construction(game_arg, player_arg) -> None:
+        resumed.append((game_arg, player_arg))
+
+    monkeypatch.setattr(
+        ageofheroes_game_module.bot_ai,
+        "bot_perform_construction",
+        fake_bot_perform_construction,
+    )
+
+    game.phase = GamePhase.PLAY
+    game.sub_phase = PlaySubPhase.ROAD_PERMISSION
+    game.set_turn_players(active_players)
+    builder.hand = [
+        Card(id=201, card_type=CardType.RESOURCE, subtype=ResourceType.STONE),
+        Card(id=202, card_type=CardType.RESOURCE, subtype=ResourceType.STONE),
+    ]
+    builder.pending_road_targets = [(1, "right")]
+    game.road_request_from = 0
+    game.road_request_to = 1
+
+    game._action_deny_road(target, "deny_road")
+
+    assert game.road_request_from == -1
+    assert game.road_request_to == -1
+    assert builder.pending_road_targets == []
+    assert builder.declined_road_targets == [1]
+    assert resumed == [(game, builder)]
 
 
 def _make_lobby_game(player_count: int = 3) -> AgeOfHeroesGame:
