@@ -20,6 +20,8 @@ draw-set-max-raises = Max raises: { $count }
 draw-enter-max-raises = Enter max raises (0 for unlimited)
 draw-option-changed-max-raises = Max raises set to { $count }.
 
+draw-error-ante-too-high = The ante ({ $ante } chips) must be lower than the starting stack ({ $chips } chips) so players can make betting decisions after the deal.
+
 draw-antes-posted = Antes posted: { $amount }.
 draw-betting-round-1 = First betting round.
 draw-betting-round-2 = Second betting round.

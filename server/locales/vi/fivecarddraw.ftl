@@ -20,6 +20,8 @@ draw-set-max-raises = Số lần tố tối đa: { $count }
 draw-enter-max-raises = Nhập số lần tố tối đa (0 để không giới hạn)
 draw-option-changed-max-raises = Số lần tố tối đa đã được đặt là { $count }.
 
+draw-error-ante-too-high = Cược góp ({ $ante } chip) phải thấp hơn số chip ban đầu ({ $chips } chip) để người chơi vẫn còn chip ra quyết định sau khi chia bài.
+
 draw-antes-posted = Đã đóng cược góp: { $amount }.
 draw-betting-round-1 = Vòng cược đầu tiên.
 draw-betting-round-2 = Vòng cược thứ hai.

@@ -32,8 +32,14 @@ holdem-set-max-raises = Max raises: { $count }
 holdem-enter-max-raises = Enter max raises (0 for unlimited)
 holdem-option-changed-max-raises = Max raises set to { $count }.
 
+holdem-error-big-blind-too-high = The big blind ({ $blind } chips) must be lower than the starting stack ({ $chips } chips).
+holdem-error-ante-too-high = The ante ({ $ante } chips) must be lower than the starting stack ({ $chips } chips).
+holdem-error-forced-bets-too-high = With antes active from level 0, the ante plus big blind ({ $ante } + { $blind } chips) must be lower than the starting stack ({ $chips } chips).
+
 holdem-antes-posted = Antes posted: { $amount }.
-holdem-blinds-posted = Blinds posted: { $sb } / { $bb }.
+holdem-you-post-small-blind = You post the small blind ({ $sb } chips). { $bb_player } posts the big blind ({ $bb } chips).
+holdem-you-post-big-blind = { $sb_player } posts the small blind ({ $sb } chips). You post the big blind ({ $bb } chips).
+holdem-players-post-blinds = { $sb_player } posts the small blind ({ $sb } chips). { $bb_player } posts the big blind ({ $bb } chips).
 
 holdem-winner-chips = { $rank }. { $player }: { $chips } { $chips ->
     [one] chip

@@ -32,16 +32,27 @@ poker-to-call = You need { $amount } chips to call.
 poker-min-raise = { $amount } chips minimum raise.
 
 poker-player-folds = { $player } folds.
+poker-you-fold = You fold.
 poker-player-checks = { $player } checks.
+poker-you-check = You check.
 poker-player-calls = { $player } calls { $amount } chips.
+poker-you-call = You call { $amount } chips.
 poker-player-raises = { $player } raises to { $amount } chips.
+poker-you-raise = You raise to { $amount } chips.
 poker-player-wins-pot = { $player } wins { $amount } chips.
+poker-you-win-pot = You win { $amount } chips.
 poker-player-wins-pot-hand = { $player } wins { $amount } chips with { $cards } for { $hand }.
+poker-you-win-pot-hand = You win { $amount } chips with { $cards } for { $hand }.
 poker-player-wins-side-pot-hand = { $player } wins side pot { $index } of { $amount } chips with { $cards } for { $hand }.
+poker-you-win-side-pot-hand = You win side pot { $index } of { $amount } chips with { $cards } for { $hand }.
 poker-players-split-pot = { $players } split { $amount } chips with { $hand }.
+poker-you-split-pot = You split { $amount } chips with { $players } using { $hand }.
 poker-players-split-side-pot = { $players } split side pot { $index } of { $amount } chips with { $hand }.
+poker-you-split-side-pot = You split side pot { $index } of { $amount } chips with { $players } using { $hand }.
 poker-player-all-in = { $player } goes all in for { $amount } chips.
+poker-you-all-in = You go all in for { $amount } chips.
 poker-player-wins-game = { $player } wins the game.
+poker-you-win-game = You win the game.
 
 poker-showdown = Showdown.
 
@@ -61,6 +72,7 @@ poker-position-dealer = You are the dealer.
 poker-position-dealer-seat = You are { $position } seat after the dealer.
 poker-position-dealer-seats = You are { $position } seats after the dealer.
 poker-show-hand = { $player } shows { $cards } for { $hand }.
+poker-you-show-hand = You show { $cards } for { $hand }.
 poker-blinds-players = Small blind: { $sb }. Big blind: { $bb }.
 poker-reveal-only-showdown = You can only reveal cards at the end of the hand.
 
@@ -75,6 +87,7 @@ poker-hand-players-one = { $count } player: { $names }.
 poker-hand-players = { $count } players: { $names }.
 poker-raise-too-large = You cannot raise more than your chip stack.
 poker-uncalled-bet-returned = Uncalled bet of { $amount } chips returned to { $player }.
+poker-your-uncalled-bet-returned = Your uncalled bet of { $amount } chips is returned.
 poker-hand-no-cards = You have no cards in hand.
 poker-no-active-betting = No active betting round.
 

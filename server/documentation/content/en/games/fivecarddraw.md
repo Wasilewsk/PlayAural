@@ -38,7 +38,7 @@ Gameplay Steps
 
 4\. The Draw:
 
-  \* Players can choose to discard up to 5 cards (or choose to keep all of them - known as "Stand Pat").
+  \* Players can choose to discard up to 3 cards, or up to 4 cards if keeping an Ace. They may also keep all cards, known as "standing pat".
 
   \* New cards are dealt to replace the discarded ones.
 
@@ -126,5 +126,5 @@ Draw Phase Actions
 
 \* \*\*1-5:\*\* Select or Deselect cards to discard.
 
-\* \*\*Space:\*\* Confirm to draw new cards replacing the selected ones.
+\* \*\*D:\*\* Confirm to draw new cards replacing the selected ones.
 

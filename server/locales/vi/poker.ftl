@@ -32,16 +32,27 @@ poker-to-call = Bạn cần { $amount } chip để theo.
 poker-min-raise = Tố tối thiểu { $amount } chip.
 
 poker-player-folds = { $player } bỏ bài.
+poker-you-fold = Bạn bỏ bài.
 poker-player-checks = { $player } xem.
+poker-you-check = Bạn xem.
 poker-player-calls = { $player } theo { $amount } chip.
+poker-you-call = Bạn theo { $amount } chip.
 poker-player-raises = { $player } tố lên { $amount } chip.
+poker-you-raise = Bạn tố lên { $amount } chip.
 poker-player-wins-pot = { $player } thắng { $amount } chip.
+poker-you-win-pot = Bạn thắng { $amount } chip.
 poker-player-wins-pot-hand = { $player } thắng { $amount } chip với { $cards } ({ $hand }).
+poker-you-win-pot-hand = Bạn thắng { $amount } chip với { $cards } ({ $hand }).
 poker-player-wins-side-pot-hand = { $player } thắng hũ phụ { $index } gồm { $amount } chip với { $cards } ({ $hand }).
+poker-you-win-side-pot-hand = Bạn thắng hũ phụ { $index } gồm { $amount } chip với { $cards } ({ $hand }).
 poker-players-split-pot = { $players } chia nhau { $amount } chip với { $hand }.
+poker-you-split-pot = Bạn chia { $amount } chip với { $players } bằng { $hand }.
 poker-players-split-side-pot = { $players } chia nhau hũ phụ { $index } gồm { $amount } chip với { $hand }.
+poker-you-split-side-pot = Bạn chia hũ phụ { $index } gồm { $amount } chip với { $players } bằng { $hand }.
 poker-player-all-in = { $player } tất tay với { $amount } chip.
+poker-you-all-in = Bạn tất tay với { $amount } chip.
 poker-player-wins-game = { $player } thắng cả trò chơi.
+poker-you-win-game = Bạn thắng cả trò chơi.
 
 poker-showdown = Ngửa bài.
 
@@ -61,6 +72,7 @@ poker-position-dealer = Bạn là người chia bài.
 poker-position-dealer-seat = Bạn ngồi cách người chia bài { $position } ghế.
 poker-position-dealer-seats = Bạn ngồi cách người chia bài { $position } ghế.
 poker-show-hand = { $player } lật { $cards } ({ $hand }).
+poker-you-show-hand = Bạn lật { $cards } ({ $hand }).
 poker-blinds-players = Mù nhỏ: { $sb }. Mù lớn: { $bb }.
 poker-reveal-only-showdown = Bạn chỉ có thể lật bài khi kết thúc ván (Ngửa bài).
 
@@ -75,6 +87,7 @@ poker-hand-players-one = { $count } người chơi: { $names }.
 poker-hand-players = { $count } người chơi: { $names }.
 poker-raise-too-large = Bạn không thể tố nhiều hơn số chip mình đang có.
 poker-uncalled-bet-returned = Cược chưa được gọi { $amount } chip được trả lại cho { $player }.
+poker-your-uncalled-bet-returned = Phần cược chưa được theo của bạn ({ $amount } chip) được trả lại.
 poker-hand-no-cards = Bạn không có bài trên tay.
 poker-no-active-betting = Không có vòng cược nào đang diễn ra.
 

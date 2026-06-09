@@ -216,6 +216,49 @@ class HoldemGame(Game, TurnTimerMixin):
     def create_player(self, player_id: str, name: str, is_bot: bool = False) -> HoldemPlayer:
         return HoldemPlayer(id=player_id, name=name, is_bot=is_bot, chips=0)
 
+    def prestart_validate(self) -> list[str | tuple[str, dict]]:
+        errors = list(super().prestart_validate())
+        if self.options.big_blind >= self.options.starting_chips:
+            errors.append(
+                (
+                    "holdem-error-big-blind-too-high",
+                    {
+                        "blind": self.options.big_blind,
+                        "chips": self.options.starting_chips,
+                    },
+                )
+            )
+        if self.options.ante >= self.options.starting_chips:
+            errors.append(
+                (
+                    "holdem-error-ante-too-high",
+                    {
+                        "ante": self.options.ante,
+                        "chips": self.options.starting_chips,
+                    },
+                )
+            )
+        forced_bets_individually_valid = (
+            self.options.big_blind < self.options.starting_chips
+            and self.options.ante < self.options.starting_chips
+        )
+        if (
+            forced_bets_individually_valid
+            and self.options.ante_start_level <= 0
+            and self.options.ante + self.options.big_blind >= self.options.starting_chips
+        ):
+            errors.append(
+                (
+                    "holdem-error-forced-bets-too-high",
+                    {
+                        "ante": self.options.ante,
+                        "blind": self.options.big_blind,
+                        "chips": self.options.starting_chips,
+                    },
+                )
+            )
+        return errors
+
     # ==========================================================================
     # Actions / keybinds
     # ==========================================================================
@@ -270,79 +313,10 @@ class HoldemGame(Game, TurnTimerMixin):
             )
         )
 
-        # WEB-SPECIFIC: Turn Menu Actions (Restored & Reordered)
-        # Only add these for Web clients to avoid duplicates in Python client context menu
         if self.is_touch_client(user):
-            # 1. Check scores (requested to be below All in)
-            action_set.add(
-                Action(
-                    id="check_scores",
-                    label=Localization.get(locale, "check-scores"),
-                    handler="_action_check_scores",
-                    is_enabled="_is_check_scores_enabled",
-                    is_hidden="_is_check_scores_hidden",
-                )
-            )
-            # 2. Add duplicates back ONLY for Web (Turn Menu)
-            action_set.add(
-                Action(
-                    id="speak_hand",
-                    label=Localization.get(locale, "poker-read-hand"),
-                    handler="_action_read_hand",
-                    is_enabled="_is_turn_action_enabled",
-                    is_hidden="_is_turn_action_hidden",
-                )
-            )
-            action_set.add(
-                Action(
-                    id="speak_table",
-                    label=Localization.get(locale, "poker-read-table"),
-                    handler="_action_read_table",
-                    is_enabled="_is_turn_action_enabled",
-                    is_hidden="_is_turn_action_hidden",
-                )
-            )
-            action_set.add(
-                Action(
-                    id="speak_hand_value",
-                    label=Localization.get(locale, "poker-hand-value"),
-                    handler="_action_read_hand_value",
-                    is_enabled="_is_turn_action_enabled",
-                    is_hidden="_is_turn_action_hidden",
-                )
-            )
-            action_set.add(
-                Action(
-                    id="check_button",
-                    label=Localization.get(locale, "poker-check-button"),
-                    handler="_action_check_button",
-                    is_enabled="_is_turn_action_enabled",
-                    is_hidden="_is_turn_action_hidden",
-                )
-            )
-            action_set.add(
-                Action(
-                    id="check_hand_players",
-                    label=Localization.get(locale, "poker-check-hand-players"),
-                    handler="_action_check_hand_players",
-                    is_enabled="_is_turn_action_enabled",
-                    is_hidden="_is_turn_action_hidden",
-                )
-            )
-
-            # Web-specific turn menu reordering:
-            # [call, fold, raise, all_in] → [speak_hand, speak_table, speak_hand_value] → [check_scores, check_button, check_hand_players]
             bet_actions = ["call", "fold", "raise", "all_in"]
-            info_actions = ["speak_hand", "speak_table", "speak_hand_value"]
-            utility_actions = ["check_scores", "check_button", "check_hand_players"]
-            pinned = set(bet_actions) | set(info_actions) | set(utility_actions)
-            rest = [aid for aid in action_set._order if aid not in pinned]
-            action_set._order = (
-                [aid for aid in bet_actions if aid in action_set._order]
-                + [aid for aid in info_actions if aid in action_set._order]
-                + [aid for aid in utility_actions if aid in action_set._order]
-                + rest
-            )
+            rest = [aid for aid in action_set._order if aid not in bet_actions]
+            action_set._order = [aid for aid in bet_actions if aid in action_set._order] + rest
 
         return action_set
 
@@ -497,21 +471,32 @@ class HoldemGame(Game, TurnTimerMixin):
             )
         )
 
-        # WEB-SPECIFIC: Reorder for Web Clients
         if self.is_touch_client(user):
-            # Remove actions from standard set as they are now in turn set for Web
-            for duplicate_id in ["check_scores", "speak_hand", "speak_table", "speak_hand_value", "check_button", "check_hand_players"]:
-                if action_set.get_action(duplicate_id):
-                    action_set.remove(duplicate_id)
-
             self._order_touch_standard_actions(action_set, self.web_target_order)
 
         return action_set
 
-    # WEB-SPECIFIC: Target order for Standard Actions
-    web_target_order = ["check_scores", "whose_turn", "whos_at_table"]
+    web_target_order = [
+        "speak_hand",
+        "speak_table",
+        "speak_hand_value",
+        "check_pot",
+        "check_bet",
+        "check_min_raise",
+        "check_hand_players",
+        "check_button",
+        "check_position",
+        "check_turn_timer",
+        "check_blind_timer",
+        "reveal_both",
+        "reveal_first",
+        "reveal_second",
+        "check_scores",
+        "whose_turn",
+        "whos_at_table",
+    ]
 
-    # WEB-SPECIFIC: Visibility Overrides
+    # Touch-client visibility overrides
 
     def _is_whos_at_table_hidden(self, player: "Player") -> Visibility:
         """Override: Visible for Web (always), hidden otherwise."""
@@ -684,7 +669,24 @@ class HoldemGame(Game, TurnTimerMixin):
         self.pot_manager.add_contribution(sb_player.id, sb_pay)
         self.pot_manager.add_contribution(bb_player.id, bb_pay)
         self._sync_team_scores()
-        self.broadcast_l("holdem-blinds-posted", buffer="game", sb=sb_pay, bb=bb_pay)
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+            if listener.id == sb_player.id:
+                key = "holdem-you-post-small-blind"
+            elif listener.id == bb_player.id:
+                key = "holdem-you-post-big-blind"
+            else:
+                key = "holdem-players-post-blinds"
+            user.speak_l(
+                key,
+                buffer="game",
+                sb_player=sb_player.name,
+                bb_player=bb_player.name,
+                sb=sb_pay,
+                bb=bb_pay,
+            )
 
     def _deal_hole_cards(self, players: list[HoldemPlayer]) -> None:
         if not players:
@@ -867,7 +869,7 @@ class HoldemGame(Game, TurnTimerMixin):
         p.folded = True
         self.pot_manager.mark_folded(p.id)
         poker_log.log_fold(self.action_log, p.name)
-        self.broadcast_l("poker-player-folds", buffer="game", player=p.name)
+        self.broadcast_personal_l(p, "poker-you-fold", "poker-player-folds", buffer="game")
         self._after_action()
 
     def _action_call(self, player: Player, action_id: str) -> None:
@@ -883,13 +885,13 @@ class HoldemGame(Game, TurnTimerMixin):
         self.betting.record_bet(p.id, pay, is_raise=False)
         if to_call == 0:
             poker_log.log_check(self.action_log, p.name)
-            self.broadcast_l("poker-player-checks", buffer="game", player=p.name)
+            self.broadcast_personal_l(p, "poker-you-check", "poker-player-checks", buffer="game")
         else:
             self.play_sound("game_3cardpoker/bet.ogg")
             poker_log.log_call(self.action_log, p.name, pay)
-            self.broadcast_l("poker-player-calls", buffer="game", player=p.name, amount=pay)
+            self.broadcast_personal_l(p, "poker-you-call", "poker-player-calls", buffer="game", amount=pay)
         if p.all_in and pay > 0:
-            self.broadcast_l("poker-player-all-in", buffer="game", player=p.name, amount=pay)
+            self.broadcast_personal_l(p, "poker-you-all-in", "poker-player-all-in", buffer="game", amount=pay)
         self._sync_team_scores()
         self._after_action()
 
@@ -946,9 +948,9 @@ class HoldemGame(Game, TurnTimerMixin):
         self.pot_manager.add_contribution(p.id, total)
         self.betting.record_bet(p.id, total, is_raise=True)
         poker_log.log_raise(self.action_log, p.name, total)
-        self.broadcast_l("poker-player-raises", buffer="game", player=p.name, amount=total)
+        self.broadcast_personal_l(p, "poker-you-raise", "poker-player-raises", buffer="game", amount=total)
         if p.all_in:
-            self.broadcast_l("poker-player-all-in", buffer="game", player=p.name, amount=total)
+            self.broadcast_personal_l(p, "poker-you-all-in", "poker-player-all-in", buffer="game", amount=total)
         self._sync_team_scores()
         self._after_action()
 
@@ -983,7 +985,7 @@ class HoldemGame(Game, TurnTimerMixin):
         is_raise = raise_amount >= min_raise and pay > to_call
         self.betting.record_bet(p.id, pay, is_raise=is_raise)
         poker_log.log_all_in(self.action_log, p.name, pay)
-        self.broadcast_l("poker-player-all-in", buffer="game", player=p.name, amount=pay)
+        self.broadcast_personal_l(p, "poker-you-all-in", "poker-player-all-in", buffer="game", amount=pay)
         self._sync_team_scores()
         self._after_action()
 
@@ -1043,9 +1045,21 @@ class HoldemGame(Game, TurnTimerMixin):
         amount_from_others = amount - winner_contribution
         self.play_sound(random.choice(["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]))
         if amount_from_others > 0:
-            self.broadcast_l("poker-player-wins-pot", buffer="game", player=winner.name, amount=amount_from_others)
+            self.broadcast_personal_l(
+                winner,
+                "poker-you-win-pot",
+                "poker-player-wins-pot",
+                buffer="game",
+                amount=amount_from_others,
+            )
         else:
-            self.broadcast_l("poker-uncalled-bet-returned", buffer="game", player=winner.name, amount=winner_contribution)
+            self.broadcast_personal_l(
+                winner,
+                "poker-your-uncalled-bet-returned",
+                "poker-uncalled-bet-returned",
+                buffer="game",
+                amount=winner_contribution,
+            )
         self._sync_team_scores()
         self._advance_blind_level()
         self._queue_new_hand()
@@ -1109,7 +1123,7 @@ class HoldemGame(Game, TurnTimerMixin):
                 hand_desc = describe_hand(hand_score, user.locale)
                 
                 user.speak_l(
-                    "poker-show-hand",
+                    "poker-you-show-hand" if p.id == player_obj.id else "poker-show-hand",
                     buffer="game",
                     player=player_obj.name,
                     cards=cards_str,
@@ -1171,7 +1185,7 @@ class HoldemGame(Game, TurnTimerMixin):
         if count == 0:
             user.speak_l("poker-hand-players-none", buffer="game")
             return
-        names = ", ".join(active)
+        names = Localization.format_list_and(user.locale, active)
         if count == 1:
             user.speak_l("poker-hand-players-one", buffer="game", names=names, count=count)
         else:
@@ -1364,6 +1378,9 @@ class HoldemGame(Game, TurnTimerMixin):
         return None
 
     def _is_check_hidden(self, player: Player) -> Visibility:
+        user = self.get_user(player)
+        if self.is_touch_client(user):
+            return Visibility.VISIBLE if self.status == "playing" else Visibility.HIDDEN
         return Visibility.HIDDEN
 
     def _is_reveal_enabled(self, player: Player) -> str | None:
@@ -1429,7 +1446,7 @@ class HoldemGame(Game, TurnTimerMixin):
     def _end_game(self, winner: HoldemPlayer | None) -> None:
         self.play_sound("game_pig/win.ogg")
         if winner:
-            self.broadcast_l("poker-player-wins-game", buffer="game", player=winner.name)
+            self.broadcast_personal_l(winner, "poker-you-win-game", "poker-player-wins-game", buffer="game")
         self.finish_game()
 
     def format_end_screen(self, result: GameResult, locale: str) -> list[str]:

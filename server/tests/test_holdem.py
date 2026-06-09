@@ -5,6 +5,12 @@ from ..users.test_user import MockUser
 from ..users.bot import Bot
 
 
+def _touch_user(name: str) -> MockUser:
+    user = MockUser(name)
+    user.client_type = "web"
+    return user
+
+
 def test_holdem_game_creation():
     game = HoldemGame()
     assert game.get_name() == "Texas Hold'em"
@@ -20,6 +26,68 @@ def test_holdem_options_defaults():
     assert game.options.starting_chips == 20000
     assert game.options.big_blind == 200
     assert game.options.ante == 0
+
+
+def test_holdem_rejects_forced_bets_that_consume_starting_stack():
+    big_blind_game = HoldemGame(options=HoldemOptions(starting_chips=100, big_blind=100))
+    assert (
+        "holdem-error-big-blind-too-high",
+        {"blind": 100, "chips": 100},
+    ) in big_blind_game.prestart_validate()
+
+    forced_bet_game = HoldemGame(
+        options=HoldemOptions(starting_chips=100, big_blind=80, ante=20, ante_start_level=0)
+    )
+    assert (
+        "holdem-error-forced-bets-too-high",
+        {"ante": 20, "blind": 80, "chips": 100},
+    ) in forced_bet_game.prestart_validate()
+
+
+def test_holdem_touch_info_actions_remain_available_outside_turn():
+    game = HoldemGame()
+    user1 = _touch_user("Alice")
+    user2 = _touch_user("Bob")
+    game.add_player("Alice", user1)
+    game.add_player("Bob", user2)
+    game.on_start()
+
+    player = next(p for p in game.get_active_players() if p != game.current_player)
+    turn_set = game.create_turn_action_set(player)
+    assert turn_set.get_action("speak_hand") is None
+    assert turn_set.get_action("speak_table") is None
+    assert turn_set.get_action("check_button") is None
+
+    standard_set = game.create_standard_action_set(player)
+    expected_order = [
+        "speak_hand",
+        "speak_table",
+        "speak_hand_value",
+        "check_pot",
+        "check_bet",
+        "check_min_raise",
+        "check_hand_players",
+        "check_button",
+        "check_position",
+        "check_turn_timer",
+        "check_blind_timer",
+        "reveal_both",
+        "reveal_first",
+        "reveal_second",
+        "check_scores",
+        "whose_turn",
+        "whos_at_table",
+    ]
+    assert standard_set._order[-len(expected_order):] == expected_order
+    for action_id in expected_order:
+        action = standard_set.get_action(action_id)
+        assert action is not None
+        resolved = standard_set.resolve_action(game, player, action)
+        if action_id.startswith("reveal_"):
+            assert resolved.enabled is False
+        else:
+            assert resolved.enabled
+        assert resolved.visible or action_id.startswith("reveal_")
 
 
 def test_holdem_serialization_round_trip():

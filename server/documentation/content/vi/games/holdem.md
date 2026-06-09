@@ -30,7 +30,7 @@ Trình tự Chơi
 
 
 
-1\. Đóng Tiền Mù: Hai người chơi ngồi bên trái của Dealer phải đóng Mù nhỏ và Mù lớn.
+1\. Đóng tiền mù: Người chơi bên trái nút Dealer đóng Mù nhỏ và người kế tiếp đóng Mù lớn. Khi chỉ còn hai người, người giữ nút Dealer đồng thời đóng Mù nhỏ và hành động trước ở vòng tiền Flop.
 
 2\. Vòng Tiền-Flop (Trước khi chia bài chung): Mỗi người chơi được chia 2 lá bài tẩy (úp xuống). Một vòng cược diễn ra.
 
@@ -82,7 +82,7 @@ Tùy chọn \& Biến thể
 
   \* Tiền gà (Ante): Cược bắt buộc cho tất cả (mặc định 0).
 
-  \* Hẹn giờ tăng mù: Tự động tăng tiền mù (mặc định mỗi 20 ván).
+  \* Hẹn giờ tăng mù: Tự động tăng tiền mù theo thời gian (mặc định mỗi 20 phút).
 
   \* Tiền gà bắt đầu từ cấp độ: Cấp tiền mù mà tiền gà bắt đầu áp dụng (mặc định 0).
 

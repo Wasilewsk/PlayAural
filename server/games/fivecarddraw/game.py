@@ -166,6 +166,20 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
     def create_player(self, player_id: str, name: str, is_bot: bool = False) -> FiveCardDrawPlayer:
         return FiveCardDrawPlayer(id=player_id, name=name, is_bot=is_bot, chips=0)
 
+    def prestart_validate(self) -> list[str | tuple[str, dict]]:
+        errors = list(super().prestart_validate())
+        if self.options.ante >= self.options.starting_chips:
+            errors.append(
+                (
+                    "draw-error-ante-too-high",
+                    {
+                        "ante": self.options.ante,
+                        "chips": self.options.starting_chips,
+                    },
+                )
+            )
+        return errors
+
     # ==========================================================================
     # Action availability
     # ==========================================================================
@@ -250,57 +264,6 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
                 show_in_actions_menu=False,
             )
         )
-        
-        # WEB-SPECIFIC: Turn Menu Actions (Restored & Reordered)
-        # Only add these for Web clients to avoid duplicates in Python client context menu
-        if self.is_touch_client(user):
-            # 1. Check scores (requested to be below All in)
-            action_set.add(
-                Action(
-                    id="check_scores",
-                    label=Localization.get(locale, "check-scores"), # Corrected label key
-                    handler="_action_check_scores",
-                    is_enabled="_is_check_scores_enabled",
-                    is_hidden="_is_check_scores_hidden",
-                )
-            )
-            # 2. Add duplicates back ONLY for Web (Turn Menu)
-            action_set.add(
-                Action(
-                    id="speak_hand",
-                    label=Localization.get(locale, "poker-read-hand"),
-                    handler="_action_read_hand",
-                    is_enabled="_is_turn_action_enabled",
-                    is_hidden="_is_turn_action_hidden",
-                )
-            )
-            action_set.add(
-                Action(
-                    id="speak_hand_value",
-                    label=Localization.get(locale, "poker-hand-value"),
-                    handler="_action_read_hand_value",
-                    is_enabled="_is_turn_action_enabled",
-                    is_hidden="_is_turn_action_hidden",
-                )
-            )
-            action_set.add(
-                Action(
-                    id="check_dealer",
-                    label=Localization.get(locale, "poker-check-dealer"),
-                    handler="_action_check_dealer",
-                    is_enabled="_is_turn_action_enabled",
-                    is_hidden="_is_turn_action_hidden",
-                )
-            )
-            action_set.add(
-                Action(
-                    id="check_hand_players",
-                    label=Localization.get(locale, "poker-check-hand-players"),
-                    handler="_action_check_hand_players",
-                    is_enabled="_is_turn_action_enabled",
-                    is_hidden="_is_turn_action_hidden",
-                )
-            )
         action_set.add(
             Action(
                 id="draw_cards",
@@ -337,21 +300,14 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
                 )
             )
 
-        # Web-specific turn menu reordering:
-        # Draw phase:    [toggle_discard_1–5] → [draw_cards] → [speak_hand] → [speak_hand_value] → [check_scores, check_dealer, check_hand_players]
-        # Betting phase: [call] → [fold] → [raise] → [all_in] → [speak_hand] → [speak_hand_value] → [check_scores, check_dealer, check_hand_players]
         if self.is_touch_client(user):
             draw_actions = [f"toggle_discard_{i}" for i in range(1, 6)] + ["draw_cards"]
             bet_actions = ["call", "fold", "raise", "all_in"]
-            info_actions = ["speak_hand", "speak_hand_value"]
-            utility_actions = ["check_scores", "check_dealer", "check_hand_players"]
-            pinned = set(draw_actions) | set(bet_actions) | set(info_actions) | set(utility_actions)
+            pinned = set(draw_actions) | set(bet_actions)
             rest = [aid for aid in action_set._order if aid not in pinned]
             action_set._order = (
                 [aid for aid in draw_actions if aid in action_set._order]
                 + [aid for aid in bet_actions if aid in action_set._order]
-                + [aid for aid in info_actions if aid in action_set._order]
-                + [aid for aid in utility_actions if aid in action_set._order]
                 + rest
             )
 
@@ -463,14 +419,18 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
                 )
             )
 
-        # WEB-SPECIFIC: Reorder for Web Clients
         if self.is_touch_client(user):
-            # Remove actions from standard set as they are now in turn set for Web
-            for duplicate_id in ["check_scores", "speak_hand", "speak_hand_value", "check_dealer", "check_hand_players"]:
-                if action_set.get_action(duplicate_id):
-                    action_set.remove(duplicate_id)
-
             target_order = [
+                "speak_hand",
+                "speak_hand_value",
+                "check_pot",
+                "check_bet",
+                "check_min_raise",
+                "check_hand_players",
+                "check_dealer",
+                "check_position",
+                "check_turn_timer",
+                "check_scores",
                 "whose_turn",
                 "whos_at_table",
             ]
@@ -478,8 +438,7 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
 
         return action_set
 
-    # WEB-SPECIFIC: Visibility Overrides
-
+    # Touch-client visibility overrides
 
     def _is_whos_at_table_hidden(self, player: "Player") -> Visibility:
         """Override: Visible for Web (always), hidden otherwise."""
@@ -693,7 +652,7 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
         p.folded = True
         self.pot_manager.mark_folded(p.id)
         poker_log.log_fold(self.action_log, p.name)
-        self.broadcast_l("poker-player-folds", buffer="game", player=p.name)
+        self.broadcast_personal_l(p, "poker-you-fold", "poker-player-folds", buffer="game")
         self._after_action()
 
     def _action_call(self, player: Player, action_id: str) -> None:
@@ -709,13 +668,13 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
         self.betting.record_bet(p.id, pay, is_raise=False)
         if to_call == 0:
             poker_log.log_check(self.action_log, p.name)
-            self.broadcast_l("poker-player-checks", buffer="game", player=p.name)
+            self.broadcast_personal_l(p, "poker-you-check", "poker-player-checks", buffer="game")
         else:
             self.play_sound("game_3cardpoker/bet.ogg")
             poker_log.log_call(self.action_log, p.name, pay)
-            self.broadcast_l("poker-player-calls", buffer="game", player=p.name, amount=pay)
+            self.broadcast_personal_l(p, "poker-you-call", "poker-player-calls", buffer="game", amount=pay)
         if p.all_in and pay > 0:
-            self.broadcast_l("poker-player-all-in", buffer="game", player=p.name, amount=pay)
+            self.broadcast_personal_l(p, "poker-you-all-in", "poker-player-all-in", buffer="game", amount=pay)
         self._sync_team_scores()
         self._after_action()
 
@@ -772,9 +731,9 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
         self.pot_manager.add_contribution(p.id, total)
         self.betting.record_bet(p.id, total, is_raise=True)
         poker_log.log_raise(self.action_log, p.name, total)
-        self.broadcast_l("poker-player-raises", buffer="game", player=p.name, amount=total)
+        self.broadcast_personal_l(p, "poker-you-raise", "poker-player-raises", buffer="game", amount=total)
         if p.all_in:
-            self.broadcast_l("poker-player-all-in", buffer="game", player=p.name, amount=total)
+            self.broadcast_personal_l(p, "poker-you-all-in", "poker-player-all-in", buffer="game", amount=total)
         self._sync_team_scores()
         self._after_action()
 
@@ -810,7 +769,7 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
         is_raise = raise_amount >= min_raise and pay > to_call
         self.betting.record_bet(p.id, pay, is_raise=is_raise)
         poker_log.log_all_in(self.action_log, p.name, pay)
-        self.broadcast_l("poker-player-all-in", buffer="game", player=p.name, amount=pay)
+        self.broadcast_personal_l(p, "poker-you-all-in", "poker-player-all-in", buffer="game", amount=pay)
         self._sync_team_scores()
         self._after_action()
 
@@ -824,7 +783,7 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
                 user.speak_l("draw-not-draw-phase", buffer="game")
             return
         if not p.to_discard:
-            self.broadcast_personal_l(p, "draw-you-stand-pat", "draw-player-stands-pat")
+            self.broadcast_personal_l(p, "draw-you-stand-pat", "draw-player-stands-pat", buffer="game")
             self._advance_after_draw(p)
             return
         indices = sorted(p.to_discard)
@@ -922,9 +881,21 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
         amount_from_others = amount - winner_contribution
         self.play_sound(random.choice(["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]))
         if amount_from_others > 0:
-            self.broadcast_l("poker-player-wins-pot", buffer="game", player=winner.name, amount=amount_from_others)
+            self.broadcast_personal_l(
+                winner,
+                "poker-you-win-pot",
+                "poker-player-wins-pot",
+                buffer="game",
+                amount=amount_from_others,
+            )
         else:
-            self.broadcast_l("poker-uncalled-bet-returned", buffer="game", player=winner.name, amount=winner_contribution)
+            self.broadcast_personal_l(
+                winner,
+                "poker-your-uncalled-bet-returned",
+                "poker-uncalled-bet-returned",
+                buffer="game",
+                amount=winner_contribution,
+            )
         self._sync_team_scores()
         self._queue_new_hand()
 
@@ -991,7 +962,7 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
                 hand_desc = describe_hand(hand_score, user.locale)
                 
                 user.speak_l(
-                    "poker-show-hand",
+                    "poker-you-show-hand" if p.id == player_obj.id else "poker-show-hand",
                     buffer="game",
                     player=player_obj.name,
                     cards=cards_str,
@@ -1056,7 +1027,7 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
         if count == 0:
             user.speak_l("poker-hand-players-none", buffer="game")
             return
-        names = ", ".join(active)
+        names = Localization.format_list_and(user.locale, active)
         if count == 1:
             user.speak_l("poker-hand-players-one", buffer="game", names=names, count=count)
         else:
@@ -1266,6 +1237,9 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
         return None
 
     def _is_check_hidden(self, player: Player) -> Visibility:
+        user = self.get_user(player)
+        if self.is_touch_client(user):
+            return Visibility.VISIBLE if self.status == "playing" else Visibility.HIDDEN
         return Visibility.HIDDEN
 
     def _on_turn_timeout(self) -> None:
@@ -1319,7 +1293,7 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
     def _end_game(self, winner: FiveCardDrawPlayer | None) -> None:
         self.play_sound("game_pig/win.ogg")
         if winner:
-            self.broadcast_l("poker-player-wins-game", buffer="game", player=winner.name)
+            self.broadcast_personal_l(winner, "poker-you-win-game", "poker-player-wins-game", buffer="game")
         self.finish_game()
 
     def format_end_screen(self, result: GameResult, locale: str) -> list[str]:

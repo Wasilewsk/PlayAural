@@ -30,7 +30,7 @@ Gameplay Steps
 
 
 
-1\. Blinds: The two players to the left of the dealer pay the Small Blind and Big Blind.
+1\. Blinds: The players to the left of the button pay the Small Blind and Big Blind. In heads-up play, the button posts the Small Blind and acts first before the flop.
 
 2\. Pre-Flop: Each player is dealt 2 private cards (hole cards). A round of betting follows.
 
@@ -82,7 +82,7 @@ Options \& Variants
 
   \* Ante: Optional forced bet for all players (default 0).
 
-  \* Blind Timer: Automatically increase blinds over time (default every 20 hands).
+  \* Blind Timer: Automatically increase blinds over time (default every 20 minutes).
 
   \* Ante Start Level: The blind level at which the ante kicks in (default 0).
 

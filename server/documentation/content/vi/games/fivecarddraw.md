@@ -38,7 +38,7 @@ Trình tự Chơi
 
 4\. Giai đoạn Đổi bài:
 
-  \* Người chơi có thể chọn bỏ đi tối đa 5 lá bài (hoặc chọn giữ nguyên toàn bộ).
+  \* Người chơi có thể chọn đổi tối đa 3 lá bài, hoặc tối đa 4 lá nếu giữ lại một lá Át. Người chơi cũng có thể giữ nguyên toàn bộ bài.
 
   \* Những lá bài mới sẽ được chia để thay thế cho những lá đã bỏ.
 
@@ -126,5 +126,5 @@ Trong giai đoạn Đổi bài
 
 \* \*\*1-5:\*\* Chọn hoặc Bỏ chọn các lá bài bạn muốn vứt đi để đổi lá mới.
 
-\* \*\*Space (Phím Cách):\*\* Xác nhận đổi các lá bài đã chọn.
+\* \*\*D:\*\* Xác nhận đổi các lá bài đã chọn.
 

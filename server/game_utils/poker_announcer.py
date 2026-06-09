@@ -40,7 +40,7 @@ def announce_pot_winners(
             
             if pot_index == 0:
                 user.speak_l(
-                    "poker-player-wins-pot-hand",
+                    "poker-you-win-pot-hand" if p.id == winner.id else "poker-player-wins-pot-hand",
                     buffer="game",
                     player=winner.name,
                     amount=pot_amount,
@@ -49,7 +49,7 @@ def announce_pot_winners(
                 )
             else:
                 user.speak_l(
-                    "poker-player-wins-side-pot-hand",
+                    "poker-you-win-side-pot-hand" if p.id == winner.id else "poker-player-wins-side-pot-hand",
                     buffer="game",
                     player=winner.name,
                     amount=pot_amount,
@@ -58,27 +58,32 @@ def announce_pot_winners(
                     hand=desc_str,
                 )
     else:
-        names = ", ".join(w.name for w in winners)
         for p in game.players:
             user = game.get_user(p)
             if not user:
                 continue
                 
             desc_str = describe_hand(best_score, user.locale)
+            winner_names = Localization.format_list_and(user.locale, [w.name for w in winners])
+            is_winner = any(w.id == p.id for w in winners)
+            other_winners = Localization.format_list_and(
+                user.locale,
+                [w.name for w in winners if w.id != p.id],
+            )
             
             if pot_index == 0:
                 user.speak_l(
-                    "poker-players-split-pot",
+                    "poker-you-split-pot" if is_winner else "poker-players-split-pot",
                     buffer="game",
-                    players=names,
+                    players=other_winners if is_winner else winner_names,
                     amount=pot_amount,
                     hand=desc_str
                 )
             else:
                 user.speak_l(
-                    "poker-players-split-side-pot",
+                    "poker-you-split-side-pot" if is_winner else "poker-players-split-side-pot",
                     buffer="game",
-                    players=names,
+                    players=other_winners if is_winner else winner_names,
                     amount=pot_amount,
                     index=pot_index,
                     hand=desc_str,

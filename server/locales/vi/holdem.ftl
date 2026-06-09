@@ -32,7 +32,13 @@ holdem-set-max-raises = Số lần tố tối đa: { $count }
 holdem-enter-max-raises = Nhập số lần tố tối đa (0 để không giới hạn)
 holdem-option-changed-max-raises = Số lần tố tối đa đã được đặt là { $count }.
 
+holdem-error-big-blind-too-high = Mù lớn ({ $blind } chip) phải thấp hơn số chip ban đầu ({ $chips } chip).
+holdem-error-ante-too-high = Cược góp ({ $ante } chip) phải thấp hơn số chip ban đầu ({ $chips } chip).
+holdem-error-forced-bets-too-high = Khi cược góp có hiệu lực từ cấp 0, cược góp cộng mù lớn ({ $ante } + { $blind } chip) phải thấp hơn số chip ban đầu ({ $chips } chip).
+
 holdem-antes-posted = Đã đóng cược góp: { $amount }.
-holdem-blinds-posted = Đã đóng cược mù: { $sb } / { $bb }.
+holdem-you-post-small-blind = Bạn đóng Mù nhỏ ({ $sb } chip). { $bb_player } đóng Mù lớn ({ $bb } chip).
+holdem-you-post-big-blind = { $sb_player } đóng Mù nhỏ ({ $sb } chip). Bạn đóng Mù lớn ({ $bb } chip).
+holdem-players-post-blinds = { $sb_player } đóng Mù nhỏ ({ $sb } chip). { $bb_player } đóng Mù lớn ({ $bb } chip).
 
 holdem-winner-chips = { $rank }. { $player }: { $chips } chip

@@ -5,6 +5,12 @@ from ..users.test_user import MockUser
 from ..users.bot import Bot
 
 
+def _touch_user(name: str) -> MockUser:
+    user = MockUser(name)
+    user.client_type = "web"
+    return user
+
+
 def test_draw_game_creation():
     game = FiveCardDrawGame()
     assert game.get_name() == "Five Card Draw"
@@ -20,6 +26,51 @@ def test_draw_options_defaults():
     assert game.options.starting_chips == 20000
     assert game.options.ante == 100
     assert game.options.raise_mode == "no_limit"
+
+
+def test_draw_rejects_ante_that_consumes_starting_stack():
+    game = FiveCardDrawGame(options=FiveCardDrawOptions(starting_chips=100, ante=100))
+    assert (
+        "draw-error-ante-too-high",
+        {"ante": 100, "chips": 100},
+    ) in game.prestart_validate()
+
+
+def test_draw_touch_info_actions_remain_available_outside_turn():
+    game = FiveCardDrawGame()
+    user1 = _touch_user("Alice")
+    user2 = _touch_user("Bob")
+    game.add_player("Alice", user1)
+    game.add_player("Bob", user2)
+    game.on_start()
+
+    player = next(p for p in game.get_active_players() if p != game.current_player)
+    turn_set = game.create_turn_action_set(player)
+    assert turn_set.get_action("speak_hand") is None
+    assert turn_set.get_action("check_dealer") is None
+
+    standard_set = game.create_standard_action_set(player)
+    expected_order = [
+        "speak_hand",
+        "speak_hand_value",
+        "check_pot",
+        "check_bet",
+        "check_min_raise",
+        "check_hand_players",
+        "check_dealer",
+        "check_position",
+        "check_turn_timer",
+        "check_scores",
+        "whose_turn",
+        "whos_at_table",
+    ]
+    assert standard_set._order[-len(expected_order):] == expected_order
+    for action_id in expected_order:
+        action = standard_set.get_action(action_id)
+        assert action is not None
+        resolved = standard_set.resolve_action(game, player, action)
+        assert resolved.visible
+        assert resolved.enabled
 
 
 def test_draw_serialization_round_trip():
