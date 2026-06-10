@@ -628,6 +628,8 @@ def test_switch_replacement_flow_keeps_turn_available() -> None:
     start_to_decision(game)
     player = game.current_player
     assert player is not None
+    player_user = game.get_user(player)
+    assert player_user is not None
     other = next(table_player for table_player in game.players if table_player != player)
     other_user = game.get_user(other)
     assert other_user is not None
@@ -649,6 +651,7 @@ def test_switch_replacement_flow_keeps_turn_available() -> None:
     assert player.used_switch
     assert len(player.hand) == 2
     assert player.hand != old_hand
+    assert player_user.menus["turn_menu"]["selection_id"] == "call"
     assert any(card_name(discarded, "en") in text for text in speech_texts(other_user))
 
 

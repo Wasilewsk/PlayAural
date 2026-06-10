@@ -182,6 +182,10 @@ class DeadMansPokerGame(Game):
     pending_roulette_context: str = ""
     winner_id: str = ""
 
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self._pending_turn_menu_focus: dict[str, str] = {}
+
     @classmethod
     def get_name(cls) -> str:
         return "Dead Man's Poker"
@@ -213,6 +217,23 @@ class DeadMansPokerGame(Game):
         is_bot: bool = False,
     ) -> DeadMansPokerPlayer:
         return DeadMansPokerPlayer(id=player_id, name=name, is_bot=is_bot)
+
+    def rebuild_all_menus(
+        self,
+        focus: str | None = None,
+        *,
+        focus_player: Player | None = None,
+    ) -> None:
+        for player in self.players:
+            player_focus = (
+                focus
+                if focus is not None and (focus_player is None or player == focus_player)
+                else None
+            )
+            pending_focus = self._pending_turn_menu_focus.pop(player.id, None)
+            if player_focus is None:
+                player_focus = pending_focus
+            self.rebuild_player_menu(player, focus=player_focus)
 
     def supports_score_actions(self) -> bool:
         return False
@@ -1815,7 +1836,9 @@ class DeadMansPokerGame(Game):
                     )
                 if player.is_bot:
                     BotHelper.jolt_bot(player, ticks=random.randint(10, 20))  # nosec B311
-                self.rebuild_player_menu(player)
+                if not player.is_bot:
+                    self._pending_turn_menu_focus[player.id] = "call"
+                self.rebuild_player_menu(player, focus="call")
             return
         if callback_id == "reveal_community_cards":
             self._reveal_community_cards(int(payload.get("count", 0)))
