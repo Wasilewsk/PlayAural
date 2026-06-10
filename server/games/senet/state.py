@@ -13,12 +13,21 @@ HOUSE_HAPPINESS = 25  # Square 26 — mandatory stop
 HOUSE_WATER = 26  # Square 27 — sends piece to rebirth
 HOUSE_THREE_TRUTHS = 27  # Square 28
 HOUSE_RE_ATUM = 28  # Square 29
+HOUSE_HORUS = 29  # Square 30
 
 # Squares where pieces require an exact roll to bear off
-EXACT_BEAROFF = {27: 3, 28: 2, 29: 1}
+EXACT_BEAROFF = {HOUSE_THREE_TRUTHS: 3, HOUSE_RE_ATUM: 2, HOUSE_HORUS: 1}
 
 # Squares where pieces cannot be captured
-SAFE_SQUARES = frozenset({HOUSE_THREE_TRUTHS, HOUSE_RE_ATUM, 29})
+SAFE_SQUARES = frozenset(
+    {
+        HOUSE_REBIRTH,
+        HOUSE_HAPPINESS,
+        HOUSE_WATER,
+        HOUSE_THREE_TRUTHS,
+        HOUSE_RE_ATUM,
+    }
+)
 
 # Locale keys for special square names
 SPECIAL_SQUARE_NAMES = {
@@ -27,6 +36,7 @@ SPECIAL_SQUARE_NAMES = {
     HOUSE_WATER: "senet-house-water",
     HOUSE_THREE_TRUTHS: "senet-house-three-truths",
     HOUSE_RE_ATUM: "senet-house-re-atum",
+    HOUSE_HORUS: "senet-house-horus",
 }
 
 

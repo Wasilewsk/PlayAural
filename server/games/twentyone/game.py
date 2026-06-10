@@ -373,6 +373,10 @@ class TwentyOneGame(ActionGuardMixin, Game):
     def get_max_players(cls) -> int:
         return 2
 
+    @classmethod
+    def get_supported_leaderboards(cls) -> list[str]:
+        return ["wins", "rating", "games_played"]
+
     def prestart_validate(self) -> list[str | tuple[str, dict]]:
         errors = list(super().prestart_validate())
         if (

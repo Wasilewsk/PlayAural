@@ -35,11 +35,11 @@ class StatsExtractor:
 
             player_id = p.player_id
             player_name = p.player_name
-            updates[player_id] = {}
+            player_updates: dict[str, float] = {}
 
             # games_played
             if supports_games_played:
-                updates[player_id]["games_played"] = 1.0
+                player_updates["games_played"] = 1.0
 
             # wins/losses
             is_winner = False
@@ -51,9 +51,9 @@ class StatsExtractor:
 
             if supports_wins:
                 if is_winner:
-                    updates[player_id]["wins"] = 1.0
+                    player_updates["wins"] = 1.0
                 else:
-                    updates[player_id]["losses"] = 1.0
+                    player_updates["losses"] = 1.0
 
             # scores
             score = final_scores.get(player_name, 0)
@@ -62,10 +62,10 @@ class StatsExtractor:
 
             if score:
                 if supports_total_score:
-                    updates[player_id]["total_score"] = float(score)
+                    player_updates["total_score"] = float(score)
                 if supports_high_score:
                     # Using special suffix '_high' to tell caller to MAX instead of SUM
-                    updates[player_id]["high_score_high"] = float(score)
+                    player_updates["high_score_high"] = float(score)
 
             # Custom stats
             for config in game_class.get_leaderboard_types():
@@ -81,12 +81,12 @@ class StatsExtractor:
                     val = StatsExtractor._extract_path_value(result.custom_data, resolved_path)
                     if val is not None:
                         if aggregate == "max":
-                            updates[player_id][f"custom_{lb_id}_high"] = float(val)
+                            player_updates[f"custom_{lb_id}_high"] = float(val)
                         elif aggregate == "avg":
-                            updates[player_id][f"custom_{lb_id}_sum"] = float(val)
-                            updates[player_id][f"custom_{lb_id}_count"] = 1.0
+                            player_updates[f"custom_{lb_id}_sum"] = float(val)
+                            player_updates[f"custom_{lb_id}_count"] = 1.0
                         else:
-                            updates[player_id][f"custom_{lb_id}"] = float(val)
+                            player_updates[f"custom_{lb_id}"] = float(val)
 
                 # Check numerator/denominator extraction (e.g. for ratios like win percentage in Coup)
                 elif numerator_path and denominator_path:
@@ -97,8 +97,11 @@ class StatsExtractor:
                     denom_val = StatsExtractor._extract_path_value(result.custom_data, denom_path)
 
                     if num_val is not None and denom_val is not None:
-                        updates[player_id][f"custom_{lb_id}_numerator"] = float(num_val)
-                        updates[player_id][f"custom_{lb_id}_denominator"] = float(denom_val)
+                        player_updates[f"custom_{lb_id}_numerator"] = float(num_val)
+                        player_updates[f"custom_{lb_id}_denominator"] = float(denom_val)
+
+            if player_updates:
+                updates[player_id] = player_updates
 
         return updates
 

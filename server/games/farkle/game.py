@@ -335,6 +335,10 @@ class FarkleGame(Game):
         return 20
 
     @classmethod
+    def get_supported_leaderboards(cls) -> list[str]:
+        return ["wins", "total_score", "high_score", "rating", "games_played"]
+
+    @classmethod
     def get_leaderboard_types(cls) -> list[dict]:
         return [
             {

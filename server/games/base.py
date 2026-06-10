@@ -263,9 +263,9 @@ class Game(
         """Return list of supported built-in leaderboard types.
 
         Options: "wins", "total_score", "high_score", "rating", "games_played"
-        Override to exclude types that don't make sense for the game.
+        Games must opt in to the types that match their GameResult data.
         """
-        return ["wins", "total_score", "high_score", "rating", "games_played"]
+        return []
 
     def prestart_validate(self) -> list[str] | list[tuple[str, dict]]:
         """Validate game configuration before starting.

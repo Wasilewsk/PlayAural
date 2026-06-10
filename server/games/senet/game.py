@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import logging
 import random
 from dataclasses import dataclass, field
-
-log = logging.getLogger(__name__)
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
@@ -16,7 +13,6 @@ from ...game_utils.bot_helper import BotHelper
 from ...game_utils.game_result import GameResult, PlayerResult
 from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
-from ...users.bot import Bot
 from ...users.base import User, MenuItem, EscapeBehavior
 from .bot import bot_think
 from .moves import generate_legal_moves, apply_move, has_any_legal_move
@@ -26,6 +22,7 @@ from .state import (
     SPECIAL_SQUARE_NAMES,
     HOUSE_WATER,
     HOUSE_HAPPINESS,
+    HOUSE_HORUS,
     build_initial_state,
     opponent_num,
     pieces_remaining,
@@ -93,15 +90,26 @@ class SenetGame(Game):
     def get_max_players(cls) -> int:
         return 2
 
+    @classmethod
+    def get_supported_leaderboards(cls) -> list[str]:
+        return ["wins", "rating", "games_played"]
+
     def create_player(self, player_id: str, name: str, is_bot: bool = False) -> SenetPlayer:
         return SenetPlayer(id=player_id, name=name, is_bot=is_bot)
+
+    def prestart_validate(self) -> list[str | tuple[str, dict]]:
+        errors: list[str | tuple[str, dict]] = list(super().prestart_validate())
+        active_count = self.get_active_player_count()
+        if active_count != 2:
+            errors.append(("senet-error-exactly-two-players", {"count": active_count}))
+        return errors
 
     def _player_locale(self, player: Player) -> str:
         user = self.get_user(player)
         return user.locale if user else "en"
 
     def _get_player_by_num(self, num: int) -> SenetPlayer | None:
-        for p in self.players:
+        for p in self.get_active_players():
             if isinstance(p, SenetPlayer) and p.player_num == num:
                 return p
         return None
@@ -399,11 +407,19 @@ class SenetGame(Game):
     # ======================================================================
 
     def on_start(self) -> None:
+        active_players = self.get_active_players()
+        if len(active_players) != 2:
+            self.broadcast_l(
+                "senet-error-exactly-two-players",
+                buffer="game",
+                count=len(active_players),
+            )
+            return
+
         self.status = "playing"
         self.game_active = True
         self.round = 1
 
-        active_players = [p for p in self.players if not p.is_spectator]
         self.set_turn_players(active_players, reset_index=True)
 
         self._team_manager.team_mode = "individual"
@@ -456,6 +472,9 @@ class SenetGame(Game):
             return
         gs = self.game_state
         if gs.current_player_num != player.player_num:
+            user = self.get_user(player)
+            if user:
+                user.speak_l("action-not-your-turn", buffer="game")
             return
 
         # Throwing phase: any click throws sticks
@@ -463,7 +482,10 @@ class SenetGame(Game):
             self._do_throw(player)
             return
 
-        if gs.turn_phase != "moving":
+        if gs.turn_phase != "moving" or gs.current_roll <= 0:
+            user = self.get_user(player)
+            if user:
+                user.speak_l("senet-need-throw-first", buffer="game")
             return
 
         try:
@@ -510,10 +532,11 @@ class SenetGame(Game):
         gs.throws_this_turn += 1
 
         self._play_dice_sound()
-        self.broadcast_l(
-            "senet-throw",
+        self.broadcast_personal_l(
+            player,
+            "senet-throw-you",
+            "senet-throw-other",
             buffer="game",
-            player=player.name,
             result=value,
             bonus="yes" if bonus else "no",
         )
@@ -522,7 +545,10 @@ class SenetGame(Game):
 
         if not has_any_legal_move(gs, player.player_num, value):
             self.broadcast_personal_l(
-                player, "senet-no-moves-you", "senet-no-moves-other",
+                player,
+                "senet-no-moves-you",
+                "senet-no-moves-other",
+                buffer="game",
             )
             self._after_move_or_skip(player)
             return
@@ -554,6 +580,7 @@ class SenetGame(Game):
                 player,
                 "senet-bearoff-you",
                 "senet-bearoff-other",
+                buffer="game",
                 **{"from": from_sq, "remaining": remaining},
             )
             self.broadcast_sound("mention.ogg", volume=50)
@@ -563,6 +590,7 @@ class SenetGame(Game):
                 player,
                 "senet-swap-you",
                 "senet-swap-other",
+                buffer="game",
                 opponent=opp_name,
                 **{"from": from_sq, "to": to_sq},
             )
@@ -570,7 +598,11 @@ class SenetGame(Game):
             if move.water_dest is not None:
                 dest_sq = move.water_dest + 1
                 self.broadcast_personal_l(
-                    player, "senet-water-you", "senet-water-other", dest=dest_sq,
+                    player,
+                    "senet-water-you",
+                    "senet-water-other",
+                    buffer="game",
+                    dest=dest_sq,
                 )
                 self.broadcast_sound("game_squares/step1.ogg")
         elif move.water_dest is not None:
@@ -579,11 +611,16 @@ class SenetGame(Game):
                 player,
                 "senet-move-you",
                 "senet-move-other",
+                buffer="game",
                 **{"from": from_sq, "to": to_sq},
             )
             dest_sq = move.water_dest + 1
             self.broadcast_personal_l(
-                player, "senet-water-you", "senet-water-other", dest=dest_sq,
+                player,
+                "senet-water-you",
+                "senet-water-other",
+                buffer="game",
+                dest=dest_sq,
             )
             self.broadcast_sound("game_squares/step1.ogg")
         else:
@@ -592,6 +629,7 @@ class SenetGame(Game):
                 player,
                 "senet-move-you",
                 "senet-move-other",
+                buffer="game",
                 **{"from": from_sq, "to": to_sq},
             )
             self.broadcast_sound("game_squares/step1.ogg")
@@ -599,7 +637,10 @@ class SenetGame(Game):
             # Announce reaching House of Happiness
             if move.destination == HOUSE_HAPPINESS:
                 self.broadcast_personal_l(
-                    player, "senet-happiness-you", "senet-happiness-other",
+                    player,
+                    "senet-happiness-you",
+                    "senet-happiness-other",
+                    buffer="game",
                 )
 
         # Check win
@@ -618,10 +659,37 @@ class SenetGame(Game):
             gs.current_roll = 0
             gs.bonus_turn = False
             self._nav_cursor = None
+            if self._score_horus_if_ready(player):
+                return
             BotHelper.jolt_bots(self, ticks=random.randint(3, 6))
             self.rebuild_all_menus()
         else:
             self._end_turn()
+
+    def _score_horus_if_ready(self, player: SenetPlayer) -> bool:
+        """Auto-score House of Horus when ready; return True if that ends the game."""
+        gs = self.game_state
+        pnum = player.player_num
+        if gs.board[HOUSE_HORUS] != pnum:
+            return False
+        if any(square == pnum for square in gs.board[:10]):
+            return False
+
+        gs.board[HOUSE_HORUS] = 0
+        gs.off[pnum] += 1
+        remaining = pieces_remaining(gs, pnum)
+        self.broadcast_personal_l(
+            player,
+            "senet-horus-auto-you",
+            "senet-horus-auto-other",
+            buffer="game",
+            remaining=remaining,
+        )
+        self.broadcast_sound("mention.ogg", volume=50)
+        if gs.off[pnum] >= PIECES_PER_PLAYER:
+            self._handle_win(player)
+            return True
+        return False
 
     def _end_turn(self) -> None:
         gs = self.game_state
@@ -637,6 +705,8 @@ class SenetGame(Game):
         if opp_player:
             self.current_player = opp_player
         self.announce_turn()
+        if opp_player and self._score_horus_if_ready(opp_player):
+            return
         BotHelper.jolt_bots(self, ticks=random.randint(3, 6))
         self.rebuild_all_menus()
 
@@ -645,7 +715,12 @@ class SenetGame(Game):
     # ======================================================================
 
     def _handle_win(self, winner: SenetPlayer) -> None:
-        self.broadcast_l("senet-wins", buffer="game", player=winner.name)
+        self.broadcast_personal_l(
+            winner,
+            "senet-wins-you",
+            "senet-wins-other",
+            buffer="game",
+        )
         self.broadcast_sound("game_pig/win.ogg")
         self.winner_name = winner.name
         self.finish_game()
@@ -667,8 +742,7 @@ class SenetGame(Game):
                     player_name=p.name,
                     is_bot=p.is_bot and not p.replaced_human,
                 )
-                for p in self.players
-                if not p.is_spectator
+                for p in self.get_active_players()
             ],
             custom_data={
                 "winner_name": self.winner_name,
@@ -752,30 +826,7 @@ class SenetGame(Game):
     # ======================================================================
 
     def _perform_leave_game(self, player: Player) -> None:
-        if self.status == "playing" and not player.is_bot:
-            player.is_bot = True
-            self._users.pop(player.id, None)
-            bot_user = Bot(player.name, uuid=player.id)
-            self.attach_user(player.id, bot_user)
-            self.broadcast_l("player-replaced-by-bot", buffer="system", player=player.name)
-
-            has_humans = any(not p.is_bot for p in self.players)
-            if not has_humans:
-                self.destroy()
-                return
-
-            self.rebuild_all_menus()
-            return
-
-        self.players = [p for p in self.players if p.id != player.id]
-        self.player_action_sets.pop(player.id, None)
-        self._users.pop(player.id, None)
-        self.broadcast_l("table-left", buffer="system", player=player.name)
-
-        has_humans = any(not p.is_bot for p in self.players)
-        if not has_humans:
-            self.destroy()
-            return
+        super()._perform_leave_game(player)
 
     # ======================================================================
     # Visibility / enabled / label callbacks
@@ -829,11 +880,17 @@ class SenetGame(Game):
     def _is_navigate_enabled(self, player: Player) -> str | None:
         if self.status != "playing":
             return "action-not-playing"
-        if not isinstance(player, SenetPlayer):
+        if not isinstance(player, SenetPlayer) or player.is_spectator:
             return "action-not-available"
         gs = self.game_state
-        if gs.turn_phase != "moving" or gs.current_player_num != player.player_num:
+        if gs.current_player_num != player.player_num:
             return "action-not-your-turn"
+        if gs.turn_phase == "throwing" or gs.current_roll <= 0:
+            return "senet-need-throw-first"
+        if gs.turn_phase != "moving":
+            return "action-not-available"
+        if not self._get_movable_squares(player.player_num):
+            return "senet-no-movable-pieces"
         return None
 
     def _is_info_enabled(self, player: Player) -> str | None:

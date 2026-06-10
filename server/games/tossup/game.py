@@ -111,6 +111,10 @@ class TossUpGame(Game):
     def get_max_players(cls) -> int:
         return 8
 
+    @classmethod
+    def get_supported_leaderboards(cls) -> list[str]:
+        return ["wins", "total_score", "high_score", "rating", "games_played"]
+
     def create_player(
         self, player_id: str, name: str, is_bot: bool = False
     ) -> TossUpPlayer:

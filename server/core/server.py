@@ -5796,11 +5796,20 @@ PlayAural Server
         # Delete the saved table now that it's been restored
         self._db.delete_saved_table(save_id)
 
+    def _game_has_leaderboards(self, game_class) -> bool:
+        """Return whether a game exposes any public leaderboard type."""
+        return bool(
+            game_class.get_supported_leaderboards()
+            or game_class.get_leaderboard_types()
+        )
+
     def _show_leaderboards_menu(self, user: NetworkUser) -> None:
         """Show leaderboards game selection menu."""
         items = []
 
         for game_class, game_name in self._get_localized_game_list(user):
+            if not self._game_has_leaderboards(game_class):
+                continue
             items.append(
                 MenuItem(text=game_name, id=f"lb_{game_class.get_type()}")
             )
@@ -5876,6 +5885,14 @@ PlayAural Server
                 MenuItem(
                     text=Localization.get(user.locale, loc_key),
                     id=f"type_{lb_id}",
+                )
+            )
+
+        if not items:
+            items.append(
+                MenuItem(
+                    text=Localization.get(user.locale, "leaderboard-no-data"),
+                    id="no_data",
                 )
             )
 
@@ -6304,6 +6321,10 @@ PlayAural Server
             game_class = get_game_class(game_type)
             if not game_class:
                 user.speak_l("game-type-not-found", buffer="system")
+                self._nav_refresh(user, self._show_leaderboards_menu)
+                return
+            if not self._game_has_leaderboards(game_class):
+                user.speak_l("leaderboard-no-data", buffer="system")
                 self._nav_refresh(user, self._show_leaderboards_menu)
                 return
             results = self._db.get_game_stats(game_type, limit=1)

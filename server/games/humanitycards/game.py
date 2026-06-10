@@ -260,6 +260,10 @@ class HumanityCardsGame(Game):
     def get_max_players(cls) -> int:
         return 10
 
+    @classmethod
+    def get_supported_leaderboards(cls) -> list[str]:
+        return ["wins", "total_score", "high_score", "rating", "games_played"]
+
     def create_player(self, player_id: str, name: str, is_bot: bool = False) -> HumanityCardsPlayer:
         return HumanityCardsPlayer(id=player_id, name=name, is_bot=is_bot)
 

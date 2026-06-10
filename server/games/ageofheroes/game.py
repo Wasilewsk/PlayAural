@@ -240,6 +240,10 @@ class AgeOfHeroesGame(Game):
     def get_max_players(cls) -> int:
         return 6
 
+    @classmethod
+    def get_supported_leaderboards(cls) -> list[str]:
+        return ["wins", "rating", "games_played"]
+
     def create_player(self, player_id: str, name: str, is_bot: bool = False) -> AgeOfHeroesPlayer:
         """Create a new player with Age of Heroes-specific state."""
         return AgeOfHeroesPlayer(id=player_id, name=name, is_bot=is_bot)

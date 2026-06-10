@@ -53,15 +53,16 @@ A run of three or more consecutive opponent pieces forms an impassable wall: you
 
 \*\*Special Squares\*\*
 
-Five squares carry special meaning:
+Six squares carry special meaning:
 
-\* \*\*Square 15 — House of Rebirth:\*\* the square to which pieces sent back from the House of Water return. It has no other effect.
-\* \*\*Square 26 — House of Happiness:\*\* every piece \*\*must\*\* land here on its way home. You cannot pass over square 26, so a roll that would carry a piece beyond it without stopping is not a legal move. Once a piece has rested on square 26, it moves on normally on a later turn.
+\* \*\*Square 15 — House of Rebirth:\*\* the safe square to which pieces sent back from the House of Water return.
+\* \*\*Square 26 — House of Happiness:\*\* every piece \*\*must\*\* land here on its way home. You cannot pass over square 26, so a roll that would carry a piece beyond it without stopping is not a legal move. Once a piece has rested on square 26, it moves on normally on a later turn. This square is safe from capture.
 \* \*\*Square 27 — House of Water:\*\* landing here is misfortune. The piece is sent straight back to the House of Rebirth (square 15). If square 15 is occupied, the piece goes to the nearest empty square before it. Even a piece that arrives by swapping onto the water is sent back this way.
 \* \*\*Square 28 — House of Three Truths:\*\* a piece that reaches here is locked safely in place and can leave only by bearing off with an exact roll of \*\*3\*\*.
 \* \*\*Square 29 — House of Re-Atum:\*\* as square 28, but the piece bears off only on an exact roll of \*\*2\*\*.
+\* \*\*Square 30 — House of Horus:\*\* a piece bears off on an exact roll of \*\*1\*\*. It also leaves automatically at the start of your throw if you have no pieces left on the first row. Unlike the protected houses before it, this final square is not safe from capture.
 
-Square 30 behaves the same way: a piece there is safe and bears off only on an exact roll of \*\*1\*\*. Pieces resting on squares 28, 29, and 30 are all immune from capture.
+The marked special houses from square 15 through square 29 are protected from capture. Square 30 is the final house and can still be swapped with by the opponent.
 
 \*\*Bearing Off\*\*
 
@@ -69,7 +70,7 @@ Pieces leave the board only from the three final squares, and each demands its e
 
 \* From square 28: exactly 3.
 \* From square 29: exactly 2.
-\* From square 30: exactly 1.
+\* From square 30: exactly 1, or automatically at the start of your throw when your first row is clear.
 
 No piece may bear off from any other square. Pieces must reach these final squares and wait there for the right throw.
 
