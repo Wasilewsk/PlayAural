@@ -1,6 +1,7 @@
 """Tests for Senet."""
 
 from pathlib import Path
+from types import SimpleNamespace
 
 from ..games.senet.game import SenetGame, SenetOptions
 from ..games.senet.moves import generate_legal_moves
@@ -118,6 +119,20 @@ def test_score_shortcuts_use_standard_s_keys() -> None:
         p2=p2.name if p2 else "?",
         off2=game.game_state.off[2],
     )
+    detailed_expected = [
+        Localization.get(
+            "en",
+            "senet-score-line",
+            player=p1.name if p1 else "?",
+            off=game.game_state.off[1],
+        ),
+        Localization.get(
+            "en",
+            "senet-score-line",
+            player=p2.name if p2 else "?",
+            off=game.game_state.off[2],
+        ),
+    ]
 
     assert [keybind.actions for keybind in game._keybinds["s"]] == [["check_scores"]]
     assert [keybind.actions for keybind in game._keybinds["shift+s"]] == [
@@ -132,11 +147,34 @@ def test_score_shortcuts_use_standard_s_keys() -> None:
     user.clear_messages()
     game.handle_event(player, {"type": "keybind", "key": "s", "shift": True})
     status_items = user.get_current_menu_items("status_box") or []
-    assert [item.text for item in status_items] == [expected]
+    assert [item.text for item in status_items] == detailed_expected
 
     user.clear_messages()
     game.handle_event(player, {"type": "keybind", "key": "v"})
     assert expected not in user.get_spoken_messages()
+
+
+def test_senet_refresh_does_not_overwrite_global_menus() -> None:
+    game = make_game(start=True)
+    player = game.current_player
+    assert player is not None
+    user = game.get_user(player)
+    assert user is not None
+    server = SimpleNamespace(
+        GLOBAL_SYSTEM_MENUS={"options_menu"},
+        _user_states={user.username: {"menu": "options_menu"}},
+    )
+    game._table = SimpleNamespace(_server=server)
+
+    user.clear_messages()
+    game.rebuild_all_menus()
+    game.update_all_menus()
+
+    assert not any(
+        message.type in {"show_menu", "update_menu"}
+        and message.data.get("menu_id") == "turn_menu"
+        for message in user.messages
+    )
 
 
 def test_special_houses_before_horus_are_safe_from_capture() -> None:

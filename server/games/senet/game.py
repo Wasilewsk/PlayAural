@@ -309,16 +309,28 @@ class SenetGame(Game):
     # Menu overrides (grid mode)
     # ======================================================================
 
+    def _is_menu_refresh_blocked(self, player: Player, user: User) -> bool:
+        if player.id in self._status_box_open or player.id in self._actions_menu_open:
+            return True
+
+        server = getattr(getattr(self, "_table", None), "_server", None)
+        if server is not None:
+            state = server._user_states.get(user.username, {})
+            if state.get("menu") in server.GLOBAL_SYSTEM_MENUS or state.get("_transient"):
+                return True
+
+        return bool(self._pending_actions.get(player.id))
+
     def rebuild_player_menu(self, player: Player, *, position: int | None = None) -> None:
         if self._destroyed or self.status == "finished":
             # Defer to base behaviour for the finished/end-screen case.
             if self.status == "finished":
                 super().rebuild_player_menu(player)
             return
-        if player.id in self._status_box_open or player.id in self._actions_menu_open:
-            return
         user = self.get_user(player)
         if not user:
+            return
+        if self._is_menu_refresh_blocked(player, user):
             return
 
         grid_items, other_items = self._build_menu_items(player, user)
@@ -342,10 +354,10 @@ class SenetGame(Game):
     ) -> None:
         if self._destroyed or self.status == "finished":
             return
-        if player.id in self._status_box_open or player.id in self._actions_menu_open:
-            return
         user = self.get_user(player)
         if not user:
+            return
+        if self._is_menu_refresh_blocked(player, user):
             return
 
         grid_items, other_items = self._build_menu_items(player, user)
@@ -538,7 +550,7 @@ class SenetGame(Game):
             self._after_move_or_skip(player)
             return
 
-        self.rebuild_all_menus()
+        self.update_all_menus()
 
     def _play_dice_sound(self) -> None:
         self.broadcast_sound(f"game_squares/diceroll{random.randint(1, 3)}.ogg")
@@ -647,7 +659,7 @@ class SenetGame(Game):
             if self._score_horus_if_ready(player):
                 return
             BotHelper.jolt_bots(self, ticks=random.randint(3, 6))
-            self.rebuild_all_menus()
+            self.update_all_menus()
         else:
             self._end_turn()
 
@@ -693,7 +705,7 @@ class SenetGame(Game):
         if opp_player and self._score_horus_if_ready(opp_player):
             return
         BotHelper.jolt_bots(self, ticks=random.randint(3, 6))
-        self.rebuild_all_menus()
+        self.update_all_menus()
 
     # ======================================================================
     # Win
@@ -794,6 +806,25 @@ class SenetGame(Game):
             "off2": gs.off[2],
         }
 
+    def _score_lines(self, locale: str) -> list[str]:
+        gs = self.game_state
+        p1 = self._get_player_by_num(1)
+        p2 = self._get_player_by_num(2)
+        return [
+            Localization.get(
+                locale,
+                "senet-score-line",
+                player=p1.name if p1 else "?",
+                off=gs.off[1],
+            ),
+            Localization.get(
+                locale,
+                "senet-score-line",
+                player=p2.name if p2 else "?",
+                off=gs.off[2],
+            ),
+        ]
+
     def _action_check_scores(self, player: Player, action_id: str) -> None:
         user = self.get_user(player)
         if not user:
@@ -804,16 +835,7 @@ class SenetGame(Game):
         user = self.get_user(player)
         if not user:
             return
-        self.status_box(
-            player,
-            [
-                Localization.get(
-                    user.locale,
-                    "senet-score",
-                    **self._score_kwargs(),
-                )
-            ],
-        )
+        self.status_box(player, self._score_lines(user.locale))
 
     # ======================================================================
     # Score actions: Senet uses standard score action IDs with custom output.
