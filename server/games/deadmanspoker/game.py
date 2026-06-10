@@ -1234,7 +1234,9 @@ class DeadMansPokerGame(Game):
             lock_scope=self.SEQUENCE_LOCK_GAMEPLAY,
             pause_bots=True,
         )
-        self.rebuild_player_menu(dmp_player)
+        if not dmp_player.is_bot:
+            self._pending_turn_menu_focus[dmp_player.id] = "call"
+        self.rebuild_player_menu(dmp_player, focus="call")
 
     def _start_commit_sequence(
         self,
@@ -1836,9 +1838,6 @@ class DeadMansPokerGame(Game):
                     )
                 if player.is_bot:
                     BotHelper.jolt_bot(player, ticks=random.randint(10, 20))  # nosec B311
-                if not player.is_bot:
-                    self._pending_turn_menu_focus[player.id] = "call"
-                self.rebuild_player_menu(player, focus="call")
             return
         if callback_id == "reveal_community_cards":
             self._reveal_community_cards(int(payload.get("count", 0)))

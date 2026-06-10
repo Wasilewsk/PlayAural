@@ -644,6 +644,7 @@ def test_switch_replacement_flow_keeps_turn_available() -> None:
 
     game.execute_action(player, "choose_switch_1")
     assert turn_menu_updates(other_user) == []
+    assert player_user.menus["turn_menu"]["selection_id"] == "call"
     assert advance_until(game, lambda: not game.active_sequences)
 
     assert game.phase == PHASE_DECISION
