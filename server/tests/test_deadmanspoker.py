@@ -106,6 +106,15 @@ def speech_texts(user: MockUser) -> list[str]:
     return [message.data["text"] for message in user.messages if message.type == "speak"]
 
 
+def turn_menu_updates(user: MockUser):
+    return [
+        message
+        for message in user.messages
+        if message.type in {"show_menu", "update_menu"}
+        and message.data.get("menu_id") == "turn_menu"
+    ]
+
+
 def locale_keys(path: Path) -> set[str]:
     keys: set[str] = set()
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -629,8 +638,10 @@ def test_switch_replacement_flow_keeps_turn_available() -> None:
     game.execute_action(player, "switch_card", input_value="0")
     assert game.phase == PHASE_SWITCH
     assert len(game.pending_switch_candidates) == 3
+    assert turn_menu_updates(other_user) == []
 
     game.execute_action(player, "choose_switch_1")
+    assert turn_menu_updates(other_user) == []
     assert advance_until(game, lambda: not game.active_sequences)
 
     assert game.phase == PHASE_DECISION

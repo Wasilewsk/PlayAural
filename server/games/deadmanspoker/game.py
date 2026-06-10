@@ -1159,7 +1159,7 @@ class DeadMansPokerGame(Game):
                 buffer="game",
                 cards=read_cards(self.pending_switch_candidates, user.locale),
             )
-        self.rebuild_all_menus()
+        self.rebuild_player_menu(dmp_player)
         if dmp_player.is_bot:
             BotHelper.jolt_bot(dmp_player, ticks=random.randint(8, 16))  # nosec B311
 
@@ -1213,7 +1213,7 @@ class DeadMansPokerGame(Game):
             lock_scope=self.SEQUENCE_LOCK_GAMEPLAY,
             pause_bots=True,
         )
-        self.rebuild_all_menus()
+        self.rebuild_player_menu(dmp_player)
 
     def _start_commit_sequence(
         self,
@@ -1815,7 +1815,7 @@ class DeadMansPokerGame(Game):
                     )
                 if player.is_bot:
                     BotHelper.jolt_bot(player, ticks=random.randint(10, 20))  # nosec B311
-            self.rebuild_all_menus()
+                self.rebuild_player_menu(player)
             return
         if callback_id == "reveal_community_cards":
             self._reveal_community_cards(int(payload.get("count", 0)))
