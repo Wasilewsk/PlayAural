@@ -642,8 +642,14 @@ def test_switch_replacement_flow_keeps_turn_available() -> None:
     assert len(game.pending_switch_candidates) == 3
     assert turn_menu_updates(other_user) == []
 
+    player_user.clear_messages()
     game.execute_action(player, "choose_switch_1")
     assert turn_menu_updates(other_user) == []
+    assert [
+        message.data.get("selection_id")
+        for message in turn_menu_updates(player_user)
+        if message.data.get("selection_id") == "call"
+    ] == ["call"]
     assert player_user.menus["turn_menu"]["selection_id"] == "call"
     assert advance_until(game, lambda: not game.active_sequences)
 
@@ -652,6 +658,15 @@ def test_switch_replacement_flow_keeps_turn_available() -> None:
     assert player.used_switch
     assert len(player.hand) == 2
     assert player.hand != old_hand
+    assert [
+        message.data.get("selection_id")
+        for message in turn_menu_updates(player_user)
+        if message.data.get("selection_id") == "call"
+    ] == ["call"]
+    assert any(
+        message.type == "update_menu" and message.data.get("selection_id") is None
+        for message in turn_menu_updates(player_user)
+    )
     assert player_user.menus["turn_menu"]["selection_id"] == "call"
     assert any(card_name(discarded, "en") in text for text in speech_texts(other_user))
 
@@ -685,6 +700,11 @@ def test_human_switch_choice_does_not_pull_other_player_focus_to_call() -> None:
     assert other_updates
     assert {message.type for message in other_updates} == {"update_menu"}
     assert all(message.data.get("selection_id") is None for message in other_updates)
+    assert [
+        message.data.get("selection_id")
+        for message in turn_menu_updates(player_user)
+        if message.data.get("selection_id") == "call"
+    ] == ["call"]
     assert player_user.menus["turn_menu"]["selection_id"] == "call"
     assert advance_until(game, lambda: not game.active_sequences)
 
@@ -692,6 +712,11 @@ def test_human_switch_choice_does_not_pull_other_player_focus_to_call() -> None:
     assert other_updates
     assert {message.type for message in other_updates} == {"update_menu"}
     assert all(message.data.get("selection_id") is None for message in other_updates)
+    assert [
+        message.data.get("selection_id")
+        for message in turn_menu_updates(player_user)
+        if message.data.get("selection_id") == "call"
+    ] == ["call"]
     assert player_user.menus["turn_menu"]["selection_id"] == "call"
 
 

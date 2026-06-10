@@ -184,7 +184,7 @@ class DeadMansPokerGame(Game):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        self._pending_turn_menu_focus: dict[str, str] = {}
+        self._switch_sequence_refresh_pending = False
 
     @classmethod
     def get_name(cls) -> str:
@@ -224,11 +224,9 @@ class DeadMansPokerGame(Game):
         *,
         focus_player: Player | None = None,
     ) -> None:
-        if focus is None and focus_player is None and self._pending_turn_menu_focus:
-            pending_focus = dict(self._pending_turn_menu_focus)
-            self._pending_turn_menu_focus.clear()
-            for player in self.players:
-                self.update_player_menu(player, selection_id=pending_focus.get(player.id))
+        if focus is None and focus_player is None and self._switch_sequence_refresh_pending:
+            self._switch_sequence_refresh_pending = False
+            self.update_all_menus()
             return
 
         for player in self.players:
@@ -263,7 +261,6 @@ class DeadMansPokerGame(Game):
         if resolved.enabled:
             self.execute_action(player, action_id)
             if player.id not in self._pending_actions:
-                self.update_player_menu(player, selection_id="call")
                 for other in self.players:
                     if other != player:
                         self.update_player_menu(other)
@@ -1273,8 +1270,8 @@ class DeadMansPokerGame(Game):
             lock_scope=self.SEQUENCE_LOCK_GAMEPLAY,
             pause_bots=True,
         )
-        if not dmp_player.is_bot:
-            self._pending_turn_menu_focus[dmp_player.id] = "call"
+        if self.has_active_sequence(sequence_id="deadmanspoker_switch"):
+            self._switch_sequence_refresh_pending = True
         self.rebuild_player_menu(dmp_player, focus="call")
 
     def _start_commit_sequence(
