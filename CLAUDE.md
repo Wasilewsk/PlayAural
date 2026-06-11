@@ -224,63 +224,76 @@ Rules:
 - `advance_turn()` immediately after `set_turn_players(...)` skips the first player and is almost always wrong
 - use `get_active_players()` for gameplay logic, results, and winner calculations
 
-#### Sealed Menu Orchestrators (Mandatory)
-The menu orchestrators on `MenuManagementMixin` — `rebuild_player_menu`,
-`update_player_menu`, `rebuild_all_menus`, `update_all_menus`, and
-`_is_menu_refresh_blocked` — are **sealed**. A game class that overrides one
-fails at import time with a `TypeError` (so the server will not start and
-pytest will not collect). They own the focus-steal guards (status boxes,
-actions menus, global system menus, pending inputs), bot skipping,
-finished-state end screens, and focus scoping; per-game copies of that logic
-were the root cause of a long line of focus-stealing bugs.
+#### Menu Refresh and Focus (Mandatory)
+Game code never paints menus. It records intent through exactly two calls on
+`MenuManagementMixin`:
 
-Games customize menus only through the sanctioned hooks:
+- `refresh_menus(player=None)` — mark one player (or everyone) as needing a
+  repaint. Recording only; nothing is built or sent here. Over-marking costs
+  one set-insert and no packet, so the safe habit — refresh after any state
+  change — is also the cheap habit.
+- `request_menu_focus(player, action_id)` — queue a one-shot focus jump for
+  a player (and mark them for repaint). One slot per player, last writer
+  wins, consumed by the next flush that paints that player — so a delayed
+  sequence-runner repaint can never double-jump the cursor, and other
+  players' repaints never carry the actor's focus.
+
+One sealed flush point builds and sends: `flush_menus()`, called by the
+framework only — at the end of every `Game.handle_event()` and once per
+server tick (after game ticks, before the packet flush). Games never call
+it; tests call it explicitly at the same boundaries the framework provides
+in production (after a direct `execute_action`/`_action_*` call or an
+`on_start`/`on_tick` loop, before asserting on menus).
+
+The flush orchestrators — `refresh_menus`, `flush_menus`,
+`_paint_player_menu`, `_is_menu_refresh_blocked` — are **sealed**: a game
+class that overrides one fails at import time with a `TypeError` (so the
+server will not start and pytest will not collect). The flush owns the
+focus-steal guards (status boxes, actions menus, global system menus,
+pending inputs), bot skipping, finished-state end screens, and focus
+delivery; per-game copies of that logic were the root cause of a long line
+of focus-stealing bugs.
+
+Games customize what gets painted through the hooks:
 - `before_menu_build(player)` — sync dynamic action sets (per-card play
   actions, standard-action ordering) before any menu paint. Called for bots
   too, so action sets stay valid for bot decisions. Must be idempotent.
+  Note that mid-event the action sets are stale (the flush hasn't run yet);
+  game code that reads its own action sets right after mutating state should
+  call its own `before_menu_build(player)` first (see citadels'
+  `_refresh_menus_for_focus`).
 - `build_menu_items(player, user) -> MenuBuild` — supply a custom item list
   and grid layout (`MenuBuild(items=..., grid_kwargs=...)`); this is how the
   backgammon and senet boards arrange their grids.
-- `request_menu_focus(player, action_id)` — queue a per-player focus intent;
-  the next `rebuild_all_menus()` consumes it at most once (an explicit
-  `focus` argument supersedes and discards it), so delayed sequence-runner
-  repaints cannot double-jump the cursor.
-- `defer_next_rebuild_to_update()` — make the next no-focus
-  `rebuild_all_menus()` focus-preserving, for delayed flows whose interesting
-  focus change already happened.
-- `rebuild_all_menus(focus=..., focus_player=...)` — scope an explicit focus
-  to one player; everyone else keeps their anchor.
 
-#### Menu Focus on Refresh and Turn Transitions
-The client preserves the user's current focus across an `update_menu` but resets
-it to the first item on a `show_menu` (full re-show). `update_player_menu` /
-`update_all_menus` send `update_menu`; `rebuild_player_menu` / `rebuild_all_menus`
-send `show_menu`.
+#### How Clients Treat Menu Packets (Why Plain Refreshes Are Safe)
+All three first-party clients treat a menu packet for the menu they are
+already displaying as an in-place diff: the cursor follows the focused item
+by *identity*, with no announcement and no reset. Focus resets come from
+menu-identity changes (turn_menu → status_box → turn_menu), from the focused
+item leaving the list, or from an explicit `selection_id` — never from a
+repaint itself. (The old `rebuild_*`-resets / `update_*`-preserves doctrine
+was stale; the verb never mattered on any client, which is why the names are
+gone.)
 
-Consequences:
-- The genuine first display of a game menu (table start, return-to-game, which
-  the server drives through `rebuild_player_menu`) must use the `rebuild_*` path.
-- Every in-play refresh of an already-shown menu should use the `update_*` path,
-  or the player's focus snaps back to the first item.
-- The client follows focus by item *identity*: across a same-menu refresh it
-  keeps the cursor on the item with the same id, even if it shifted position.
-  The anchor only breaks when that id leaves the menu — then focus falls back to
-  the clamped slot, or to the first item if the menu had emptied. So a
-  persistent control must stay *present* across refreshes to keep its anchor.
-- This bit the backgammon board hard. The 24 grid points are a persistent grid,
-  but `get_visible_actions` once dropped *disabled* actions — and a point
-  disables on the opponent's turn (`_is_point_enabled` → "not your turn"). So
-  the off-turn player's board collapsed to zero items mid-opponent-turn,
-  destroying the focus anchor; when it repopulated at their turn start the
-  cursor had nowhere to land and snapped to the first cell ("focus teleports to
-  square 13"). The fix was in `get_visible_actions`, which now keeps
-  disabled-but-visible actions — *not* in the rebuild-vs-update turn-pass call,
-  which was a red herring that misled an earlier attempt.
-- Still prefer the focus-preserving `update_*` path for in-play refreshes and
-  `rebuild_*` only for a genuine first display. Where the action list legitimately
-  changes shape and a fixed landing spot is preferable, the alternative is to
-  jump focus deliberately to the top at the start of the user's turn — choose
-  one, don't leave focus to chance.
+Consequences that still matter when designing a menu:
+- The anchor only breaks when the focused item's id leaves the menu — then
+  focus falls back to the clamped slot, or the first item if the menu
+  emptied. A persistent control must stay *present* across refreshes to keep
+  its anchor.
+- This bit the backgammon board hard. The 24 grid points are a persistent
+  grid, but `get_visible_actions` once dropped *disabled* actions — and a
+  point disables on the opponent's turn. The off-turn player's board
+  collapsed to zero items mid-opponent-turn, destroying the focus anchor
+  ("focus teleports to square 13"). The fix was keeping
+  disabled-but-visible actions in `get_visible_actions`.
+- Where the action list legitimately changes shape and a fixed landing spot
+  is preferable, jump focus deliberately with `request_menu_focus` at the
+  start of the user's turn — choose one, don't leave focus to chance.
+- `NetworkUser` content-diffs repaints: an identical same-menu repaint with
+  no focus directive sends no packet at all, and the per-flush coalescer
+  collapses same-tick duplicates. Bandwidth is not a reason to avoid
+  `refresh_menus()`.
 
 #### Score Management and Units
 Shared score display is handled by `GameScoresMixin` and `TeamManager`.

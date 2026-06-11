@@ -1,6 +1,40 @@
 # Phase 2 Design: Centralized Menu Flush
 
-Status: PROPOSAL — awaiting Rory's ruling on the open questions in section 6.
+Status: IMPLEMENTED, 2026-06-11. Rory ruled on section 6: Q1 confirmed (no
+audible focus reset on same-menu refresh), Q2 no interleaving requirement,
+Q3 remove `defer_next_rebuild_to_update`, Q4 rename now and delete the old
+names (no aliases). Landed as three commits on main: the content-diff skip,
+the recorder/flush conversion + rename, and the docs rewrite.
+
+Deviations from the proposal as written:
+
+- The flush runs at TWO framework-owned points, not one: per table at the
+  end of the server tick (as designed), and additionally at the end of every
+  `Game.handle_event()`. The event-end flush changes nothing on the wire
+  (packets still queue until the tick, and the coalescer plus content-diff
+  absorb duplicates) but keeps menu/action-set state synchronous with player
+  actions — which the action-input flows and hundreds of tests rely on.
+- The API shrank further than proposed: `refresh_menus(player=None)` has no
+  focus parameter. `request_menu_focus(player, id)` is the single focus
+  mechanism (it also marks the player dirty), replacing the
+  focus/focus_player kwargs. "Explicit focus supersedes a queued intent"
+  became simply "last writer wins on the per-player slot".
+- `_should_rebuild_after_keybind` and its three game overrides (backgammon/
+  senet `_nav_skip_rebuild`, blackjack `_suppress_keybind_rebuild`) were
+  deleted along with `defer_next_rebuild_to_update`: suppressing repaints to
+  protect focus is meaningless when repaints are focus-preserving and no-op
+  repaints send no packet.
+- One latent assumption surfaced during migration: code that reads its own
+  action sets mid-event (e.g. to compute a focus target) now sees them stale
+  until the flush; citadels' `_refresh_menus_for_focus` calls its own
+  `before_menu_build` first. Documented in CLAUDE.md.
+- Measured (scripts/measure_menu_traffic.py, senet bot game with one
+  spectator, ~90s of play): menu packets 408 -> 2; builds unchanged at 407
+  in this workload (build savings only appear when several repaints coalesce
+  in one tick).
+
+Original proposal follows.
+
 Author: Claude (Fable 5), 2026-06-11. Phase 1 (sealed orchestrators) landed on
 branch `menu-orchestrator-sealing`.
 
