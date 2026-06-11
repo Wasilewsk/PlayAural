@@ -184,7 +184,6 @@ class DeadMansPokerGame(Game):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        self._switch_sequence_refresh_pending = False
 
     @classmethod
     def get_name(cls) -> str:
@@ -217,25 +216,6 @@ class DeadMansPokerGame(Game):
         is_bot: bool = False,
     ) -> DeadMansPokerPlayer:
         return DeadMansPokerPlayer(id=player_id, name=name, is_bot=is_bot)
-
-    def rebuild_all_menus(
-        self,
-        focus: str | None = None,
-        *,
-        focus_player: Player | None = None,
-    ) -> None:
-        if focus is None and focus_player is None and self._switch_sequence_refresh_pending:
-            self._switch_sequence_refresh_pending = False
-            self.update_all_menus()
-            return
-
-        for player in self.players:
-            player_focus = (
-                focus
-                if focus is not None and (focus_player is None or player == focus_player)
-                else None
-            )
-            self.rebuild_player_menu(player, focus=player_focus)
 
     def _handle_menu_event(self, player: Player, event: dict) -> None:
         selection_id = str(event.get("selection_id", ""))
@@ -1271,7 +1251,7 @@ class DeadMansPokerGame(Game):
             pause_bots=True,
         )
         if self.has_active_sequence(sequence_id="deadmanspoker_switch"):
-            self._switch_sequence_refresh_pending = True
+            self.defer_next_rebuild_to_update()
         self.rebuild_player_menu(dmp_player, focus="call")
 
     def _start_commit_sequence(

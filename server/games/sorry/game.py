@@ -85,7 +85,6 @@ class SorryGame(Game):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        self._pending_turn_menu_focus: dict[str, str] = {}
 
     @classmethod
     def get_name(cls) -> str:
@@ -268,32 +267,9 @@ class SorryGame(Game):
                 state=KeybindState.ACTIVE,
             )
 
-    def rebuild_player_menu(self, player: Player, focus: str | None = None) -> None:
+    def before_menu_build(self, player: Player) -> None:
         self._sync_turn_actions(player)
         self._sync_standard_actions(player)
-        super().rebuild_player_menu(player, focus=focus)
-
-    def update_player_menu(self, player: Player, selection_id: str | None = None) -> None:
-        self._sync_turn_actions(player)
-        self._sync_standard_actions(player)
-        super().update_player_menu(player, selection_id=selection_id)
-
-    def rebuild_all_menus(
-        self,
-        focus: str | None = None,
-        *,
-        focus_player: Player | None = None,
-    ) -> None:
-        for player in self.players:
-            player_focus = (
-                focus
-                if focus is not None and (focus_player is None or player == focus_player)
-                else None
-            )
-            pending_focus = self._pending_turn_menu_focus.pop(player.id, None)
-            if player_focus is None:
-                player_focus = pending_focus
-            self.rebuild_player_menu(player, focus=player_focus)
 
     def _sync_turn_actions(
         self,
@@ -1161,7 +1137,7 @@ class SorryGame(Game):
         if user:
             user.speak_l("sorry-choose-move", buffer="game")
         if defer_menu_rebuild:
-            self._pending_turn_menu_focus[player.id] = "move_slot_1"
+            self.request_menu_focus(player, "move_slot_1")
         else:
             self.rebuild_all_menus(focus_player=player, focus="move_slot_1")
         self._queue_current_bot()
