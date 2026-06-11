@@ -10,6 +10,16 @@ if TYPE_CHECKING:
     from ..network.websocket_server import ClientConnection
 
 
+def _menu_content(state: dict[str, Any]) -> dict[str, Any]:
+    """The fields of a stored menu state that the client renders.
+
+    ``position`` is excluded: it is a one-shot focus directive, not content,
+    and a repaint that omits it must still be skippable against a stored
+    state that recorded one.
+    """
+    return {k: v for k, v in state.items() if k != "position"}
+
+
 class NetworkUser(User):
     """
     Network implementation of User for real players connected via websocket.
@@ -42,6 +52,11 @@ class NetworkUser(User):
         self._current_menus: dict[str, dict[str, Any]] = {}
         self._current_editboxes: dict[str, dict[str, Any]] = {}
         self._current_music: dict[str, Any] | None = None
+        # The menu_id of the last menu packet queued for this client, or None
+        # when a non-menu UI (editbox, clear_ui) has taken the screen since.
+        # Clients display one menu at a time, so this is what the client is
+        # showing; a repaint may only be content-diff-skipped against it.
+        self._last_menu_packet_id: str | None = None
 
     @property
     def uuid(self) -> str:
@@ -246,8 +261,7 @@ class NetworkUser(User):
         converted_items = self._convert_items(items)
         escape_str = escape_behavior.value
 
-        # Store for session resumption
-        self._current_menus[menu_id] = {
+        state = {
             "items": converted_items,
             "multiletter_enabled": multiletter,
             "escape_behavior": escape_str,
@@ -256,6 +270,25 @@ class NetworkUser(User):
             "grid_height": grid_height,
             "grid_width": grid_width,
         }
+
+        # Content-diff skip: a repaint of the menu the client is already
+        # displaying, with identical content and no explicit focus directive,
+        # is a client-side no-op — don't spend a packet on it. Restricted to
+        # the menu named by _last_menu_packet_id so a re-show after the client
+        # moved to another menu/editbox always goes out in full.
+        previous = self._current_menus.get(menu_id)
+        if (
+            position is None
+            and selection_id is None
+            and menu_id == self._last_menu_packet_id
+            and previous is not None
+            and _menu_content(previous) == _menu_content(state)
+        ):
+            self._current_menus[menu_id] = state
+            return
+
+        # Store for session resumption
+        self._current_menus[menu_id] = state
 
         packet: dict[str, Any] = {
             "type": "menu",
@@ -272,6 +305,7 @@ class NetworkUser(User):
             packet["position"] = position - 1
         if selection_id is not None:
             packet["selection_id"] = selection_id
+        self._last_menu_packet_id = menu_id
         self._queue_packet(packet)
 
     def update_menu(
@@ -287,13 +321,26 @@ class NetworkUser(User):
     ) -> None:
         converted_items = self._convert_items(items)
 
-        if menu_id in self._current_menus:
-            self._current_menus[menu_id]["items"] = converted_items
+        previous = self._current_menus.get(menu_id)
+        if (
+            position is None
+            and selection_id is None
+            and menu_id == self._last_menu_packet_id
+            and previous is not None
+            and previous.get("items") == converted_items
+            and previous.get("grid_enabled") == grid_enabled
+            and previous.get("grid_height") == grid_height
+            and previous.get("grid_width") == grid_width
+        ):
+            return  # Content-diff skip; see show_menu.
+
+        if previous is not None:
+            previous["items"] = converted_items
             if position is not None:
-                self._current_menus[menu_id]["position"] = position
-            self._current_menus[menu_id]["grid_enabled"] = grid_enabled
-            self._current_menus[menu_id]["grid_height"] = grid_height
-            self._current_menus[menu_id]["grid_width"] = grid_width
+                previous["position"] = position
+            previous["grid_enabled"] = grid_enabled
+            previous["grid_height"] = grid_height
+            previous["grid_width"] = grid_width
 
         packet: dict[str, Any] = {
             "type": "menu",
@@ -307,10 +354,13 @@ class NetworkUser(User):
             packet["position"] = position - 1
         if selection_id is not None:
             packet["selection_id"] = selection_id
+        self._last_menu_packet_id = menu_id
         self._queue_packet(packet)
 
     def remove_menu(self, menu_id: str) -> None:
         self._current_menus.pop(menu_id, None)
+        if self._last_menu_packet_id == menu_id:
+            self._last_menu_packet_id = None
         # Send empty menu to clear it
         self._queue_packet(
             {
@@ -347,6 +397,9 @@ class NetworkUser(User):
         }
         if max_length is not None:
             packet["max_length"] = max_length
+        # The editbox takes the client's screen; the next menu paint must be
+        # sent in full even if its content is unchanged.
+        self._last_menu_packet_id = None
         self._queue_packet(packet)
 
     def remove_editbox(self, input_id: str) -> None:
@@ -356,6 +409,7 @@ class NetworkUser(User):
     def clear_ui(self) -> None:
         self._current_menus.clear()
         self._current_editboxes.clear()
+        self._last_menu_packet_id = None
         self._queue_packet({"type": "clear_ui"})
 
     def set_table_context(self, table_id: str) -> None:
