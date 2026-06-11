@@ -13,7 +13,8 @@ from ...game_utils.bot_helper import BotHelper
 from ...game_utils.game_result import GameResult, PlayerResult
 from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
-from ...users.base import User, MenuItem, EscapeBehavior
+from ...users.base import MenuItem
+from ...game_utils.menu_management_mixin import MenuBuild
 from .bot import bot_think
 from .moves import generate_legal_moves, apply_move, has_any_legal_move
 from .state import (
@@ -306,70 +307,19 @@ class SenetGame(Game):
         return sorted(sources)
 
     # ======================================================================
-    # Menu overrides (grid mode)
+    # Menu hooks (grid mode)
     # ======================================================================
 
-    def _is_menu_refresh_blocked(self, player: Player, user: User) -> bool:
-        if player.id in self._status_box_open or player.id in self._actions_menu_open:
-            return True
-
-        server = getattr(getattr(self, "_table", None), "_server", None)
-        if server is not None:
-            state = server._user_states.get(user.username, {})
-            if state.get("menu") in server.GLOBAL_SYSTEM_MENUS or state.get("_transient"):
-                return True
-
-        return bool(self._pending_actions.get(player.id))
-
-    def rebuild_player_menu(self, player: Player, *, position: int | None = None) -> None:
-        if self._destroyed or self.status == "finished":
-            # Defer to base behaviour for the finished/end-screen case.
-            if self.status == "finished":
-                super().rebuild_player_menu(player)
-            return
-        user = self.get_user(player)
-        if not user:
-            return
-        if self._is_menu_refresh_blocked(player, user):
-            return
-
+    def build_menu_items(self, player: Player, user) -> MenuBuild:
         grid_items, other_items = self._build_menu_items(player, user)
         use_grid = len(grid_items) == 30
-
-        user.show_menu(
-            "turn_menu",
-            grid_items + other_items,
-            multiletter=False,
-            escape_behavior=EscapeBehavior.KEYBIND,
-            position=position,
-            grid_enabled=use_grid,
-            grid_width=10 if use_grid else 1,
-            grid_height=3 if use_grid else 0,
-        )
-
-    def update_player_menu(
-        self,
-        player: Player,
-        selection_id: str | None = None,
-    ) -> None:
-        if self._destroyed or self.status == "finished":
-            return
-        user = self.get_user(player)
-        if not user:
-            return
-        if self._is_menu_refresh_blocked(player, user):
-            return
-
-        grid_items, other_items = self._build_menu_items(player, user)
-        use_grid = len(grid_items) == 30
-
-        user.update_menu(
-            "turn_menu",
-            grid_items + other_items,
-            selection_id=selection_id,
-            grid_enabled=use_grid,
-            grid_width=10 if use_grid else 1,
-            grid_height=3 if use_grid else 0,
+        return MenuBuild(
+            items=grid_items + other_items,
+            grid_kwargs={
+                "grid_enabled": use_grid,
+                "grid_width": 10 if use_grid else 1,
+                "grid_height": 3 if use_grid else 0,
+            },
         )
 
     def _build_menu_items(

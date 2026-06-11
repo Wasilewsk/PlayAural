@@ -17,7 +17,8 @@ from ...game_utils.game_result import GameResult, PlayerResult
 from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
 from ...users.bot import Bot
-from ...users.base import User, MenuItem, EscapeBehavior
+from ...users.base import User, MenuItem
+from ...game_utils.menu_management_mixin import MenuBuild
 from .bot import bot_think
 from .moves import (
     BackgammonMove,
@@ -560,34 +561,25 @@ class BackgammonGame(Game):
         return sorted(sources, key=lambda idx: point_number_for_player(idx, color))
 
     # ==========================================================================
-    # Menu overrides (grid mode)
+    # Menu hooks (grid mode)
     # ==========================================================================
 
-    def update_player_menu(
-        self,
-        player: "Player",
-        selection_id: str | None = None,
-    ) -> None:
-        if self._destroyed or self.status == "finished":
-            return
-        user = self.get_user(player)
-        if not user:
-            return
-        if self._is_menu_refresh_blocked(player, user):
-            return
-
+    def build_menu_items(self, player: "Player", user) -> MenuBuild:
         point_items, other_items = self._build_menu_items(player, user)
         use_grid = len(point_items) == 24
+
+        # Flip for White: swap the two 12-item row halves so both
+        # players see their own home board at bottom-left.
         if use_grid and isinstance(player, BackgammonPlayer) and player.color == "white":
             point_items = point_items[12:] + point_items[:12]
 
-        user.update_menu(
-            "turn_menu",
-            point_items + other_items,
-            selection_id=selection_id,
-            grid_enabled=use_grid,
-            grid_width=12 if use_grid else 1,
-            grid_height=2 if use_grid else 0,
+        return MenuBuild(
+            items=point_items + other_items,
+            grid_kwargs={
+                "grid_enabled": use_grid,
+                "grid_width": 12 if use_grid else 1,
+                "grid_height": 2 if use_grid else 0,
+            },
         )
 
     def _build_menu_items(self, player: "Player", user) -> tuple[list[MenuItem], list[MenuItem]]:
@@ -618,54 +610,6 @@ class BackgammonGame(Game):
                 )
             )
         return point_items, other_items
-
-    def _is_menu_refresh_blocked(self, player: "Player", user: User) -> bool:
-        if player.id in self._actions_menu_open or player.id in self._status_box_open:
-            return True
-
-        server = getattr(getattr(self, "_table", None), "_server", None)
-        if server is not None:
-            state = server._user_states.get(user.username, {})
-            if state.get("menu") in server.GLOBAL_SYSTEM_MENUS or state.get("_transient"):
-                return True
-
-        return bool(self._pending_actions.get(player.id))
-
-    def rebuild_player_menu(
-        self,
-        player: "Player",
-        *,
-        position: int | None = None,
-    ) -> None:
-        if self._destroyed:
-            return
-        if self.status == "finished":
-            super().rebuild_player_menu(player)
-            return
-        user = self.get_user(player)
-        if not user:
-            return
-        if self._is_menu_refresh_blocked(player, user):
-            return
-
-        point_items, other_items = self._build_menu_items(player, user)
-        use_grid = len(point_items) == 24
-
-        # Flip for White: swap the two 12-item row halves so both
-        # players see their own home board at bottom-left.
-        if use_grid and isinstance(player, BackgammonPlayer) and player.color == "white":
-            point_items = point_items[12:] + point_items[:12]
-
-        user.show_menu(
-            "turn_menu",
-            point_items + other_items,
-            multiletter=False,
-            escape_behavior=EscapeBehavior.KEYBIND,
-            position=position,
-            grid_enabled=use_grid,
-            grid_width=12 if use_grid else 1,
-            grid_height=2 if use_grid else 0,
-        )
 
     # ==========================================================================
     # Game flow
