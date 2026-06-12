@@ -219,6 +219,9 @@ class DeadMansPokerGame(Game):
 
     def _handle_menu_event(self, player: Player, event: dict) -> None:
         selection_id = str(event.get("selection_id", ""))
+        if event.get("menu_id") == "turn_menu" and selection_id == "switch_card":
+            self._handle_switch_card_ui_event(player, selection_id)
+            return
         if event.get("menu_id") == "turn_menu" and selection_id.startswith("choose_switch_"):
             self._handle_switch_choice_ui_event(player, selection_id)
             return
@@ -226,10 +229,28 @@ class DeadMansPokerGame(Game):
 
     def _handle_action_event(self, player: Player, event: dict) -> None:
         action_id = str(event.get("action", ""))
+        if action_id == "switch_card":
+            self._handle_switch_card_ui_event(player, action_id)
+            return
         if action_id.startswith("choose_switch_"):
             self._handle_switch_choice_ui_event(player, action_id)
             return
         super()._handle_action_event(player, event)
+
+    def _handle_switch_card_ui_event(self, player: Player, action_id: str) -> None:
+        action = self.find_action(player, action_id)
+        if not action:
+            return
+
+        resolved = self.resolve_action(player, action)
+        if resolved.enabled:
+            self.execute_action(player, action_id)
+            return
+
+        if resolved.disabled_reason and resolved.disabled_reason != "action-not-available":
+            user = self.get_user(player)
+            if user:
+                user.speak_l(resolved.disabled_reason, buffer="game")
 
     def _handle_switch_choice_ui_event(self, player: Player, action_id: str) -> None:
         self._actions_menu_open.discard(player.id)
@@ -940,7 +961,7 @@ class DeadMansPokerGame(Game):
             return Visibility.HIDDEN
         if not isinstance(player, DeadMansPokerPlayer) or player.eliminated:
             return Visibility.HIDDEN
-        if self.phase == PHASE_SWITCH:
+        if self.phase == PHASE_SWITCH and self.pending_switch_player_id == player.id:
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 

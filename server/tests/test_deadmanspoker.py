@@ -117,6 +117,11 @@ def turn_menu_updates(user: MockUser):
     ]
 
 
+def menu_item_ids(user: MockUser, menu_id: str = "turn_menu") -> list[str]:
+    items = user.get_current_menu_items(menu_id) or []
+    return [getattr(item, "id", str(item)) for item in items]
+
+
 def locale_keys(path: Path) -> set[str]:
     keys: set[str] = set()
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -723,6 +728,76 @@ def test_human_switch_choice_does_not_pull_other_player_focus_to_call() -> None:
         for message in turn_menu_updates(player_user)
         if message.data.get("selection_id") == "call"
     ] == ["call"]
+
+
+def test_switch_card_action_does_not_refresh_other_players() -> None:
+    game = make_game(2)
+    start_to_decision(game)
+    player = game.current_player
+    assert player is not None
+    player_user = game.get_user(player)
+    assert player_user is not None
+    other = next(table_player for table_player in game.players if table_player != player)
+    other_user = game.get_user(other)
+    assert other_user is not None
+    other_user.clear_messages()
+
+    game.handle_event(
+        player,
+        {
+            "type": "action",
+            "action": "switch_card",
+            "context": {"menu_item_id": "switch_card"},
+        },
+    )
+
+    assert "action_input_menu" in player_user.menus
+    assert turn_menu_updates(other_user) == []
+    assert menu_item_ids(other_user)[:5] == [
+        "call",
+        "fold",
+        "coward_fold",
+        "switch_card",
+        "all_in",
+    ]
+    assert all(
+        not item_id.startswith("choose_switch_") for item_id in menu_item_ids(other_user)
+    )
+
+
+def test_switch_phase_keeps_other_players_menu_stable_during_refresh() -> None:
+    game = make_game(2)
+    start_to_decision(game)
+    player = game.current_player
+    assert player is not None
+    other = next(table_player for table_player in game.players if table_player != player)
+    other_user = game.get_user(other)
+    assert other_user is not None
+
+    other_user.clear_messages()
+    game.execute_action(player, "switch_card", input_value="0")
+    game.flush_menus()
+    assert game.phase == PHASE_SWITCH
+    baseline_ids = menu_item_ids(other_user)
+    assert baseline_ids[:5] == [
+        "call",
+        "fold",
+        "coward_fold",
+        "switch_card",
+        "all_in",
+    ]
+    assert all(
+        not item_id.startswith("choose_switch_") for item_id in baseline_ids
+    )
+
+    other_user.clear_messages()
+    game.refresh_menus()
+    game.flush_menus()
+
+    assert menu_item_ids(other_user) == baseline_ids
+    assert all(
+        not item_id.startswith("choose_switch_") for item_id in menu_item_ids(other_user)
+    )
 
 
 def test_switch_card_resets_each_hand() -> None:
