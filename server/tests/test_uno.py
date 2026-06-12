@@ -27,7 +27,7 @@ def test_uno_game_creation():
 
 def test_uno_options_defaults():
     game = UnoGame()
-    assert game.options.winning_score == 100
+    assert game.options.winning_score == 300
     assert game.options.scoring_mode == "first_to_limit"
     assert game.options.bluff is True
     assert game.options.free_draws == 0
@@ -908,6 +908,52 @@ def test_straight_continues_same_player_same_color():
     assert all(card.id != 2 for card in a.hand)
     assert game.current_player is b  # turn pointer unchanged
     assert game.straight_dir == 1
+
+
+def test_straight_wraps_nine_to_zero_ascending():
+    game, (a, b) = _n_player_game(["A", "B"], UnoOptions(straights=True))
+    game.discard_pile = [_card(900, cards.RED, cards.NUMBER, 4)]
+    game.current_color = cards.RED
+    a.hand = [
+        _card(1, cards.RED, cards.NUMBER, 9),
+        _card(2, cards.RED, cards.NUMBER, 0),
+        _card(7, cards.BLUE, cards.NUMBER, 5),
+    ]
+    b.hand = [_card(3, cards.GREEN, cards.NUMBER, 7)]
+    game.refresh_menus()
+    game.flush_menus()
+
+    game.execute_action(a, "play_card_1")  # in-turn red 9 -> B
+    assert game.current_player is b
+
+    game.execute_action(a, "play_card_2")  # A straights red 0 (9 -> 0 wraps up)
+    assert game.top_card.id == 2
+    assert all(card.id != 2 for card in a.hand)
+    assert game.current_player is b
+    assert game.straight_dir == 1
+
+
+def test_straight_wraps_zero_to_nine_descending():
+    game, (a, b) = _n_player_game(["A", "B"], UnoOptions(straights=True))
+    game.discard_pile = [_card(900, cards.RED, cards.NUMBER, 4)]
+    game.current_color = cards.RED
+    a.hand = [
+        _card(1, cards.RED, cards.NUMBER, 0),
+        _card(2, cards.RED, cards.NUMBER, 9),
+        _card(7, cards.BLUE, cards.NUMBER, 5),
+    ]
+    b.hand = [_card(3, cards.GREEN, cards.NUMBER, 7)]
+    game.refresh_menus()
+    game.flush_menus()
+
+    game.execute_action(a, "play_card_1")  # in-turn red 0 -> B
+    assert game.current_player is b
+
+    game.execute_action(a, "play_card_2")  # A straights red 9 (0 -> 9 wraps down)
+    assert game.top_card.id == 2
+    assert all(card.id != 2 for card in a.hand)
+    assert game.current_player is b
+    assert game.straight_dir == -1
 
 
 def test_bot_game_completes_with_interceptions_and_straights():

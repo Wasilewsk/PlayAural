@@ -42,7 +42,7 @@ class UnoOptions(GameOptions):
         IntOption(
             min_val=10,
             max_val=2000,
-            default=100,
+            default=300,
             value_key="score",
             label="uno-set-winning-score",
             prompt="uno-enter-winning-score",
@@ -854,12 +854,8 @@ class UnoGame(Game):
             and card.color == self.straight_color
             and self.straight_value is not None
         ):
-            diff = card.value - self.straight_value
-            if self.straight_dir == 0 and abs(diff) == 1:
-                return "straight"
-            if self.straight_dir == 1 and diff == 1:
-                return "straight"
-            if self.straight_dir == -1 and diff == -1:
+            step = self._straight_step(self.straight_value, card.value)
+            if step is not None and self.straight_dir in (0, step):
                 return "straight"
         # Interception: exact match of the current top.
         if card.type in cards.WILD_TYPES or top is None or top.type in cards.WILD_TYPES:
@@ -913,7 +909,7 @@ class UnoGame(Game):
         self.consecutive_passes = 0
         self.play_sound(f"game_cards/play{random.randint(1, 4)}.ogg")
         if self.straight_dir == 0 and self.straight_value is not None:
-            self.straight_dir = 1 if card.value > self.straight_value else -1
+            self.straight_dir = self._straight_step(self.straight_value, card.value) or 1
         self.straight_color = card.color
         self.straight_value = card.value
         self.current_color = card.color
@@ -933,6 +929,18 @@ class UnoGame(Game):
             self._rotate_hands()
         # A straight is an extra play; the turn pointer does not move.
         self.refresh_menus()
+
+    @staticmethod
+    def _straight_step(from_value: int, to_value: int) -> int | None:
+        """Direction of a one-step straight move from ``from_value`` to
+        ``to_value``, with wrap-around across the 0..9 number range: 9->0 counts
+        as a +1 (ascending) step and 0->9 as a -1 (descending) step. Returns +1,
+        -1, or None when the two values are not adjacent."""
+        if (to_value - from_value) % 10 == 1:
+            return 1
+        if (from_value - to_value) % 10 == 1:
+            return -1
+        return None
 
     def _set_straight_anchor(self, card: UnoCard) -> None:
         if not self.options.straights:
@@ -1313,11 +1321,13 @@ class UnoGame(Game):
             self._advance_turn()
             return
 
+        # Jump focus to the card just drawn, whether or not it can be played, so
+        # the player always lands on what they drew.
+        self.request_menu_focus(p, f"play_card_{card.id}")
+
         # A free draw (drawn while already holding playable cards) keeps the turn.
         if playable or had_playable:
             self.consecutive_passes = 0
-            # Jump focus to the card just drawn.
-            self.request_menu_focus(p, f"play_card_{card.id}")
             if p.is_bot:
                 BotHelper.jolt_bot(p, ticks=random.randint(15, 25))
             return

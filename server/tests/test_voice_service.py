@@ -74,7 +74,10 @@ class DummyDb:
 
 
 def _make_server() -> Server:
-    Localization.init(Path("server/locales"))
+    # __file__-relative so the suite does not depend on the working directory
+    # (every other test uses this form; a cwd-relative path here was the lone
+    # reason the suite had to be run from the repo root).
+    Localization.init(Path(__file__).resolve().parents[1] / "locales")
     Localization.preload_bundles()
     server = Server.__new__(Server)
     server._tables = TableManager()

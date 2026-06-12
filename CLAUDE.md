@@ -22,21 +22,29 @@ The project is open source under the **GNU GENERAL PUBLIC LICENSE**. See [LICENS
 cd server && python -m server
 python -m server --host 0.0.0.0 --port 9000 --ssl-cert cert.pem --ssl-key key.pem
 
-# Run tests — from the REPO ROOT, not `cd server`: a relative locales path in
-# the voice-service tests breaks under a server-relative working directory.
-python -m pytest server/tests -q
+# Run tests. pytest and the asyncio/xdist plugins live in the server project's
+# `dev` extra, so go through uv with `--extra dev` — bare `python` is the global
+# interpreter and has none of the project deps. `--project server` selects the
+# server venv; the command runs in the current directory, so invoke it from the
+# repo root.
+uv run --project server --extra dev python -m pytest server/tests -q
 # Single test / file
-python -m pytest server/tests/test_file.py::test_function
+uv run --project server --extra dev python -m pytest server/tests/test_file.py::test_function
 ```
 
 During iteration, run only the tests covering the files you touched and their
-dependents. The suite is ~1530 tests and takes about 23 seconds serially (or
-~15s under `pytest-xdist -n8`) on a modern machine; running it whole as an inner-
-loop step is still a waste. Run the full suite before committing anything that
-crosses subsystems, and before landing a feature — not after every edit.
+dependents. The suite is ~1650 tests and takes about 25 seconds serially (add
+`-n auto` for the `pytest-xdist` parallel path) on a modern machine; running it
+whole as an inner-loop step is still a waste. Run the full suite before
+committing anything that crosses subsystems, and before landing a feature — not
+after every edit.
 
-The suite is parallel-safe under `pytest-xdist` (`-n 6` runs ~40s here vs ~70s
-serial). An autouse `_isolate_localization` fixture in
+The suite no longer depends on the working directory — every test now pins the
+Fluent locales dir `__file__`-relative — but run from the repo root anyway so
+the `uv run --project server` command resolves naturally.
+
+The suite is parallel-safe under `pytest-xdist` (in the `dev` extra; `-n auto`
+or `-n 6`). An autouse `_isolate_localization` fixture in
 `server/tests/conftest.py` snapshots and restores the class-level `Localization`
 state around every test, so a test that repoints or wipes the global Fluent
 bundle cache (e.g. the MOTD fixture) can no longer leak to siblings on the same
