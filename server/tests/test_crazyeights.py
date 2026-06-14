@@ -1,7 +1,11 @@
 from types import SimpleNamespace
 
 from ..game_utils.cards import Card
-from ..games.crazyeights.game import CrazyEightsGame, CrazyEightsOptions
+from ..games.crazyeights.game import (
+    CrazyEightsGame,
+    CrazyEightsOptions,
+    CrazyEightsPlayer,
+)
 from ..messages.localization import Localization
 from ..tables.table import Table
 from ..users.bot import Bot
@@ -22,6 +26,21 @@ def test_crazyeights_options_defaults():
     game = CrazyEightsGame()
     assert game.options.winning_score == 500
     assert game.options.turn_timer == "0"
+
+
+def test_crazyeights_restores_wild_suit_prompt_owner_for_legacy_save():
+    alice = CrazyEightsPlayer(id="p1", name="Alice")
+    bob = CrazyEightsPlayer(id="p2", name="Bob")
+
+    game = CrazyEightsGame(
+        players=[alice, bob],
+        turn_player_ids=["p1", "p2"],
+        turn_index=0,
+        awaiting_wild_suit=True,
+        wild_suit_player_id="",
+    )
+
+    assert game.wild_suit_player_id == "p1"
 
 
 def test_crazyeights_standard_deal_counts_and_decks():
@@ -190,11 +209,13 @@ def test_playing_eight_locks_turn_until_turn_advance():
     game.execute_action(first, "play_card_1")
 
     assert game.awaiting_wild_suit is True
+    assert game.wild_suit_player_id == first.id
     assert [card.id for card in first.hand] == [2]
 
     game.execute_action(first, "suit_diamonds")
 
     assert game.awaiting_wild_suit is False
+    assert game.wild_suit_player_id == ""
     assert game.wild_wait_ticks == 15
 
     discard_ids_before = [card.id for card in game.discard_pile]
@@ -245,6 +266,78 @@ def test_playing_eight_focuses_first_suit_below_hand_cards():
         and message.data.get("menu_id") == "turn_menu"
     ]
     assert turn_updates[-1].data.get("selection_id") == "suit_clubs"
+
+
+def test_wild_suit_shortcuts_use_numbers_without_read_score_collisions():
+    game = CrazyEightsGame()
+    game.setup_keybinds()
+
+    assert "suit_clubs" not in {
+        action
+        for keybind in game._keybinds.get("c", [])
+        for action in keybind.actions
+    }
+    assert "suit_spades" not in {
+        action
+        for keybind in game._keybinds.get("s", [])
+        for action in keybind.actions
+    }
+    assert any("suit_clubs" in keybind.actions for keybind in game._keybinds["1"])
+    assert any("suit_diamonds" in keybind.actions for keybind in game._keybinds["2"])
+    assert any("suit_hearts" in keybind.actions for keybind in game._keybinds["3"])
+    assert any("suit_spades" in keybind.actions for keybind in game._keybinds["4"])
+
+
+def test_wild_suit_keybinds_are_scoped_to_prompt_owner():
+    game = CrazyEightsGame()
+    game.setup_keybinds()
+    alice = MockUser("Alice", uuid="p1")
+    bob = MockUser("Bob", uuid="p2")
+    first = game.add_player("Alice", alice)
+    second = game.add_player("Bob", bob)
+    game.status = "playing"
+    game.game_active = True
+    game.discard_pile = [Card(suit=3, rank=5, id=100)]
+    first.hand = [
+        Card(suit=2, rank=8, id=1),
+        Card(suit=1, rank=9, id=2),
+    ]
+    second.hand = [Card(suit=4, rank=7, id=3)]
+    game.set_turn_players([first, second])
+    game.current_suit = game.top_card.suit
+    game.refresh_menus()
+    game.flush_menus()
+
+    game.execute_action(first, "play_card_1")
+    game.flush_menus()
+    assert game.awaiting_wild_suit is True
+
+    alice.clear_messages()
+    bob.clear_messages()
+    game.handle_event(second, {"type": "keybind", "key": "1"})
+
+    assert game.awaiting_wild_suit is True
+    assert game.current_suit == 3
+    assert bob.get_spoken_messages() == []
+
+    game.handle_event(first, {"type": "keybind", "key": "c"})
+    assert game.awaiting_wild_suit is True
+    assert game.current_suit == 3
+    assert alice.get_last_spoken() == game.format_top_card("en")
+
+    alice.clear_messages()
+    game.handle_event(first, {"type": "keybind", "key": "1"})
+
+    assert game.awaiting_wild_suit is False
+    assert game.current_suit == 2
+    assert any(
+        message == Localization.get(
+            "en",
+            "crazyeights-you-choose-suit",
+            suit=Localization.get("en", "suit-clubs"),
+        )
+        for message in alice.get_spoken_messages()
+    )
 
 
 def test_non_current_player_turn_menu_still_shows_hand_cards():

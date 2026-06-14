@@ -82,5 +82,5 @@ The game continues until a player reaches the winning score (configurable up to 
 
 \*\*When choosing a suit after an Eight:\*\*
 
-\* \*\*C:\*\* Clubs | \*\*D:\*\* Diamonds | \*\*H:\*\* Hearts | \*\*S:\*\* Spades
+\* \*\*1:\*\* Clubs | \*\*2:\*\* Diamonds | \*\*3:\*\* Hearts | \*\*4:\*\* Spades
 

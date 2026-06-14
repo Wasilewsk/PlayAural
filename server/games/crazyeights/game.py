@@ -89,6 +89,7 @@ class CrazyEightsGame(Game, TurnTimerMixin):
     current_suit: int | None = None
 
     awaiting_wild_suit: bool = False
+    wild_suit_player_id: str = ""
     wild_wait_ticks: int = 0
     dealer_index: int = -1
 
@@ -107,6 +108,10 @@ class CrazyEightsGame(Game, TurnTimerMixin):
         super().__post_init__()
         # Ensure timer warning flag is initialized (Mixin field)
         self._timer_warning_played = False
+        if self.awaiting_wild_suit and not self.wild_suit_player_id:
+            current = self.current_player
+            if isinstance(current, CrazyEightsPlayer):
+                self.wild_suit_player_id = current.id
 
     # ==========================================================================
     # Metadata
@@ -399,11 +404,12 @@ class CrazyEightsGame(Game, TurnTimerMixin):
         self.define_keybind("c", "Read top card", ["read_top"], include_spectators=True)
         self.define_keybind("e", "Read counts", ["read_counts"], include_spectators=True)
         self.define_keybind("shift+t", "Turn timer", ["check_turn_timer"], include_spectators=True)
-        # Suit selection overrides (keybind only)
-        self.define_keybind("c", "Choose clubs", ["suit_clubs"], state=KeybindState.ACTIVE)
-        self.define_keybind("d", "Choose diamonds", ["suit_diamonds"], state=KeybindState.ACTIVE)
-        self.define_keybind("h", "Choose hearts", ["suit_hearts"], state=KeybindState.ACTIVE)
-        self.define_keybind("s", "Choose spades", ["suit_spades"], state=KeybindState.ACTIVE)
+        # Suit selection uses number keys to avoid colliding with read-top and
+        # standard score shortcuts during the Wild 8 prompt.
+        self.define_keybind("1", "Choose clubs", ["suit_clubs"], state=KeybindState.ACTIVE)
+        self.define_keybind("2", "Choose diamonds", ["suit_diamonds"], state=KeybindState.ACTIVE)
+        self.define_keybind("3", "Choose hearts", ["suit_hearts"], state=KeybindState.ACTIVE)
+        self.define_keybind("4", "Choose spades", ["suit_spades"], state=KeybindState.ACTIVE)
 
     # ==========================================================================
     # Menu syncing
@@ -488,6 +494,7 @@ class CrazyEightsGame(Game, TurnTimerMixin):
         self.round = 0
         self.turn_direction = 1
         self.awaiting_wild_suit = False
+        self.wild_suit_player_id = ""
         self.wild_wait_ticks = 0
 
         # Synchronize table status
@@ -533,6 +540,7 @@ class CrazyEightsGame(Game, TurnTimerMixin):
         self.turn_direction = 1
         self.turn_skip_count = 0
         self.awaiting_wild_suit = False
+        self.wild_suit_player_id = ""
         self.wild_wait_ticks = 0
         self.turn_has_drawn = False
         self.turn_drawn_card = None
@@ -680,6 +688,7 @@ class CrazyEightsGame(Game, TurnTimerMixin):
                 self._end_round(p, last_card=card)
                 return
             self.awaiting_wild_suit = True
+            self.wild_suit_player_id = p.id
             self.start_turn_timer()  # reset timer for suit selection
             self.request_menu_focus(p, "suit_clubs")
             if p.is_bot:
@@ -779,13 +788,14 @@ class CrazyEightsGame(Game, TurnTimerMixin):
         p = self._require_active_player(player)
         if not p:
             return
-        if not self.awaiting_wild_suit:
+        if not self.awaiting_wild_suit or self.wild_suit_player_id != p.id:
             return
         suit = self._suit_from_action(action_id)
         if suit is None:
             return
         self.current_suit = suit
         self.awaiting_wild_suit = False
+        self.wild_suit_player_id = ""
         self.play_sound("game_crazyeights/morf.ogg")
         self.schedule_sound(self._suit_sound(suit), delay_ticks=WILD_TRANSITION_TICKS)
         self._broadcast_suit_chosen(p, suit)
@@ -951,7 +961,11 @@ class CrazyEightsGame(Game, TurnTimerMixin):
         return Visibility.HIDDEN
 
     def _is_suit_choice_enabled(self, player: Player) -> str | None:
-        if not self.awaiting_wild_suit:
+        if (
+            not self.awaiting_wild_suit
+            or not isinstance(player, CrazyEightsPlayer)
+            or self.wild_suit_player_id != player.id
+        ):
             return "action-not-available"
         if self._is_turn_action_enabled(player) is not None:
             return self._is_turn_action_enabled(player)
@@ -1006,7 +1020,11 @@ class CrazyEightsGame(Game, TurnTimerMixin):
         return super()._is_check_scores_detailed_enabled(player)
 
     def _is_suit_choice_hidden(self, player: Player) -> Visibility:
-        if not self.awaiting_wild_suit:
+        if (
+            not self.awaiting_wild_suit
+            or not isinstance(player, CrazyEightsPlayer)
+            or self.wild_suit_player_id != player.id
+        ):
             return Visibility.HIDDEN
         if self._is_turn_action_hidden(player) == Visibility.HIDDEN:
             return Visibility.HIDDEN
