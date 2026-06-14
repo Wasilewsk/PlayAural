@@ -106,6 +106,35 @@ def test_hit_uses_first_and_third_person_draw_messages() -> None:
     assert any("Alice draws" in text for text in speech_texts(bob_user))
 
 
+def test_stand_keeps_total_private_in_third_person_messages() -> None:
+    game, alice_user, bob_user = make_started_game()
+    alice = game.players[0]
+    alice.hand = [Card(id=1, rank=7, suit=0), Card(id=2, rank=11, suit=0)]
+    alice_user.messages.clear()
+    bob_user.messages.clear()
+
+    game._action_stand(alice, "stand")
+
+    assert any("You stand at 18." in text for text in speech_texts(alice_user))
+    bob_speech = " ".join(speech_texts(bob_user))
+    assert "Alice stands." in bob_speech
+    assert "18" not in bob_speech
+
+    game, alice_user, bob_user = make_started_game()
+    bob_user._locale = "vi"
+    alice = game.players[0]
+    alice.hand = [Card(id=1, rank=7, suit=0), Card(id=2, rank=11, suit=0)]
+    alice_user.messages.clear()
+    bob_user.messages.clear()
+
+    game._action_stand(alice, "stand")
+
+    assert any("You stand at 18." in text for text in speech_texts(alice_user))
+    bob_speech = " ".join(speech_texts(bob_user))
+    assert "Alice dừng." in bob_speech
+    assert "18" not in bob_speech
+
+
 def test_hit_blocked_by_draw_lock_speaks_effect_reason() -> None:
     game, alice_user, bob_user = make_started_game(draw_modifier_chance_percent=0)
     alice, bob = game.players
