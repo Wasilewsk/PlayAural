@@ -993,7 +993,7 @@ class UnoGame(Game):
             self._clear_straight()
             if player.is_bot:
                 BotHelper.jolt_bot(player, ticks=random.randint(15, 25))
-            self.refresh_menus()
+            self.request_menu_focus(player, "color_red")
             return
 
         if not is_wild:

@@ -191,6 +191,43 @@ def test_playing_wild_locks_until_color_then_advances():
     assert game.wild_wait_ticks == 15
 
 
+def test_playing_wild_focuses_first_color_option_below_hand_cards():
+    game, first, second = _two_player_game()
+    first_user = game.get_user(first)
+    assert first_user is not None
+    first_user.client_type = "mobile"
+    game.discard_pile = [_card(100, cards.RED, cards.NUMBER, 5)]
+    game.current_color = cards.RED
+    first.hand = [
+        _card(1, cards.WILD, cards.WILD_CARD),
+        _card(2, cards.BLUE, cards.NUMBER, 9),
+    ]
+    second.hand = [_card(3, cards.GREEN, cards.NUMBER, 7)]
+    game.set_turn_players([first, second])
+    game.refresh_menus()
+    game.flush_menus()
+    first_user.clear_messages()
+
+    game.execute_action(first, "play_card_1")
+    game.flush_menus()
+
+    item_ids = [item.id for item in first_user.menus["turn_menu"]["items"]]
+    assert item_ids[:5] == [
+        "play_card_2",
+        "color_red",
+        "color_yellow",
+        "color_green",
+        "color_blue",
+    ]
+    turn_updates = [
+        message
+        for message in first_user.messages
+        if message.type in {"show_menu", "update_menu"}
+        and message.data.get("menu_id") == "turn_menu"
+    ]
+    assert turn_updates[-1].data.get("selection_id") == "color_red"
+
+
 def _three_player_game(options=None):
     game = UnoGame(options=options or UnoOptions())
     game.setup_keybinds()
@@ -331,6 +368,32 @@ def test_draw_hidden_during_wild_transition():
     # Draw stays hidden/disabled for the wild player during the transition.
     assert game._is_draw_enabled(first) == "action-not-available"
     assert game.find_action(first, "draw") is None
+
+
+def test_wild_color_transition_blocks_fast_followup_play():
+    game, first, second = _two_player_game()
+    game.deck = cards.build_deck()
+    game.discard_pile = [_card(100, cards.RED, cards.NUMBER, 5)]
+    game.current_color = cards.RED
+    first.hand = [
+        _card(1, cards.WILD, cards.WILD_CARD),
+        _card(2, cards.BLUE, cards.NUMBER, 9),
+    ]
+    second.hand = [_card(3, cards.GREEN, cards.NUMBER, 7)]
+    game.set_turn_players([first, second])
+    game.refresh_menus()
+    game.flush_menus()
+
+    game.execute_action(first, "play_card_1")
+    game.execute_action(first, "color_blue")
+    assert game.wild_wait_ticks > 0
+
+    discard_ids_before = [card.id for card in game.discard_pile]
+    game.execute_action(first, "play_card_2")
+
+    assert [card.id for card in first.hand] == [2]
+    assert [card.id for card in game.discard_pile] == discard_ids_before
+    assert game.current_player is first
 
 
 def test_bot_play_announced_before_uno(monkeypatch):
