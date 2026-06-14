@@ -39,6 +39,7 @@ from server.games.registry import GameRegistry
 from server.messages.localization import Localization
 from server.ui.keybinds import KeybindState
 from server.users.bot import Bot
+from server.users.network_user import NetworkUser
 from server.users.test_user import MockUser
 
 
@@ -65,6 +66,27 @@ def make_touch_game(player_count: int = 2) -> DeadMansPokerGame:
         game.add_player(name, user)
     game.host = "Player1"
     return game
+
+
+def make_network_touch_game(
+    player_count: int = 3,
+) -> tuple[DeadMansPokerGame, list[NetworkUser]]:
+    game = DeadMansPokerGame()
+    game.setup_keybinds()
+    users: list[NetworkUser] = []
+    for index in range(player_count):
+        name = f"Player{index + 1}"
+        user = NetworkUser(
+            name,
+            "en",
+            connection=None,
+            client_type="mobile",
+            uuid=f"p{index + 1}",
+        )
+        users.append(user)
+        game.add_player(name, user)
+    game.host = "Player1"
+    return game, users
 
 
 def make_bot_game(player_count: int = 2) -> DeadMansPokerGame:
@@ -120,6 +142,24 @@ def turn_menu_updates(user: MockUser):
 def menu_item_ids(user: MockUser, menu_id: str = "turn_menu") -> list[str]:
     items = user.get_current_menu_items(menu_id) or []
     return [getattr(item, "id", str(item)) for item in items]
+
+
+def network_turn_menu_packets(user: NetworkUser) -> list[dict]:
+    return [
+        packet
+        for packet in user.get_queued_messages()
+        if packet.get("type") == "menu" and packet.get("menu_id") == "turn_menu"
+    ]
+
+
+def network_current_menu_item_ids(
+    user: NetworkUser, menu_id: str = "turn_menu"
+) -> list[str]:
+    menu = user._current_menus[menu_id]
+    return [
+        item.get("id", str(item)) if isinstance(item, dict) else str(item)
+        for item in menu["items"]
+    ]
 
 
 def locale_keys(path: Path) -> set[str]:
@@ -707,12 +747,9 @@ def test_human_switch_choice_does_not_pull_other_player_focus_to_call() -> None:
         },
     )
 
-    # The regression this test pins: the other player's repaints must never
-    # carry the actor's "call" focus. With no focus directive on their
-    # paints, their client keeps its cursor anchored by item identity.
-    other_updates = turn_menu_updates(other_user)
-    assert other_updates
-    assert all(message.data.get("selection_id") is None for message in other_updates)
+    # The regression this test pins: resolving one player's switch must not
+    # repaint another player's menu or carry the actor's "call" focus.
+    assert turn_menu_updates(other_user) == []
     assert [
         message.data.get("selection_id")
         for message in turn_menu_updates(player_user)
@@ -798,6 +835,90 @@ def test_switch_phase_keeps_other_players_menu_stable_during_refresh() -> None:
     assert all(
         not item_id.startswith("choose_switch_") for item_id in menu_item_ids(other_user)
     )
+
+
+def test_touch_switch_menu_keeps_primary_anchors_and_focuses_first_choice() -> None:
+    game = make_touch_game(3)
+    start_to_decision(game)
+    player = game.current_player
+    assert player is not None
+    player_user = game.get_user(player)
+    assert player_user is not None
+    player_user.clear_messages()
+
+    game.execute_action(player, "switch_card", input_value="0")
+    game.flush_menus()
+
+    item_ids = menu_item_ids(player_user)
+    assert item_ids[:5] == [
+        "call",
+        "fold",
+        "coward_fold",
+        "switch_card",
+        "all_in",
+    ]
+    assert item_ids[5:8] == [
+        "choose_switch_0",
+        "choose_switch_1",
+        "choose_switch_2",
+    ]
+    assert [
+        message.data.get("selection_id")
+        for message in turn_menu_updates(player_user)
+        if message.data.get("selection_id") == "choose_switch_0"
+    ] == ["choose_switch_0"]
+
+
+def test_touch_switch_refreshes_do_not_send_redundant_non_actor_packets() -> None:
+    game, users = make_network_touch_game(3)
+    start_to_decision(game)
+    player = game.current_player
+    assert player is not None
+    other = next(table_player for table_player in game.players if table_player != player)
+    other_user = game.get_user(other)
+    assert isinstance(other_user, NetworkUser)
+    baseline_ids = network_current_menu_item_ids(other_user)
+    assert baseline_ids[:5] == [
+        "call",
+        "fold",
+        "coward_fold",
+        "switch_card",
+        "all_in",
+    ]
+
+    for user in users:
+        user.get_queued_messages()
+
+    game.execute_action(player, "switch_card", input_value="0")
+    game.flush_menus()
+
+    assert network_turn_menu_packets(other_user) == []
+    assert network_current_menu_item_ids(other_user) == baseline_ids
+
+    for user in users:
+        user.get_queued_messages()
+
+    game.refresh_menus()
+    game.flush_menus()
+
+    assert network_turn_menu_packets(other_user) == []
+    assert network_current_menu_item_ids(other_user) == baseline_ids
+
+    game.handle_event(
+        player,
+        {
+            "type": "menu",
+            "menu_id": "turn_menu",
+            "selection_id": "choose_switch_1",
+        },
+    )
+
+    assert network_turn_menu_packets(other_user) == []
+    assert network_current_menu_item_ids(other_user) == baseline_ids
+
+    assert advance_until(game, lambda: not game.active_sequences)
+    assert network_turn_menu_packets(other_user) == []
+    assert network_current_menu_item_ids(other_user) == baseline_ids
 
 
 def test_switch_card_resets_each_hand() -> None:

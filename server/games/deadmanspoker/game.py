@@ -261,10 +261,6 @@ class DeadMansPokerGame(Game):
         resolved = self.resolve_action(player, action)
         if resolved.enabled:
             self.execute_action(player, action_id)
-            if player.id not in self._pending_actions:
-                for other in self.players:
-                    if other != player:
-                        self.refresh_menus(other)
             return
 
         if resolved.disabled_reason and resolved.disabled_reason != "action-not-available":
@@ -953,15 +949,13 @@ class DeadMansPokerGame(Game):
 
         Visibility no longer depends on whose turn it is or whether the action is
         currently enabled — off-turn players see the same disabled buttons so the
-        menu shape (and screen-reader focus anchor) stays stable across turns.
-        The only in-hand phase that hides them is the card-switch sub-phase, where
-        the choose-switch actions take over the menu.
+        menu shape (and screen-reader focus anchor) stays stable across turns and
+        short sub-prompts. Contextual choices, such as card-switch candidates,
+        are added without removing these primary anchors.
         """
         if self.status != "playing" or player.is_spectator:
             return Visibility.HIDDEN
         if not isinstance(player, DeadMansPokerPlayer) or player.eliminated:
-            return Visibility.HIDDEN
-        if self.phase == PHASE_SWITCH and self.pending_switch_player_id == player.id:
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 
@@ -1217,7 +1211,7 @@ class DeadMansPokerGame(Game):
                 buffer="game",
                 cards=read_cards(self.pending_switch_candidates, user.locale),
             )
-        self.refresh_menus(dmp_player)
+        self.request_menu_focus(dmp_player, "choose_switch_0")
         if dmp_player.is_bot:
             BotHelper.jolt_bot(dmp_player, ticks=random.randint(8, 16))  # nosec B311
 
