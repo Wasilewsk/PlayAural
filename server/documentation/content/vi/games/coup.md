@@ -14,7 +14,7 @@ Trò chơi sử dụng một bộ bài 15 lá, bao gồm 3 bản sao cho mỗi n
 
 
 
-Mỗi người chơi bắt đầu với 2 xu và 2 lá bài nhân vật úp xuống (tượng trưng cho ảnh hưởng của bạn). Bạn sẽ bị loại khỏi trò chơi khi mất cả hai lá bài của mình.
+Trong ván có từ ba người chơi trở lên, mỗi người bắt đầu với 2 xu và 2 lá bài nhân vật úp xuống (tượng trưng cho ảnh hưởng của bạn). Trong ván hai người, người đi trước bắt đầu với 1 xu, người còn lại bắt đầu với 2 xu. Bạn sẽ bị loại khỏi trò chơi khi mất cả hai lá bài của mình, và toàn bộ xu còn lại của bạn được trả về ngân khố.
 
 
 
@@ -42,7 +42,7 @@ Trong lượt của mình, bạn được thực hiện chính xác \*\*một\*\
 
 \* \*\*Sát thủ (Ám sát):\*\* Trả 3 xu và chọn một người chơi làm mục tiêu. Nếu thành công, người đó mất một lá bài. Hành động này có thể bị chặn bởi Nữ bá tước.
 
-\* \*\*Đô đốc (Trộm đồ):\*\* Trộm 2 xu từ người chơi khác. Nếu họ chỉ có 1 xu, bạn trộm 1 xu. Hành động này có thể bị chặn bởi Đô đốc hoặc Sứ giả.
+\* \*\*Đô đốc (Trộm xu):\*\* Trộm 2 xu từ người chơi khác. Nếu họ chỉ có 1 xu, bạn trộm 1 xu. Hành động này có thể bị chặn bởi Đô đốc hoặc Sứ giả.
 
 \* \*\*Sứ giả (Trao đổi bài):\*\* Rút 2 lá bài từ bộ bài, xem chúng cùng với các lá bài đang úp của bạn, sau đó chọn và trả lại chính xác 2 lá bài vào bộ bài.
 
@@ -60,9 +60,9 @@ Bất cứ khi nào có người tuyên bố một nhân vật để hành độ
 
 &nbsp;   \* Nếu họ \*\*đã nói thật\*\*, họ lật lá bài đó lên để chứng minh, xào lại vào bộ bài và rút một lá mới. Bạn, người thách thức, sẽ bị mất một lá bài vì đã đoán sai!
 
-&nbsp;   \* Nếu họ \*\*đã nói dối\*\*, hành động của họ thất bại và họ buộc phải bỏ đi một lá bài.
+&nbsp;   \* Nếu họ \*\*đã nói dối\*\*, hành động của họ thất bại và họ buộc phải bỏ đi một lá bài. Nếu hành động thất bại có chi phí phải trả, chẳng hạn như Ám sát, chi phí đó sẽ được hoàn lại.
 
-\* \*\*Chặn:\*\* Một số hành động có thể bị chặn bởi các nhân vật cụ thể. Lời chặn này bản thân nó cũng là một lời tuyên bố, nghĩa là bất kỳ ai cũng có quyền thách thức người đang cố gắng chặn!
+\* \*\*Chặn:\*\* Một số hành động có thể bị chặn bởi các nhân vật cụ thể. Lời chặn này bản thân nó cũng là một lời tuyên bố, nghĩa là bất kỳ ai cũng có quyền thách thức người đang cố gắng chặn. Nếu lời chặn thành công, hành động ban đầu thất bại, nhưng chi phí đã trả vẫn bị mất.
 
 
 
@@ -74,7 +74,7 @@ Chủ bàn có thể thiết lập các tùy chọn sau trước khi bắt đầ
 
 \* \*\*Ngưỡng xu bắt buộc Đảo chính:\*\* Số xu khiến một người chơi bắt buộc phải chọn hành động Đảo chính (mặc định là 10 xu, có thể chỉnh lên tối đa 20 xu).
 
-\* \*\*Thời gian chờ phản ứng:\*\* Thời gian mở cửa sổ ngắt quãng cho phép người chơi Thách thức hoặc Chặn (có thể chỉnh từ 3 đến 15 giây).
+\* \*\*Thời gian chờ phản ứng:\*\* Thời gian mở cửa sổ ngắt quãng cho phép người chơi Thách thức hoặc Chặn (mặc định là 7 giây, có thể chỉnh từ 3 đến 15 giây).
 
 
 

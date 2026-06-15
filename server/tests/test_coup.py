@@ -1,5 +1,7 @@
 """Tests for Coup game."""
 
+from pathlib import Path
+
 import pytest
 from server.games.coup.game import CoupGame
 from server.games.coup.cards import Character, Card
@@ -47,14 +49,171 @@ def advance_until(game, condition_fn, max_ticks=500):
             return True
     return False
 
+
+def speech_texts(user: MockUser) -> list[str]:
+    return [message.data["text"] for message in user.messages if message.type == "speak"]
+
+
+def status_texts(user: MockUser) -> list[str]:
+    return [getattr(item, "text", item) for item in user.menus["status_box"]["items"]]
+
+
+def status_ids(user: MockUser) -> list[str | None]:
+    return [getattr(item, "id", None) for item in user.menus["status_box"]["items"]]
+
+
+def ftl_keys(path: Path) -> set[str]:
+    keys: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        if line[:1].isspace():
+            continue
+        keys.add(stripped.split("=", 1)[0].strip())
+    return keys
+
+
+def menu_item_ids(user: MockUser, menu_id: str = "turn_menu") -> list[str | None]:
+    return [getattr(item, "id", None) for item in user.menus[menu_id]["items"]]
+
+
+def test_coup_locale_key_parity():
+    """English and Vietnamese Coup locale files must expose the same keys."""
+    root = Path(__file__).resolve().parents[1]
+    en_keys = ftl_keys(root / "locales" / "en" / "coup.ftl")
+    vi_keys = ftl_keys(root / "locales" / "vi" / "coup.ftl")
+
+    assert en_keys == vi_keys
+
+
+def test_two_player_starting_player_gets_one_coin(game):
+    """Official two-player Coup starts the first player with only 1 coin."""
+    alice = game.get_player_by_name("Alice")
+    bob = game.get_player_by_name("Bob")
+
+    assert alice.coins == 1
+    assert bob.coins == 2
+
+
+def test_two_player_bot_starting_player_gets_one_coin():
+    """The official 1-coin first-player rule applies to bots too."""
+    g = CoupGame()
+    bot = g.create_player("bot1", "BotBob", is_bot=True)
+    alice = g.create_player("player1", "Alice")
+    g.players = [bot, alice]
+    g.attach_user("player1", MockUser("Alice", "player1"))
+
+    g.on_start()
+
+    assert g.current_player == bot
+    assert bot.coins == 1
+    assert alice.coins == 2
+
+
 def test_income(game):
     """Test the income action."""
     alice = game.get_player_by_name("Alice")
+    bob = game.get_player_by_name("Bob")
     initial_coins = alice.coins
     game._action_income(alice, "income")
     # Action is snappy but the game needs a tick
     assert alice.coins == initial_coins + 1
     assert game.current_player.name == "Bob"
+
+    alice_text = " ".join(speech_texts(game.get_user(alice)))
+    bob_text = " ".join(speech_texts(game.get_user(bob)))
+    assert "You take Income." in alice_text
+    assert "Alice takes Income." in bob_text
+
+
+def test_direct_out_of_turn_action_speaks_error(game):
+    """UI clicks and direct hotkey paths should share contextual TTS errors."""
+    bob = game.get_player_by_name("Bob")
+    user = game.get_user(bob)
+    user.clear_messages()
+
+    game._action_income(bob, "income")
+
+    assert user.get_last_spoken() == "It's not your turn."
+
+
+def test_paid_actions_have_specific_affordance_errors(game):
+    alice = game.get_player_by_name("Alice")
+    user = game.get_user(alice)
+
+    alice.coins = 2
+    user.clear_messages()
+    game._action_assassinate(alice, "Bob", "assassinate")
+    assert user.get_last_spoken() == "You need at least 3 coins to assassinate."
+
+    alice.coins = 6
+    user.clear_messages()
+    game._action_coup(alice, "Bob", "coup")
+    assert user.get_last_spoken() == "You need at least 7 coins to stage a Coup."
+
+
+def test_wealth_and_table_checks_use_live_status_boxes(game):
+    alice = game.get_player_by_name("Alice")
+    bob = game.get_player_by_name("Bob")
+    user = game.get_user(alice)
+
+    user.clear_messages()
+    game._action_check_wealth(alice, "check_wealth")
+
+    assert "Alice: 1 coins" in status_texts(user)
+    assert "Bob: 2 coins" in status_texts(user)
+    assert status_ids(user) == ["wealth:player1", "wealth:player2"]
+    assert user.menus["status_box"]["selection_id"] == "wealth:player1"
+
+    bob.reveal_influence(0)
+    game._action_check_table(alice, "check_table")
+
+    assert any(text.startswith("Bob lost:") for text in status_texts(user))
+    assert "table:player2" in status_ids(user)
+
+
+def test_interrupt_menu_only_shows_contextual_reactions(game):
+    alice = game.get_player_by_name("Alice")
+    bob = game.get_player_by_name("Bob")
+    bob_user = game.get_user(bob)
+    game.setup_player_actions(alice)
+    game.setup_player_actions(bob)
+
+    game._action_foreign_aid(alice, "foreign_aid")
+    game.refresh_menus(bob)
+    game.flush_menus()
+    ids = menu_item_ids(bob_user)
+    assert "block" in ids
+    assert "pass" in ids
+    assert "challenge" not in ids
+
+    game.turn_phase = "main"
+    game.current_player = alice
+    game._action_tax(alice, "tax")
+    game.refresh_menus(bob)
+    game.flush_menus()
+    ids = menu_item_ids(bob_user)
+    assert "challenge" in ids
+    assert "pass" in ids
+    assert "block" not in ids
+
+
+def test_pass_reaction_broadcasts_to_other_players(game):
+    alice = game.get_player_by_name("Alice")
+    bob = game.get_player_by_name("Bob")
+    bob_user = game.get_user(bob)
+    alice_user = game.get_user(alice)
+
+    game._action_tax(alice, "tax")
+    alice_user.clear_messages()
+    bob_user.clear_messages()
+
+    game._action_pass(bob, "pass")
+
+    assert "You passed." in speech_texts(bob_user)
+    assert "Bob passes on this reaction window." in speech_texts(alice_user)
+
 
 def test_coup_action(game):
     """Test the coup action."""
@@ -143,6 +302,134 @@ def test_assassinate_and_challenge(game):
 
     # Turn ends
     assert game.current_player.name == "Bob"
+
+
+def test_successfully_challenged_assassination_refunds_cost(game):
+    """If the Assassin claim is false, the failed action's 3-coin cost is returned."""
+    alice = game.get_player_by_name("Alice")
+    bob = game.get_player_by_name("Bob")
+
+    alice.influences = [Card(Character.DUKE), Card(Character.CONTESSA)]
+    bob.influences = [Card(Character.CAPTAIN), Card(Character.AMBASSADOR)]
+    alice.coins = 3
+
+    game._action_assassinate(alice, "Bob", "assassinate")
+    assert alice.coins == 0
+
+    game._action_challenge(bob, "challenge")
+    assert advance_until(
+        game,
+        lambda: game.turn_phase == "losing_influence"
+        and game._losing_player_id == alice.id,
+        max_ticks=200,
+    )
+
+    assert alice.coins == 3
+    alice_text = " ".join(speech_texts(game.get_user(alice)))
+    bob_text = " ".join(speech_texts(game.get_user(bob)))
+    assert "Your 3 assassination coins are returned" in alice_text
+    assert "You catch Alice bluffing" in bob_text
+
+
+def test_elimination_returns_remaining_coins_to_treasury(game):
+    bob = game.get_player_by_name("Bob")
+
+    bob.influences = [Card(Character.CAPTAIN)]
+    bob.coins = 6
+    bob.is_dead = False
+    game._next_action_after_lose = "end_turn"
+
+    game._prompt_lose_influence(bob.id, "coup")
+
+    assert bob.is_dead is True
+    assert bob.coins == 0
+
+
+def test_exchange_and_influence_choices_request_first_card_focus(game):
+    alice = game.get_player_by_name("Alice")
+    user = game.get_user(alice)
+    game.setup_player_actions(alice)
+
+    alice.influences = [Card(Character.AMBASSADOR), Card(Character.DUKE)]
+    game.original_claimer_id = alice.id
+    game.active_action = "exchange"
+    game._resolve_action()
+    game.flush_menus()
+    assert user.menus["turn_menu"]["selection_id"] == "return_card_0"
+
+    game.turn_phase = "main"
+    game.current_player = alice
+    game._losing_player_id = ""
+    alice.influences = [Card(Character.AMBASSADOR), Card(Character.DUKE)]
+    game._prompt_lose_influence(alice.id, "failed_challenge")
+    game.flush_menus()
+    assert user.menus["turn_menu"]["selection_id"] == "lose_influence_0"
+
+
+def test_exchange_returned_card_slot_stays_visible_with_exchanged_label(game):
+    alice = game.get_player_by_name("Alice")
+    user = game.get_user(alice)
+    game.setup_player_actions(alice)
+
+    alice.influences = [Card(Character.AMBASSADOR), Card(Character.DUKE)]
+    game.deck.cards = [Card(Character.CAPTAIN), Card(Character.CONTESSA)]
+    game.original_claimer_id = alice.id
+    game.active_action = "exchange"
+    game._resolve_action()
+    game.flush_menus()
+
+    first_label = next(
+        item.text
+        for item in user.menus["turn_menu"]["items"]
+        if getattr(item, "id", None) == "return_card_0"
+    )
+
+    user.clear_messages()
+    game._action_return_card(alice, "return_card_0")
+    game.flush_menus()
+
+    labels_by_id = {
+        getattr(item, "id", None): item.text
+        for item in user.menus["turn_menu"]["items"]
+    }
+    assert labels_by_id["return_card_0"] == f"Exchanged: {first_label.removeprefix('Return ')}"
+    assert "return_card_1" in labels_by_id
+    assert game.return_count == 1
+
+    user.clear_messages()
+    game._action_return_card(alice, "return_card_0")
+    assert user.get_last_spoken() == "That card has already been exchanged."
+
+
+def test_exchange_returned_slot_label_survives_restore(game):
+    alice = game.get_player_by_name("Alice")
+    game.setup_player_actions(alice)
+
+    alice.influences = [Card(Character.AMBASSADOR), Card(Character.DUKE)]
+    game.deck.cards = [Card(Character.CAPTAIN), Card(Character.CONTESSA)]
+    game.original_claimer_id = alice.id
+    game.active_action = "exchange"
+    game._resolve_action()
+    game._action_return_card(alice, "return_card_0")
+
+    restored = CoupGame.from_json(game.to_json())
+    restored.attach_user("player1", MockUser("Alice", "player1"))
+    restored.attach_user("player2", MockUser("Bob", "player2"))
+    restored_alice = restored.get_player_by_name("Alice")
+    restored_user = restored.get_user(restored_alice)
+
+    restored.refresh_menus(restored_alice)
+    restored.flush_menus()
+
+    labels_by_id = {
+        getattr(item, "id", None): item.text
+        for item in restored_user.menus["turn_menu"]["items"]
+    }
+    assert labels_by_id["return_card_0"].startswith("Exchanged: ")
+
+    restored._action_return_card(restored_alice, "return_card_1")
+    assert restored.turn_phase != "exchanging"
+
 
 def test_steal_block_and_failed_challenge(game):
     """Test steal, Ambassador block, and the blocker successfully defending a challenge."""

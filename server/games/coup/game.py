@@ -2,7 +2,8 @@
 Coup Game Implementation for PlayAural.
 
 A game of deduction and deception. Players start with two influences (character cards)
-and two coins. The goal is to eliminate all other players' influences.
+and normally two coins; in two-player Coup, the starting player begins with one
+coin. The goal is to eliminate all other players' influences.
 
 Actions:
 - Income: Take 1 coin
@@ -26,6 +27,7 @@ from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.sequence_runner_mixin import SequenceBeat, SequenceOperation
 from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
+from ...users.base import MenuItem
 
 from .cards import Deck, Card, Character
 from .player import CoupPlayer, CoupOptions
@@ -53,6 +55,8 @@ class CoupGame(Game):
     original_claimer_id: str | None = None
     return_count: int = 0
     _exchange_draw_count: int = 2   # how many cards were actually drawn during exchange
+    _exchange_card_slots: list[str] = field(default_factory=list)
+    _exchange_returned_slots: set[int] = field(default_factory=set)
     passed_players: set[str] = field(default_factory=set)
     player_claims: dict[str, set[str]] = field(default_factory=dict)
     # Per-player history within this game for bot opponent modeling.
@@ -129,6 +133,15 @@ class CoupGame(Game):
     def get_supported_leaderboards(cls) -> list[str]:
         return ["wins", "rating", "games_played"]
 
+    def prestart_validate(self) -> list[str]:
+        errors: list[str] = []
+        active_count = self.get_active_player_count()
+        if active_count < self.get_min_players():
+            errors.append("action-need-more-players")
+        if active_count > self.get_max_players():
+            errors.append("action-table-full")
+        return errors
+
     def create_player(
         self, player_id: str, name: str, is_bot: bool = False
     ) -> CoupPlayer:
@@ -152,6 +165,7 @@ class CoupGame(Game):
         active_players = self.get_active_players()
         self.player_claims.clear()
         self._player_history.clear()
+        self._clear_exchange_state()
 
         for player in active_players:
             player.coins = 2
@@ -165,6 +179,8 @@ class CoupGame(Game):
                     player.influences.append(card)
 
         self.set_turn_players(active_players)
+        self.reset_turn_order()
+        self._assign_starting_coins()
 
         # Play intro music
         self.play_music("game_coup/music.ogg")
@@ -179,8 +195,23 @@ class CoupGame(Game):
                 self._action_check_hand(player, "check_hand")
 
         # Start first turn
-        self.reset_turn_order()
         self._start_turn()
+
+    def _assign_starting_coins(self) -> None:
+        """Assign official starting coins based on the final first player."""
+        active_players = [
+            p for p in self.turn_players if isinstance(p, CoupPlayer) and not p.is_spectator
+        ]
+        for player in active_players:
+            player.coins = 2
+        if len(active_players) == 2 and active_players:
+            active_players[0].coins = 1
+
+    def _clear_exchange_state(self) -> None:
+        self.return_count = 0
+        self._exchange_draw_count = 2
+        self._exchange_card_slots = []
+        self._exchange_returned_slots = set()
 
     def _start_turn(self) -> None:
         """Start a player's turn."""
@@ -220,6 +251,189 @@ class CoupGame(Game):
         """End current player's turn."""
         self.advance_turn(announce=False)
         self._start_turn()
+
+    def _speak_action_error(self, player: Player, message_id: str, **kwargs) -> None:
+        user = self.get_user(player)
+        if user:
+            user.speak_l(message_id, buffer="game", **kwargs)
+
+    def _broadcast_actor_l(
+        self,
+        player: Player,
+        personal_key: str,
+        public_key: str,
+        **kwargs,
+    ) -> None:
+        self.broadcast_personal_l(
+            player,
+            personal_key,
+            public_key,
+            buffer="game",
+            **kwargs,
+        )
+
+    def _broadcast_actor_target_l(
+        self,
+        actor: Player,
+        target: Player | None,
+        actor_key: str,
+        target_key: str,
+        public_key: str,
+        **kwargs,
+    ) -> None:
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+            if listener.id == actor.id:
+                user.speak_l(
+                    actor_key,
+                    buffer="game",
+                    target=target.name if target else "",
+                    **kwargs,
+                )
+            elif target and listener.id == target.id:
+                user.speak_l(
+                    target_key,
+                    buffer="game",
+                    player=actor.name,
+                    **kwargs,
+                )
+            else:
+                user.speak_l(
+                    public_key,
+                    buffer="game",
+                    player=actor.name,
+                    target=target.name if target else "",
+                    **kwargs,
+                )
+
+    def _broadcast_challenge_l(
+        self,
+        challenger: Player,
+        claimer: Player | None,
+    ) -> None:
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+            if listener.id == challenger.id:
+                user.speak_l(
+                    "coup-you-challenge",
+                    buffer="game",
+                    target=claimer.name if claimer else "",
+                )
+            elif claimer and listener.id == claimer.id:
+                user.speak_l(
+                    "coup-player-challenges-you",
+                    buffer="game",
+                    challenger=challenger.name,
+                )
+            else:
+                user.speak_l(
+                    "coup-challenges",
+                    buffer="game",
+                    challenger=challenger.name,
+                    target=claimer.name if claimer else "",
+                )
+
+    def _broadcast_challenge_truth_l(
+        self,
+        challenger: Player,
+        claimer: Player,
+        character: str | Character,
+    ) -> None:
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+            char_val = character.value if hasattr(character, "value") else character
+            card_name = Localization.get(user.locale, f"coup-card-{char_val}")
+            if listener.id == claimer.id:
+                user.speak_l(
+                    "coup-you-prove-claim",
+                    buffer="game",
+                    challenger=challenger.name,
+                    character=card_name,
+                )
+            elif listener.id == challenger.id:
+                user.speak_l(
+                    "coup-you-lose-challenge",
+                    buffer="game",
+                    player=claimer.name,
+                    character=card_name,
+                )
+            else:
+                user.speak_l(
+                    "coup-challenge-failed",
+                    buffer="game",
+                    player=claimer.name,
+                    challenger=challenger.name,
+                    character=card_name,
+                )
+
+    def _broadcast_challenge_bluff_l(
+        self,
+        challenger: Player,
+        claimer: Player,
+    ) -> None:
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+            if listener.id == claimer.id:
+                user.speak_l(
+                    "coup-your-bluff-caught",
+                    buffer="game",
+                    challenger=challenger.name,
+                )
+            elif listener.id == challenger.id:
+                user.speak_l(
+                    "coup-you-catch-bluff",
+                    buffer="game",
+                    player=claimer.name,
+                )
+            else:
+                user.speak_l(
+                    "coup-challenge-succeeded",
+                    buffer="game",
+                    player=claimer.name,
+                    challenger=challenger.name,
+                )
+
+    def _broadcast_influence_loss_l(
+        self,
+        player: CoupPlayer,
+        character: str | Character,
+    ) -> None:
+        char_val = character.value if hasattr(character, "value") else character
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+            card_name = Localization.get(user.locale, f"coup-card-{char_val}")
+            if listener.id == player.id:
+                user.speak_l(
+                    "coup-you-lose-influence",
+                    buffer="game",
+                    character=card_name,
+                )
+            else:
+                user.speak_l(
+                    "coup-loses-influence",
+                    buffer="game",
+                    player=player.name,
+                    character=card_name,
+                )
+
+    def _eliminate_player(self, player: CoupPlayer) -> None:
+        player.is_dead = True
+        player.coins = 0
+        self._broadcast_actor_l(
+            player,
+            "coup-you-eliminated",
+            "coup-player-eliminated",
+        )
 
     def setup_keybinds(self) -> None:
         """Define all keybinds for the game."""
@@ -284,7 +498,7 @@ class CoupGame(Game):
                 label=Localization.get(locale, "coup-action-challenge"),
                 handler="_action_challenge",
                 is_enabled="_is_challenge_enabled",
-                is_hidden="_is_interrupt_hidden",
+                is_hidden="_is_challenge_hidden",
                 show_in_actions_menu=False,
             )
         )
@@ -294,7 +508,7 @@ class CoupGame(Game):
                 label=Localization.get(locale, "coup-action-block"),
                 handler="_action_block",
                 is_enabled="_is_block_enabled",
-                is_hidden="_is_interrupt_hidden",
+                is_hidden="_is_block_hidden",
                 show_in_actions_menu=False,
             )
         )
@@ -524,21 +738,35 @@ class CoupGame(Game):
 
     def _get_lose_influence_label(self, player: Player, action_id: str) -> str:
         coup_player: CoupPlayer = player  # type: ignore
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
         try:
             idx = int(action_id.split("_")[-1])
         except ValueError:
-            return "Lose Influence"
+            return Localization.get(locale, "coup-action-lose-influence")
 
         if idx < 0 or idx >= len(coup_player.live_influences):
-            return "Lose Influence"
+            return Localization.get(locale, "coup-action-lose-influence")
 
         card = coup_player.live_influences[idx]
-        user = self.get_user(player)
-        locale = user.locale if user else "en"
         return Localization.get(locale, f"coup-card-{card.character.value}")
 
-    def _is_return_card_hidden(self, player: Player) -> Visibility:
+    def _is_return_card_hidden(
+        self,
+        player: Player,
+        action_id: str | None = None,
+    ) -> Visibility:
         if self.turn_phase != "exchanging" or self.current_player != player:
+            return Visibility.HIDDEN
+        if not action_id:
+            return Visibility.VISIBLE
+        try:
+            idx = int(action_id.split("_")[-1])
+        except ValueError:
+            return Visibility.HIDDEN
+        coup_player: CoupPlayer = player  # type: ignore
+        slot_count = len(self._exchange_card_slots) or len(coup_player.live_influences)
+        if idx < 0 or idx >= slot_count:
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 
@@ -557,24 +785,43 @@ class CoupGame(Game):
         except ValueError:
             return "action-not-available"
 
-        if idx < 0 or idx >= len(coup_player.live_influences):
+        slot_count = len(self._exchange_card_slots) or len(coup_player.live_influences)
+        if idx < 0 or idx >= slot_count:
             return "action-not-available"
+        if idx in self._exchange_returned_slots:
+            return "coup-card-already-exchanged"
 
         return None
 
     def _get_return_card_label(self, player: Player, action_id: str) -> str:
         coup_player: CoupPlayer = player  # type: ignore
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
         try:
             idx = int(action_id.split("_")[-1])
         except ValueError:
-            return "Return Card"
+            return Localization.get(locale, "coup-action-return-card")
 
-        if idx < 0 or idx >= len(coup_player.live_influences):
-            return "Return Card"
+        if idx < 0:
+            return Localization.get(locale, "coup-action-return-card")
+
+        if self._exchange_card_slots:
+            if idx >= len(self._exchange_card_slots):
+                return Localization.get(locale, "coup-action-return-card")
+            character = self._exchange_card_slots[idx]
+            card_name = Localization.get(locale, f"coup-card-{character}")
+            if idx in self._exchange_returned_slots:
+                return Localization.get(
+                    locale,
+                    "coup-return-card-exchanged-format",
+                    card=card_name,
+                )
+            return Localization.get(locale, "coup-return-card-format", card=card_name)
+
+        if idx >= len(coup_player.live_influences):
+            return Localization.get(locale, "coup-action-return-card")
 
         card = coup_player.live_influences[idx]
-        user = self.get_user(player)
-        locale = user.locale if user else "en"
         card_name = Localization.get(locale, f"coup-card-{card.character.value}")
         return Localization.get(locale, "coup-return-card-format", card=card_name)
 
@@ -591,9 +838,30 @@ class CoupGame(Game):
         if player.id in getattr(self, "passed_players", set()):
             return Visibility.HIDDEN
 
-        # In waiting_block (e.g. Duke blocking Foreign Aid), only Challenge or Pass makes sense, no second Block.
-        # But this is just visibility, we handle specifics in is_enabled.
         return Visibility.VISIBLE
+
+    def _is_challenge_hidden(self, player: Player) -> Visibility:
+        if self._is_interrupt_hidden(player) == Visibility.HIDDEN:
+            return Visibility.HIDDEN
+        if (
+            self.turn_phase == "action_declared"
+            and self.active_action in {"income", "foreign_aid", "coup"}
+        ):
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_block_hidden(self, player: Player) -> Visibility:
+        if self._is_interrupt_hidden(player) == Visibility.HIDDEN:
+            return Visibility.HIDDEN
+        if self.turn_phase != "action_declared":
+            return Visibility.HIDDEN
+        if self.active_action == "foreign_aid":
+            return Visibility.VISIBLE
+        if self.active_action in {"assassinate", "steal"}:
+            if player.id == self.active_target_id:
+                return Visibility.VISIBLE
+            return Visibility.HIDDEN
+        return Visibility.HIDDEN
 
     def _is_challenge_enabled(self, player: Player) -> str | None:
         if self.is_resolving:
@@ -697,7 +965,7 @@ class CoupGame(Game):
 
         coup_player: CoupPlayer = player  # type: ignore
         if coup_player.coins < 7:
-            return "coup-not-enough-coins"
+            return "coup-cannot-afford-coup"
 
         return None
 
@@ -708,7 +976,7 @@ class CoupGame(Game):
 
         coup_player: CoupPlayer = player  # type: ignore
         if coup_player.coins < 3:
-            return "coup-not-enough-coins"
+            return "coup-cannot-afford-assassinate"
 
         return None
 
@@ -751,16 +1019,13 @@ class CoupGame(Game):
         if not user:
             return
 
-        lines = []
-        for p in self.get_alive_players():
-            # e.g., "Alice: 4 coins"
-            lines.append(Localization.get(user.locale, "coup-wealth-line", player=p.name, coins=p.coins))
-
-        if not lines:
-            lines.append(Localization.get(user.locale, "coup-no-alive-players"))
-
-        combined = ", ".join(lines)
-        user.speak(combined, buffer="game")
+        first_alive = next(iter(self.get_alive_players()), None)
+        self.live_status_box(
+            player,
+            "coup_wealth",
+            lambda _player, live_user: self._wealth_status_items(live_user.locale),
+            focus_id=f"wealth:{first_alive.id}" if first_alive else "empty",
+        )
 
     def _action_check_hand(self, player: Player, action_id: str) -> None:
         user = self.get_user(player)
@@ -791,39 +1056,109 @@ class CoupGame(Game):
         if not user:
             return
 
-        lines = []
+        self.live_status_box(
+            player,
+            "coup_table",
+            lambda _player, live_user: self._table_status_items(live_user.locale),
+            focus_id="table:empty" if not self._has_revealed_influences() else None,
+        )
+
+    def _wealth_status_items(self, locale: str) -> list[MenuItem]:
+        items: list[MenuItem] = []
+        for p in self.get_alive_players():
+            items.append(
+                MenuItem(
+                    text=Localization.get(
+                        locale,
+                        "coup-wealth-line",
+                        player=p.name,
+                        coins=p.coins,
+                    ),
+                    id=f"wealth:{p.id}",
+                )
+            )
+        if not items:
+            items.append(
+                MenuItem(
+                    text=Localization.get(locale, "coup-no-alive-players"),
+                    id="empty",
+                )
+            )
+        return items
+
+    def _has_revealed_influences(self) -> bool:
+        return any(
+            isinstance(p, CoupPlayer) and bool(p.dead_influences)
+            for p in self.get_active_players()
+        )
+
+    def _table_status_items(self, locale: str) -> list[MenuItem]:
+        items: list[MenuItem] = []
         for p in self.get_active_players():
+            if not isinstance(p, CoupPlayer):
+                continue
             dead = p.dead_influences
             if dead:
-                cards = [Localization.get(user.locale, f"coup-card-{c.character.value}") for c in dead]
-                # e.g., "Alice lost: Duke, Captain"
+                cards = [
+                    Localization.get(locale, f"coup-card-{c.character.value}")
+                    for c in dead
+                ]
                 cards_str = ", ".join(cards)
-                lines.append(Localization.get(user.locale, "coup-table-line", player=p.name, cards=cards_str))
-
-        if not lines:
-            lines.append(Localization.get(user.locale, "coup-table-empty"))
-
-        combined = "; ".join(lines)
-        user.speak(combined, buffer="game")
+                items.append(
+                    MenuItem(
+                        text=Localization.get(
+                            locale,
+                            "coup-table-line",
+                            player=p.name,
+                            cards=cards_str,
+                        ),
+                        id=f"table:{p.id}",
+                    )
+                )
+        if not items:
+            items.append(
+                MenuItem(
+                    text=Localization.get(locale, "coup-table-empty"),
+                    id="table:empty",
+                )
+            )
+        return items
 
     def _action_income(self, player: Player, action_id: str) -> None:
+        disabled = self._is_income_enabled(player)
+        if disabled:
+            self._speak_action_error(player, disabled)
+            return
         coup_player: CoupPlayer = player  # type: ignore
         coup_player.coins += 1
 
         self.play_sound("game_coup/income.ogg")
-        self.broadcast_l("coup-takes-income", buffer="game", player=player.name)
+        self._broadcast_actor_l(player, "coup-you-take-income", "coup-takes-income")
 
         self._end_turn()
 
     def _action_foreign_aid(self, player: Player, action_id: str) -> None:
+        disabled = self._is_action_enabled(player)
+        if disabled:
+            self._speak_action_error(player, disabled)
+            return
         # Declare action, start interrupt timer
         self._declare_action(player.id, "foreign_aid")
 
     def _action_coup(self, player: Player, target_name: str, action_id: str) -> None:
+        disabled = self._is_coup_enabled(player)
+        if disabled:
+            self._speak_action_error(player, disabled)
+            return
         coup_player: CoupPlayer = player  # type: ignore
         target = self.get_player_by_name(self._extract_target_name(target_name))
 
         if not target or target.is_dead:
+            self._speak_action_error(
+                player,
+                "coup-target-invalid",
+                target=self._extract_target_name(target_name),
+            )
             return
 
         self.is_resolving = True
@@ -831,7 +1166,13 @@ class CoupGame(Game):
 
         coup_player.coins -= 7
         self.play_sound("game_coup/coup.ogg")
-        self.broadcast_l("coup-plays-coup", buffer="game", player=player.name, target=target.name)
+        self._broadcast_actor_target_l(
+            player,
+            target,
+            "coup-you-play-coup",
+            "coup-coup-targets-you",
+            "coup-plays-coup",
+        )
 
         duration = self.get_audio_duration_ticks("coup.ogg")
         self._start_resolution_callback(
@@ -841,27 +1182,53 @@ class CoupGame(Game):
         )
 
     def _action_tax(self, player: Player, action_id: str) -> None:
+        disabled = self._is_action_enabled(player)
+        if disabled:
+            self._speak_action_error(player, disabled)
+            return
         self._declare_action(player.id, "tax")
 
     def _action_assassinate(self, player: Player, target_name: str, action_id: str) -> None:
+        disabled = self._is_assassinate_enabled(player)
+        if disabled:
+            self._speak_action_error(player, disabled)
+            return
         coup_player: CoupPlayer = player  # type: ignore
         target = self.get_player_by_name(self._extract_target_name(target_name))
 
         if not target or target.is_dead:
+            self._speak_action_error(
+                player,
+                "coup-target-invalid",
+                target=self._extract_target_name(target_name),
+            )
             return
 
         coup_player.coins -= 3
         self._declare_action(player.id, "assassinate", target.id)
 
     def _action_steal(self, player: Player, target_name: str, action_id: str) -> None:
+        disabled = self._is_action_enabled(player)
+        if disabled:
+            self._speak_action_error(player, disabled)
+            return
         target = self.get_player_by_name(self._extract_target_name(target_name))
 
         if not target or target.is_dead:
+            self._speak_action_error(
+                player,
+                "coup-target-invalid",
+                target=self._extract_target_name(target_name),
+            )
             return
 
         self._declare_action(player.id, "steal", target.id)
 
     def _action_exchange(self, player: Player, action_id: str) -> None:
+        disabled = self._is_action_enabled(player)
+        if disabled:
+            self._speak_action_error(player, disabled)
+            return
         self._declare_action(player.id, "exchange")
 
     def _declare_action(self, player_id: str, action: str, target_id: str | None = None) -> None:
@@ -891,19 +1258,39 @@ class CoupGame(Game):
         # Play claim sound and broadcast
         if action == "tax":
             self.play_sound("game_coup/claim_duke.ogg")
-            self.broadcast_l("coup-claims-tax", buffer="game", player=player.name)
+            self._broadcast_actor_l(player, "coup-you-claim-tax", "coup-claims-tax")
         elif action == "foreign_aid":
             # no character claimed, just standard action. Sound plays on resolution.
-            self.broadcast_l("coup-claims-foreign-aid", buffer="game", player=player.name)
+            self._broadcast_actor_l(
+                player,
+                "coup-you-claim-foreign-aid",
+                "coup-claims-foreign-aid",
+            )
         elif action == "assassinate":
             self.play_sound("game_coup/claim_assassin.ogg")
-            self.broadcast_l("coup-claims-assassinate", buffer="game", player=player.name, target=target.name if target else "")
+            self._broadcast_actor_target_l(
+                player,
+                target,
+                "coup-you-claim-assassinate",
+                "coup-assassination-claimed-against-you",
+                "coup-claims-assassinate",
+            )
         elif action == "steal":
             self.play_sound("game_coup/claim_captain.ogg")
-            self.broadcast_l("coup-claims-steal", buffer="game", player=player.name, target=target.name if target else "")
+            self._broadcast_actor_target_l(
+                player,
+                target,
+                "coup-you-claim-steal",
+                "coup-steal-claimed-against-you",
+                "coup-claims-steal",
+            )
         elif action == "exchange":
             self.play_sound("game_coup/claim_ambassador.ogg")
-            self.broadcast_l("coup-claims-exchange", buffer="game", player=player.name)
+            self._broadcast_actor_l(
+                player,
+                "coup-you-claim-exchange",
+                "coup-claims-exchange",
+            )
 
         self.broadcast_l("coup-waiting-for-reactions", buffer="game")
         self.refresh_menus()
@@ -911,6 +1298,10 @@ class CoupGame(Game):
         BotHelper.jolt_bots(self, ticks=random.randint(40, 80)) # 2-4 seconds delay
 
     def _action_challenge(self, player: Player, action_id: str) -> None:
+        disabled = self._is_challenge_enabled(player)
+        if disabled:
+            self._speak_action_error(player, disabled)
+            return
         # Resolve challenge
         if self.turn_phase not in ["action_declared", "waiting_block"]:
             return
@@ -926,7 +1317,7 @@ class CoupGame(Game):
         self.play_sound("game_coup/challenge.ogg")
         claimer = self.get_player_by_id(self.active_claimer_id)
 
-        self.broadcast_l("coup-challenges", buffer="game", challenger=player.name, target=claimer.name)
+        self._broadcast_challenge_l(player, claimer)
 
         duration = self.get_audio_duration_ticks("challenge.ogg")
         self._start_resolution_callback(
@@ -936,6 +1327,10 @@ class CoupGame(Game):
         )
 
     def _action_block(self, player: Player, action_id: str) -> None:
+        disabled = self._is_block_enabled(player)
+        if disabled:
+            self._speak_action_error(player, disabled)
+            return
         if self.turn_phase != "action_declared":
             return
 
@@ -949,19 +1344,40 @@ class CoupGame(Game):
         # Depends on what is blocked
         if self.active_action == "foreign_aid":
             self.play_sound("game_coup/claim_duke.ogg") # Claiming Duke to block
-            self.broadcast_l("coup-blocks-foreign-aid", buffer="game", blocker=player.name, target=claimer.name)
+            self._broadcast_actor_target_l(
+                player,
+                claimer,
+                "coup-you-block-foreign-aid",
+                "coup-your-foreign-aid-blocked",
+                "coup-blocks-foreign-aid",
+                blocker=player.name,
+            )
             if player.id in self.player_claims:
                 self.player_claims[player.id].add("duke")
         elif self.active_action == "assassinate":
             self.play_sound("game_coup/claim_contessa.ogg") # Claiming Contessa
-            self.broadcast_l("coup-blocks-assassinate", buffer="game", blocker=player.name, target=claimer.name)
+            self._broadcast_actor_target_l(
+                player,
+                claimer,
+                "coup-you-block-assassination",
+                "coup-your-assassination-blocked",
+                "coup-blocks-assassinate",
+                blocker=player.name,
+            )
             if player.id in self.player_claims:
                 self.player_claims[player.id].add("contessa")
         elif self.active_action == "steal":
             # For steal, might be Captain or Ambassador. For simplicity, just use Ambassador claim sound
             # or Captain claim sound randomly, or let's just say they claim to block.
             self.play_sound("game_coup/claim_ambassador.ogg")
-            self.broadcast_l("coup-blocks-steal", buffer="game", blocker=player.name, target=claimer.name)
+            self._broadcast_actor_target_l(
+                player,
+                claimer,
+                "coup-you-block-steal",
+                "coup-your-steal-blocked",
+                "coup-blocks-steal",
+                blocker=player.name,
+            )
             if player.id in self.player_claims:
                 # Add a generic 'ambassador' claim for UI/Bot tracking purposes when stealing is blocked.
                 self.player_claims[player.id].add("ambassador")
@@ -978,14 +1394,20 @@ class CoupGame(Game):
         BotHelper.jolt_bots(self, ticks=random.randint(40, 80))
 
     def _action_pass(self, player: Player, action_id: str) -> None:
+        disabled = self._is_pass_enabled(player)
+        if disabled:
+            self._speak_action_error(player, disabled)
+            return
         if self.turn_phase not in ["action_declared", "waiting_block"]:
             return
 
         self.passed_players.add(player.id)
 
-        user = self.get_user(player)
-        if user and not player.is_bot:
-            user.speak_l("coup-action-pass-confirmed", buffer="game")
+        self._broadcast_actor_l(
+            player,
+            "coup-action-pass-confirmed",
+            "coup-player-passes-reaction",
+        )
 
         # Check if all other eligible players have passed
         alive = self.get_alive_players()
@@ -1017,6 +1439,22 @@ class CoupGame(Game):
             "steal": ["captain", "ambassador"]
         }
         return mapping.get(action, "")
+
+    def _refund_challenged_action_cost(self, claimer: Player) -> None:
+        if self.turn_phase != "action_declared":
+            return
+        if self.active_action != "assassinate":
+            return
+        if not isinstance(claimer, CoupPlayer):
+            return
+
+        claimer.coins += 3
+        self._broadcast_actor_l(
+            claimer,
+            "coup-you-assassination-refunded",
+            "coup-assassination-refunded",
+            amount=3,
+        )
 
     def _start_resolution_callback(
         self,
@@ -1109,7 +1547,7 @@ class CoupGame(Game):
             # Challenge fails!
             self.play_sound("game_coup/challengesuccess.ogg")
             duration = self.get_audio_duration_ticks("challengesuccess.ogg")
-            self._broadcast_card_message("coup-challenge-failed", revealed_char, player=claimer.name)
+            self._broadcast_challenge_truth_l(player, claimer, revealed_char)
 
             # Claimer replaces card: return the revealed card to the deck
             # and draw a fresh one.  The old card is added first, so the
@@ -1137,8 +1575,11 @@ class CoupGame(Game):
                 self._next_action_after_lose = "resolve_action"
             else:
                 self._next_action_after_lose = "end_turn"
-                self.broadcast_l("coup-bluff-wrong", buffer="game", challenger=player.name)
-                self.broadcast_l("coup-block-successful", buffer="game", blocker=claimer.name)
+                self._broadcast_actor_l(
+                    claimer,
+                    "coup-your-block-successful",
+                    "coup-block-successful",
+                )
                 # We will just play the block success sound alongside the challenge success.
                 # Technically we should maybe sequentialize this, but both are short.
 
@@ -1152,14 +1593,13 @@ class CoupGame(Game):
             # Challenge succeeds!
             self.play_sound("game_coup/challengefail.ogg")
             duration = self.get_audio_duration_ticks("challengefail.ogg")
-            self.broadcast_l("coup-challenge-succeeded", buffer="game", player=claimer.name)
+            self._broadcast_challenge_bluff_l(player, claimer)
+            self._refund_challenged_action_cost(claimer)
 
             if self.turn_phase == "action_declared":
                 self._next_action_after_lose = "end_turn"
             elif self.turn_phase == "waiting_block":
                 self._next_action_after_lose = "resolve_action"
-
-            self.broadcast_l("coup-bluff-called", buffer="game", player=claimer.name)
 
             self._start_resolution_callback(
                 "post_challenge_lose_influence",
@@ -1203,7 +1643,12 @@ class CoupGame(Game):
                     self.is_resolving = True
                     self.refresh_menus()
                     blocker = self.get_player_by_id(self.active_claimer_id)
-                    self.broadcast_l("coup-block-successful", buffer="game", blocker=blocker.name if blocker else "Someone")
+                    if blocker:
+                        self._broadcast_actor_l(
+                            blocker,
+                            "coup-your-block-successful",
+                            "coup-block-successful",
+                        )
                     sound_file = ""
                     if self.active_action == "foreign_aid":
                         sound_file = "block_duke.ogg"
@@ -1225,7 +1670,6 @@ class CoupGame(Game):
 
     def _resolve_action(self) -> None:
         """Resolves the active action after no challenges/blocks occur or they fail."""
-        self.broadcast_l("coup-action-resolves", buffer="game")
         player = self.get_player_by_id(self.original_claimer_id)
         target = self.get_player_by_id(self.active_target_id)
 
@@ -1236,13 +1680,17 @@ class CoupGame(Game):
         if self.active_action == "foreign_aid":
             player.coins += 2
             self.play_sound("game_coup/foreign_aid.ogg")
-            self.broadcast_l("coup-takes-foreign-aid", buffer="game", player=player.name)
+            self._broadcast_actor_l(
+                player,
+                "coup-you-take-foreign-aid",
+                "coup-takes-foreign-aid",
+            )
             self._end_turn()
 
         elif self.active_action == "tax":
             player.coins += 3
             self.play_sound("game_coup/tax.ogg")
-            self.broadcast_l("coup-takes-tax", buffer="game", player=player.name)
+            self._broadcast_actor_l(player, "coup-you-take-tax", "coup-takes-tax")
             self._end_turn()
 
         elif self.active_action == "assassinate":
@@ -1251,7 +1699,13 @@ class CoupGame(Game):
 
             sound_file = "assassinate.ogg"
             self.play_sound(f"game_coup/{sound_file}")
-            self.broadcast_l("coup-assassinates", buffer="game", player=player.name, target=target.name if target else "")
+            self._broadcast_actor_target_l(
+                player,
+                target,
+                "coup-you-assassinate",
+                "coup-you-are-assassinated",
+                "coup-assassinates",
+            )
 
             duration = self.get_audio_duration_ticks(sound_file)
             self._start_resolution_callback(
@@ -1266,12 +1720,19 @@ class CoupGame(Game):
                 target.coins -= stolen
             player.coins += stolen
             self.play_sound("game_coup/steal.ogg")
-            self.broadcast_l("coup-steals", buffer="game", player=player.name, target=target.name if target else "", amount=stolen)
+            self._broadcast_actor_target_l(
+                player,
+                target,
+                "coup-you-steal",
+                "coup-you-are-stolen-from",
+                "coup-steals",
+                amount=stolen,
+            )
             self._end_turn()
 
         elif self.active_action == "exchange":
             self.play_sound("game_coup/exchange_start.ogg")
-            self.broadcast_l("coup-exchanges", buffer="game", player=player.name)
+            self._broadcast_actor_l(player, "coup-you-exchange", "coup-exchanges")
 
             # Draw up to 2 cards; track how many were actually drawn so the
             # return phase requires exactly that many back.
@@ -1293,14 +1754,24 @@ class CoupGame(Game):
             if drawn == 0:
                 # Deck was empty — nothing to exchange, just end turn
                 self.play_sound("game_coup/exchange_complete.ogg")
-                self.broadcast_l("coup-exchange-complete", buffer="game", player=player.name)
+                self._broadcast_actor_l(
+                    player,
+                    "coup-you-exchange-complete",
+                    "coup-exchange-complete",
+                )
+                self._clear_exchange_state()
                 self._end_turn()
                 return
 
             self._exchange_draw_count = drawn
             self.return_count = 0
+            self._exchange_card_slots = [
+                card.character.value for card in player.live_influences
+            ]
+            self._exchange_returned_slots = set()
             self.turn_phase = "exchanging"
             self.interrupt_timer_ticks = 0
+            self.request_menu_focus(player, "return_card_0")
             self.refresh_menus()
 
             if player.is_bot:
@@ -1308,7 +1779,9 @@ class CoupGame(Game):
 
 
     def _action_return_card(self, player: Player, action_id: str) -> None:
-        if self.turn_phase != "exchanging" or self.current_player != player:
+        disabled = self._is_return_card_enabled(player, action_id=action_id)
+        if disabled:
+            self._speak_action_error(player, disabled)
             return
 
         coup_player: CoupPlayer = player  # type: ignore
@@ -1317,13 +1790,18 @@ class CoupGame(Game):
         except ValueError:
             return
 
-        if idx < 0 or idx >= len(coup_player.live_influences):
+        if idx < 0:
             return
 
-        card = coup_player.live_influences[idx]
+        card = self._get_exchange_card_for_slot(coup_player, idx)
+        if card is None:
+            self._speak_action_error(player, "action-not-available")
+            return
+
         self.deck.add(card)
         self.deck.shuffle()
         coup_player.influences.remove(card)
+        self._exchange_returned_slots.add(idx)
         self.play_sound(f"game_cards/discard{random.randint(1, 3)}.ogg")
 
         user = self.get_user(player)
@@ -1333,31 +1811,42 @@ class CoupGame(Game):
 
         # If the player has no live cards left after returning, they're dead.
         if not coup_player.live_influences:
-            coup_player.is_dead = True
-            self.broadcast_l("coup-player-eliminated", buffer="game", player=player.name)
-            self.return_count = 0
+            self._eliminate_player(coup_player)
+            self._clear_exchange_state()
             self._end_turn()
             return
 
         # Return exactly as many cards as were drawn.
         self.return_count += 1
         if self.return_count >= self._exchange_draw_count:
-            self.return_count = 0
+            self._clear_exchange_state()
             self.play_sound("game_coup/exchange_complete.ogg")
-            self.broadcast_l("coup-exchange-complete", buffer="game", player=player.name)
+            self._broadcast_actor_l(
+                player,
+                "coup-you-exchange-complete",
+                "coup-exchange-complete",
+            )
             self._end_turn()
         else:
             self.refresh_menus()
 
-    def _broadcast_card_message(self, message_key: str, character: str | Character, **kwargs) -> None:
-        """Broadcast a message with a localized card name to all players."""
-        char_val = character.value if hasattr(character, "value") else character
-        for p in self.players: # Broadcast to everyone, including spectators
-            user = self.get_user(p)
-            if not user:
-                continue
-            card_name = Localization.get(user.locale, f"coup-card-{char_val}")
-            user.speak_l(message_key, buffer="game", character=card_name, **kwargs)
+    def _get_exchange_card_for_slot(
+        self,
+        player: CoupPlayer,
+        slot_index: int,
+    ) -> Card | None:
+        if self._exchange_card_slots:
+            if slot_index >= len(self._exchange_card_slots):
+                return None
+            character = self._exchange_card_slots[slot_index]
+            for card in player.live_influences:
+                if card.character.value == character:
+                    return card
+            return None
+
+        if slot_index >= len(player.live_influences):
+            return None
+        return player.live_influences[slot_index]
 
     def _prompt_lose_influence(self, player_id: str, reason: str) -> None:
         """Prompts a player to choose which influence to lose."""
@@ -1371,8 +1860,7 @@ class CoupGame(Game):
             # Safety net: player has no cards but is_dead was never set.
             # Mark them dead so they cannot remain "immortal".
             if not player.is_dead:
-                player.is_dead = True
-                self.broadcast_l("coup-player-eliminated", buffer="game", player=player.name)
+                self._eliminate_player(player)
             self._post_lose_influence()
             return
         elif len(live) == 1:
@@ -1381,14 +1869,15 @@ class CoupGame(Game):
             self.play_sound(f"game_coup/chardestroy{random.randint(1, 2)}.ogg")
             self.play_sound(f"game_cards/discard{random.randint(1, 3)}.ogg")
             player.reveal_influence(0)
-            self._broadcast_card_message("coup-loses-influence", live[0].character, player=player.name)
+            self._broadcast_influence_loss_l(player, live[0].character)
             if player.is_dead:
-                self.broadcast_l("coup-player-eliminated", buffer="game", player=player.name)
+                self._eliminate_player(player)
             self._post_lose_influence()
         else:
             # Need to pick — use _losing_player_id so active_target_id is never overwritten
             self._losing_player_id = player.id
             self.turn_phase = "losing_influence"
+            self.request_menu_focus(player, "lose_influence_0")
             self.refresh_menus()
 
             if player.is_bot:
@@ -1399,7 +1888,9 @@ class CoupGame(Game):
                     user.speak_l("coup-must-lose-influence", buffer="game")
 
     def _action_lose_influence(self, player: Player, action_id: str) -> None:
-        if self.turn_phase != "losing_influence" or player.id != self._losing_player_id:
+        disabled = self._is_lose_influence_enabled(player, action_id=action_id)
+        if disabled:
+            self._speak_action_error(player, disabled)
             return
 
         coup_player: CoupPlayer = player  # type: ignore
@@ -1420,9 +1911,9 @@ class CoupGame(Game):
 
         char = coup_player.live_influences[idx].character
         coup_player.reveal_influence(idx)
-        self._broadcast_card_message("coup-loses-influence", char, player=player.name)
+        self._broadcast_influence_loss_l(coup_player, char)
         if coup_player.is_dead:
-            self.broadcast_l("coup-player-eliminated", buffer="game", player=player.name)
+            self._eliminate_player(coup_player)
 
         duration = self.get_audio_duration_ticks(sound_file)
         self._start_resolution_callback(
@@ -1447,7 +1938,7 @@ class CoupGame(Game):
         """End the game."""
         self.play_sound("game_chaosbear/wingame.ogg")
         if winner:
-            self.broadcast_l("game-winner", buffer="game", player=winner.name)
+            self._broadcast_actor_l(winner, "coup-you-win-game", "game-winner")
         self.finish_game()
 
     def build_game_result(self) -> GameResult:
@@ -1525,4 +2016,8 @@ class CoupGame(Game):
 
     def get_alive_players(self) -> list[CoupPlayer]:
         """Get all alive players."""
-        return [p for p in self.players if not getattr(p, "is_spectator", False) and not getattr(p, "is_dead", False)]
+        return [
+            p
+            for p in self.get_active_players()
+            if isinstance(p, CoupPlayer) and not p.is_dead
+        ]

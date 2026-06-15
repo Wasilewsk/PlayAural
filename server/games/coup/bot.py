@@ -248,11 +248,15 @@ class CoupBot(BotHelper):
             game.deck.shuffle()
 
             if not player.live_influences:
-                player.is_dead = True
-                game.broadcast_l("coup-player-eliminated", buffer="game", player=player.name)
+                game._eliminate_player(player)
 
             game.play_sound("game_coup/exchange_complete.ogg")
-            game.broadcast_l("coup-exchange-complete", buffer="game", player=player.name)
+            game._broadcast_actor_l(
+                player,
+                "coup-you-exchange-complete",
+                "coup-exchange-complete",
+            )
+            game._clear_exchange_state()
             game._end_turn()
             return
 
@@ -271,11 +275,15 @@ class CoupBot(BotHelper):
         game.deck.shuffle()
 
         if not player.live_influences:
-            player.is_dead = True
-            game.broadcast_l("coup-player-eliminated", buffer="game", player=player.name)
+            game._eliminate_player(player)
 
         game.play_sound("game_coup/exchange_complete.ogg")
-        game.broadcast_l("coup-exchange-complete", buffer="game", player=player.name)
+        game._broadcast_actor_l(
+            player,
+            "coup-you-exchange-complete",
+            "coup-exchange-complete",
+        )
+        game._clear_exchange_state()
         game._end_turn()
 
     # ------------------------------------------------------------------

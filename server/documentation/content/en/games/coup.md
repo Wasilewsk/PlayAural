@@ -14,7 +14,7 @@ The game is played with a deck of 15 cards, consisting of 3 copies of each of th
 
 
 
-Every player starts with 2 coins and 2 face-down character cards (your "influences"). You are eliminated from the game when you lose both of your cards. 
+In games with three or more players, every player starts with 2 coins and 2 face-down character cards (your "influences"). In a two-player game, the starting player begins with 1 coin and the other player begins with 2 coins. You are eliminated from the game when you lose both of your cards, and your remaining coins return to the treasury.
 
 
 
@@ -60,9 +60,9 @@ Whenever a player claims a character to perform an action or to block an action,
 
 &nbsp;   \* If they were \*\*telling the truth\*\*, they reveal the claimed card, shuffle it back into the deck, and draw a new card. You, the challenger, lose a card for being wrong!
 
-&nbsp;   \* If they were \*\*bluffing\*\*, they fail to perform their action and must lose a card.
+&nbsp;   \* If they were \*\*bluffing\*\*, they fail to perform their action and must lose a card. If the failed action had a paid cost, such as Assassinate, that cost is returned.
 
-\* \*\*Blocking:\*\* Some actions can be blocked by specific characters. This block is a claim itself, meaning anyone can now challenge the person who is trying to block!
+\* \*\*Blocking:\*\* Some actions can be blocked by specific characters. This block is a claim itself, meaning anyone can now challenge the person who is trying to block. If a block succeeds, the original action fails, but paid costs remain spent.
 
 
 
@@ -74,7 +74,7 @@ The host can configure these settings at the table before starting:
 
 \* \*\*Mandatory Coup Coin Threshold:\*\* The number of coins at which a player is forced to take the Coup action (default is 10, configurable up to 20).
 
-\* \*\*Interrupt Timer Duration:\*\* How long the window stays open for players to Challenge or Block (configurable from 3 to 15 seconds).
+\* \*\*Interrupt Timer Duration:\*\* How long the window stays open for players to Challenge or Block (default is 7 seconds, configurable from 3 to 15 seconds).
 
 
 
