@@ -32,11 +32,13 @@ Jokers are wild. A Joker always counts as truthful for the target rank.
 
 Each round works like this:
 
-\* The surviving players are put into a new random turn order.
+\* The first round uses a random turn order.
+\* After a challenge, the player who lost the challenge starts the next round if they survived.
+\* If that player was eliminated, the next surviving player in the previous turn order starts instead.
 \* A target rank is announced.
 \* Each surviving player receives 5 cards.
 \* Your hand is read privately to you.
-\* The first player in the randomized order takes the first turn.
+\* The chosen starting player takes the first turn.
 
 During the short round transition, old cards are cleared before the new hand is dealt. Outside that transition, your cards stay visible so you can keep reviewing your hand.
 

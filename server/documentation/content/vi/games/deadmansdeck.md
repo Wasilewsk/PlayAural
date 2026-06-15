@@ -32,11 +32,13 @@ Quân Hề là lá hoang. Quân Hề luôn được tính là thật với bất
 
 Mỗi vòng diễn ra theo trình tự sau:
 
-\* Những người còn sống được xếp lại thứ tự lượt một cách ngẫu nhiên.
+\* Vòng đầu tiên dùng thứ tự lượt ngẫu nhiên.
+\* Sau một lần vạch mặt, người thua lần vạch mặt đó sẽ đi trước ở vòng kế tiếp nếu còn sống.
+\* Nếu người đó đã gục, lượt mở vòng được chuyển cho người còn sống kế tiếp trong thứ tự lượt trước đó.
 \* Hạng mục tiêu được công bố.
 \* Mỗi người còn sống nhận 5 lá bài.
 \* Bài trên tay của bạn được đọc riêng cho bạn.
-\* Người đứng đầu thứ tự lượt mới đi trước.
+\* Người được chọn mở vòng sẽ đi trước.
 
 Trong khoảng chuyển vòng ngắn, bài cũ được xóa trước khi chia bài mới. Ngoài khoảng chuyển vòng đó, bài trên tay bạn luôn được giữ hiển thị để bạn có thể xem lại bất cứ lúc nào.
 

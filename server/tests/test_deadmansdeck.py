@@ -115,6 +115,14 @@ def visible_action_ids(game: DeadMansDeckGame, player) -> list[str]:
     return [entry.action.id for entry in game.get_all_visible_actions(player)]
 
 
+def status_texts(user: MockUser) -> list[str]:
+    return [getattr(item, "text", item) for item in user.menus["status_box"]["items"]]
+
+
+def status_ids(user: MockUser) -> list[str | None]:
+    return [getattr(item, "id", None) for item in user.menus["status_box"]["items"]]
+
+
 def test_game_registration_and_metadata() -> None:
     game_cls = GameRegistry.get("deadmansdeck")
     assert game_cls is DeadMansDeckGame
@@ -301,11 +309,18 @@ def test_card_count_action_and_keybind_are_available() -> None:
     user.clear_messages()
     game.execute_action(player, "read_card_counts")
 
-    text = user.get_last_spoken()
-    assert text is not None
-    assert "Player1: 2 cards left" in text
-    assert "Player2: 1 card left" in text
-    assert "Player3: eliminated" in text
+    texts = status_texts(user)
+    assert "Player1: 2 cards left." in texts
+    assert "Player2: 1 card left." in texts
+    assert "Player3: eliminated." in texts
+    assert status_ids(user) == ["cards:p1", "cards:p2", "cards:p3"]
+    assert user.menus["status_box"]["selection_id"] == "cards:p1"
+
+    game.players[1].hand.append(DeadMansDeckCard(id=4, rank="ace"))
+    game.refresh_menus()
+    game.flush_menus()
+
+    assert "Player2: 2 cards left." in status_texts(user)
 
     card_count_keybinds = game._keybinds["e"]
     assert any(
@@ -334,6 +349,32 @@ def test_touch_info_actions_keep_card_counts_in_logical_order() -> None:
     ordered_target = [action_id for action_id in action_set._order if action_id in target]
 
     assert ordered_target == target
+
+
+def test_challenge_loser_starts_next_round_when_alive() -> None:
+    game = make_game(3)
+    game.status = "playing"
+    game.game_active = True
+    game.round_order_ids = [player.id for player in game.players]
+    game.next_round_starter_id = game.players[1].id
+
+    game._start_round()
+
+    assert game.round_order_ids[0] == game.players[1].id
+
+
+def test_eliminated_challenge_loser_hands_start_to_next_alive_player() -> None:
+    game = make_game(3)
+    game.status = "playing"
+    game.game_active = True
+    game.round_order_ids = [player.id for player in game.players]
+    game.players[1].eliminated = True
+    game.next_round_starter_id = game.players[1].id
+
+    game._start_round()
+
+    assert game.round_order_ids[0] == game.players[2].id
+    assert game.players[1].id not in game.round_order_ids
 
 
 def test_hand_is_sorted_king_to_ace_with_jokers_last() -> None:
@@ -676,7 +717,7 @@ def test_claim_tts_is_sent_with_play_sound() -> None:
         for index, (message_type, marker) in enumerate(markers)
         if message_type == "play_sound" and marker in SOUND_PLAYS
     )
-    claim_index = marker_index(markers, "speak", "claims")
+    claim_index = marker_index(markers, "speak", "You claim")
 
     assert claim_index == play_index + 1
 
@@ -697,7 +738,10 @@ def test_player_running_out_of_cards_is_announced_with_claim() -> None:
 
     for table_player in game.players:
         text = " ".join(speech_texts(game.get_user(table_player)))
-        assert f"{player.name} has no cards left" in text
+        if table_player == player:
+            assert "You have no cards left" in text
+        else:
+            assert f"{player.name} has no cards left" in text
 
 
 def test_unchallenged_claim_has_no_repetitive_tts() -> None:
@@ -748,7 +792,7 @@ def test_bluff_challenge_uses_ordered_public_sounds() -> None:
     assert advance_until(game, lambda: game.phase == PHASE_PLAYING and game.current_player == bob)
     game.execute_action(bob, "call_liar")
     markers = message_markers(game.get_user(bob))
-    assert marker_index(markers, "speak", "calls") == marker_index(markers, "play_sound", SOUND_CHALLENGE) + 1
+    assert marker_index(markers, "speak", "You call") == marker_index(markers, "play_sound", SOUND_CHALLENGE) + 1
     assert advance_until(game, lambda: game.phase != "challenge", max_ticks=200)
 
     for player in game.players:
@@ -761,7 +805,13 @@ def test_bluff_challenge_uses_ordered_public_sounds() -> None:
             [SOUND_CHALLENGE, SOUND_REVEAL, SOUND_CHALLENGE_SUCCESS],
         )
         assert marker_index(markers, "speak", "revealed") == marker_index(markers, "play_sound", SOUND_REVEAL) + 1
-        assert marker_index(markers, "speak", "bluff was caught") == marker_index(markers, "play_sound", SOUND_CHALLENGE_SUCCESS) + 1
+        if player == bob:
+            result_text = "You caught"
+        elif player == alice:
+            result_text = "caught your bluff"
+        else:
+            result_text = "caught"
+        assert marker_index(markers, "speak", result_text) == marker_index(markers, "play_sound", SOUND_CHALLENGE_SUCCESS) + 1
 
 
 def test_roulette_survival_uses_empty_click_and_random_casing_publicly() -> None:
@@ -834,7 +884,7 @@ def test_roulette_elimination_uses_gunshot_hit_and_body_fall_publicly() -> None:
         assert any(sound in sounds for sound in SOUND_BODY_FALLS)
 
 
-def test_read_table_and_revolvers_use_direct_tts() -> None:
+def test_read_table_and_revolvers_use_live_status_boxes() -> None:
     random.seed(45)
     game = make_game(2)
     game.on_start()
@@ -845,11 +895,19 @@ def test_read_table_and_revolvers_use_direct_tts() -> None:
     user.clear_messages()
 
     game.execute_action(player, "read_table")
-    game.execute_action(player, "read_revolvers")
+    table_texts = status_texts(user)
+    assert any("Round" in text for text in table_texts)
+    assert any("Current turn" in text for text in table_texts)
+    assert user.menus["status_box"]["selection_id"] == "round"
 
-    assert [message.type for message in user.messages] == ["speak", "speak"]
-    assert "Round" in user.messages[0].data["text"]
-    assert "Revolver status" in user.messages[1].data["text"]
+    game.execute_action(player, "read_revolvers")
+    revolver_texts = status_texts(user)
+    assert revolver_texts[0] == "Revolver status"
+    assert status_ids(user)[0] == "header"
+    assert any(text.startswith("Player1:") for text in revolver_texts)
+    assert user.menus["status_box"]["selection_id"] == "header"
+
+    assert [message.type for message in user.messages] == ["show_menu", "show_menu"]
 
 
 def test_read_table_before_round_target_is_set_uses_clear_status() -> None:
@@ -863,7 +921,7 @@ def test_read_table_before_round_target_is_set_uses_clear_status() -> None:
 
     game.execute_action(player, "read_table")
 
-    assert "Target: not set yet" in user.get_last_spoken()
+    assert any("Target: not set yet" in text for text in status_texts(user))
 
 
 def test_game_over_tts_is_sent_with_sound() -> None:
@@ -878,7 +936,8 @@ def test_game_over_tts_is_sent_with_sound() -> None:
 
     for player in game.players:
         markers = message_markers(game.get_user(player))
-        assert marker_index(markers, "speak", "wins") == marker_index(markers, "play_sound", SOUND_GAME_OVER) + 1
+        marker = "You are the last player" if player == winner else "wins Dead Man's Deck"
+        assert marker_index(markers, "speak", marker) == marker_index(markers, "play_sound", SOUND_GAME_OVER) + 1
 
 
 def test_deadmansdeck_localization_parity() -> None:

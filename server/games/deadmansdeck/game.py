@@ -17,6 +17,7 @@ from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.sequence_runner_mixin import SequenceBeat, SequenceOperation
 from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
+from ...users.base import MenuItem
 from .bot import bot_think as _bot_think
 
 
@@ -180,6 +181,7 @@ class DeadMansDeckGame(Game):
     phase: str = PHASE_PREPARING
     last_claim: DeadMansDeckClaim | None = None
     round_order_ids: list[str] = field(default_factory=list)
+    next_round_starter_id: str = ""
     pending_challenger_id: str = ""
     pending_accused_id: str = ""
     pending_penalty_player_id: str = ""
@@ -240,6 +242,7 @@ class DeadMansDeckGame(Game):
         self.phase = PHASE_PREPARING
         self.winner_id = ""
         self.last_claim = None
+        self.next_round_starter_id = ""
         self.clear_scheduled_sounds()
         self.cancel_all_sequences()
 
@@ -453,9 +456,9 @@ class DeadMansDeckGame(Game):
         self.pending_penalty_player_id = ""
         self.pending_challenge_success = False
 
-        ordered_players = self.alive_players[:]
-        random.shuffle(ordered_players)
+        ordered_players = self._round_order()
         self.round_order_ids = [p.id for p in ordered_players]
+        self.next_round_starter_id = ""
         self.set_turn_players(ordered_players)
         self._clear_round_hands()
         self.refresh_menus()
@@ -480,6 +483,53 @@ class DeadMansDeckGame(Game):
             lock_scope=self.SEQUENCE_LOCK_GAMEPLAY,
             pause_bots=True,
         )
+
+    def _round_order(self) -> list[DeadMansDeckPlayer]:
+        alive = self.alive_players[:]
+        if not alive:
+            return []
+
+        starter_id = self._round_starter_id(alive)
+        if not starter_id:
+            random.shuffle(alive)
+            return alive
+
+        previous_order = [
+            player
+            for player_id in self.round_order_ids
+            if isinstance(player := self.get_player_by_id(player_id), DeadMansDeckPlayer)
+            and not player.eliminated
+        ]
+        previous_ids = {player.id for player in previous_order}
+        missing = [player for player in alive if player.id not in previous_ids]
+        random.shuffle(missing)
+        ordered = previous_order + missing
+        starter_index = next(
+            (index for index, player in enumerate(ordered) if player.id == starter_id),
+            None,
+        )
+        if starter_index is None:
+            random.shuffle(alive)
+            return alive
+        return ordered[starter_index:] + ordered[:starter_index]
+
+    def _round_starter_id(self, alive: list[DeadMansDeckPlayer]) -> str:
+        alive_ids = {player.id for player in alive}
+        if self.next_round_starter_id in alive_ids:
+            return self.next_round_starter_id
+        if not self.next_round_starter_id or not self.round_order_ids:
+            return ""
+        try:
+            previous_index = self.round_order_ids.index(self.next_round_starter_id)
+        except ValueError:
+            return ""
+        for offset in range(1, len(self.round_order_ids) + 1):
+            candidate_id = self.round_order_ids[
+                (previous_index + offset) % len(self.round_order_ids)
+            ]
+            if candidate_id in alive_ids:
+                return candidate_id
+        return ""
 
     def _announce_round_start(self) -> None:
         self._deal_round_hands()
@@ -521,6 +571,93 @@ class DeadMansDeckGame(Game):
                 cards=self._format_cards(player.hand, user.locale),
             )
 
+    def _broadcast_challenge_call(
+        self,
+        challenger: DeadMansDeckPlayer,
+        accused: DeadMansDeckPlayer,
+        *,
+        forced: bool,
+    ) -> None:
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+            if listener.id == challenger.id:
+                user.speak_l(
+                    "deadmansdeck-you-forced-liar-call"
+                    if forced
+                    else "deadmansdeck-you-call-liar",
+                    buffer="game",
+                    accused=accused.name,
+                )
+            elif listener.id == accused.id:
+                user.speak_l(
+                    "deadmansdeck-forced-liar-call-you"
+                    if forced
+                    else "deadmansdeck-player-calls-you-liar",
+                    buffer="game",
+                    challenger=challenger.name,
+                )
+            else:
+                user.speak_l(
+                    "deadmansdeck-forced-liar-call"
+                    if forced
+                    else "deadmansdeck-player-calls-liar",
+                    buffer="game",
+                    challenger=challenger.name,
+                    accused=accused.name,
+                )
+
+    def _broadcast_challenge_result(
+        self,
+        challenger: DeadMansDeckPlayer,
+        accused: DeadMansDeckPlayer,
+    ) -> None:
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+            if self.pending_challenge_success:
+                if listener.id == challenger.id:
+                    user.speak_l(
+                        "deadmansdeck-you-caught-bluff",
+                        buffer="game",
+                        accused=accused.name,
+                    )
+                elif listener.id == accused.id:
+                    user.speak_l(
+                        "deadmansdeck-your-bluff-caught",
+                        buffer="game",
+                        challenger=challenger.name,
+                    )
+                else:
+                    user.speak_l(
+                        "deadmansdeck-bluff-caught",
+                        buffer="game",
+                        challenger=challenger.name,
+                        accused=accused.name,
+                    )
+            else:
+                if listener.id == challenger.id:
+                    user.speak_l(
+                        "deadmansdeck-you-wrong-challenge",
+                        buffer="game",
+                        accused=accused.name,
+                    )
+                elif listener.id == accused.id:
+                    user.speak_l(
+                        "deadmansdeck-your-truthful-claim",
+                        buffer="game",
+                        challenger=challenger.name,
+                    )
+                else:
+                    user.speak_l(
+                        "deadmansdeck-truthful-claim",
+                        buffer="game",
+                        challenger=challenger.name,
+                        accused=accused.name,
+                    )
+
     def _start_turn(self) -> None:
         if self.phase != PHASE_PLAYING:
             return
@@ -538,10 +675,11 @@ class DeadMansDeckGame(Game):
             forced = self._forced_challenger()
             if forced:
                 self.current_player = forced
-                self.broadcast_l(
+                self.broadcast_personal_l(
+                    forced,
+                    "deadmansdeck-you-forced-challenge",
                     "deadmansdeck-forced-challenge",
                     buffer="game",
-                    player=forced.name,
                 )
                 self._start_challenge_sequence(forced, forced=True)
                 return
@@ -549,10 +687,11 @@ class DeadMansDeckGame(Game):
             if player.hand:
                 break
 
-            self.broadcast_l(
+            self.broadcast_personal_l(
+                player,
+                "deadmansdeck-you-skipped-no-cards",
                 "deadmansdeck-player-skipped-no-cards",
                 buffer="game",
-                player=player.name,
             )
             self.advance_turn(announce=False)
         else:
@@ -734,6 +873,8 @@ class DeadMansDeckGame(Game):
         )
 
     def before_menu_build(self, player: Player) -> None:
+        if not isinstance(player, DeadMansDeckPlayer):
+            return
         self._sync_turn_actions(player)
 
     def _sync_turn_actions(
@@ -745,9 +886,11 @@ class DeadMansDeckGame(Game):
             action_set = self.get_action_set(player, "turn")
         if action_set is None:
             return
+        if not isinstance(player, DeadMansDeckPlayer):
+            return
 
         action_set.remove_by_prefix("select_card_")
-        dmd_player: DeadMansDeckPlayer = player  # type: ignore[assignment]
+        dmd_player = player
         self._sort_hand(dmd_player)
         user = self.get_user(player)
         locale = user.locale if user else "en"
@@ -973,18 +1116,28 @@ class DeadMansDeckGame(Game):
         self.request_menu_focus(player, action_id)
 
     def _action_clear_selection(self, player: Player, action_id: str) -> None:
+        disabled = self._is_clear_selection_enabled(player)
+        user = self.get_user(player)
+        if disabled:
+            if user:
+                user.speak_l(disabled, buffer="game")
+            return
         dmd_player: DeadMansDeckPlayer = player  # type: ignore[assignment]
         dmd_player.selected_card_ids.clear()
-        user = self.get_user(player)
         if user:
             user.speak_l("deadmansdeck-selection-cleared", buffer="game")
         self.refresh_menus(player)
 
     def _action_play_selected(self, player: Player, action_id: str) -> None:
+        disabled = self._is_play_selected_enabled(player)
+        user = self.get_user(player)
+        if disabled:
+            if user:
+                user.speak_l(disabled, buffer="game")
+            return
         dmd_player: DeadMansDeckPlayer = player  # type: ignore[assignment]
         selected_cards = self._selected_cards(dmd_player)
         if not (1 <= len(selected_cards) <= MAX_CLAIM_CARDS):
-            user = self.get_user(player)
             if user:
                 user.speak_l("deadmansdeck-select-card-first", buffer="game")
             return
@@ -1027,6 +1180,12 @@ class DeadMansDeckGame(Game):
         )
 
     def _action_call_liar(self, player: Player, action_id: str) -> None:
+        disabled = self._is_call_liar_enabled(player)
+        user = self.get_user(player)
+        if disabled:
+            if user:
+                user.speak_l(disabled, buffer="game")
+            return
         dmd_player: DeadMansDeckPlayer = player  # type: ignore[assignment]
         self._start_challenge_sequence(dmd_player, forced=False)
 
@@ -1052,118 +1211,176 @@ class DeadMansDeckGame(Game):
         if not user:
             return
 
-        lines = []
-        for table_player in self.get_active_players():
-            dmd_player: DeadMansDeckPlayer = table_player  # type: ignore[assignment]
-            if dmd_player.eliminated:
-                lines.append(
-                    Localization.get(
-                        user.locale,
-                        "deadmansdeck-card-count-eliminated",
-                        player=dmd_player.name,
-                    )
-                )
-            else:
-                lines.append(
-                    Localization.get(
-                        user.locale,
-                        "deadmansdeck-card-count-line",
-                        player=dmd_player.name,
-                        count=len(dmd_player.hand),
-                    )
-                )
-        self._speak_lines(user, lines)
+        first_player = next(iter(self.get_active_players()), None)
+        self.live_status_box(
+            player,
+            "deadmansdeck_card_counts",
+            lambda _player, live_user: self._card_count_items(live_user.locale),
+            focus_id=f"cards:{first_player.id}" if first_player else None,
+        )
 
     def _action_read_table(self, player: Player, action_id: str) -> None:
         user = self.get_user(player)
         if not user:
             return
 
-        lines = [
-            Localization.get(
-                user.locale,
-                "deadmansdeck-table-round",
-                round=self.round,
-                target=(
-                    self._rank_name(self.target_rank, user.locale, plural=True)
-                    if self.target_rank
-                    else Localization.get(
-                        user.locale,
-                        "deadmansdeck-table-target-pending",
-                    )
-                ),
-            )
-        ]
-        current = self.current_player
-        if current:
-            lines.append(
-                Localization.get(
-                    user.locale,
-                    "deadmansdeck-table-current-turn",
-                    player=current.name,
-                )
-            )
-        if self.last_claim:
-            lines.append(
-                Localization.get(
-                    user.locale,
-                    "deadmansdeck-table-last-claim",
-                    player=self.last_claim.player_name,
-                    claim=self._claim_text(self.last_claim.count, self.last_claim.target_rank, user.locale),
-                )
-            )
-        else:
-            lines.append(Localization.get(user.locale, "deadmansdeck-table-no-claim"))
-
-        alive_names = [p.name for p in self.alive_players]
-        lines.append(
-            Localization.get(
-                user.locale,
-                "deadmansdeck-table-alive",
-                players=Localization.format_list_and(user.locale, alive_names),
-            )
+        self.live_status_box(
+            player,
+            "deadmansdeck_table",
+            lambda _player, live_user: self._table_status_items(live_user.locale),
+            focus_id="round",
         )
-        eliminated = [p.name for p in self.get_active_players() if isinstance(p, DeadMansDeckPlayer) and p.eliminated]
-        if eliminated:
-            lines.append(
-                Localization.get(
-                    user.locale,
-                    "deadmansdeck-table-eliminated",
-                    players=Localization.format_list_and(user.locale, eliminated),
-                )
-            )
-        self._speak_lines(user, lines)
 
     def _action_read_revolvers(self, player: Player, action_id: str) -> None:
         user = self.get_user(player)
         if not user:
             return
-        lines = [Localization.get(user.locale, "deadmansdeck-revolvers-header")]
+        self.live_status_box(
+            player,
+            "deadmansdeck_revolvers",
+            lambda _player, live_user: self._revolver_status_items(live_user.locale),
+            focus_id="header",
+        )
+
+    def _card_count_items(self, locale: str) -> list[MenuItem]:
+        items: list[MenuItem] = []
         for table_player in self.get_active_players():
             dmd_player: DeadMansDeckPlayer = table_player  # type: ignore[assignment]
             if dmd_player.eliminated:
-                lines.append(
-                    Localization.get(
-                        user.locale,
-                        "deadmansdeck-revolver-eliminated",
-                        player=dmd_player.name,
+                text = Localization.get(
+                    locale,
+                    "deadmansdeck-card-count-eliminated",
+                    player=dmd_player.name,
+                )
+            else:
+                text = Localization.get(
+                    locale,
+                    "deadmansdeck-card-count-line",
+                    player=dmd_player.name,
+                    count=len(dmd_player.hand),
+                )
+            items.append(MenuItem(text=text, id=f"cards:{dmd_player.id}"))
+        return items
+
+    def _table_status_items(self, locale: str) -> list[MenuItem]:
+        items = [
+            MenuItem(
+                text=Localization.get(
+                    locale,
+                    "deadmansdeck-table-round",
+                    round=self.round,
+                    target=(
+                        self._rank_name(self.target_rank, locale, plural=True)
+                        if self.target_rank
+                        else Localization.get(
+                            locale,
+                            "deadmansdeck-table-target-pending",
+                        )
+                    ),
+                ),
+                id="round",
+            )
+        ]
+        current = self.current_player
+        if current:
+            items.append(
+                MenuItem(
+                    text=Localization.get(
+                        locale,
+                        "deadmansdeck-table-current-turn",
+                        player=current.name,
+                    ),
+                    id="current_turn",
+                )
+            )
+        if self.last_claim:
+            items.append(
+                MenuItem(
+                    text=Localization.get(
+                        locale,
+                        "deadmansdeck-table-last-claim",
+                        player=self.last_claim.player_name,
+                        claim=self._claim_text(
+                            self.last_claim.count,
+                            self.last_claim.target_rank,
+                            locale,
+                        ),
+                    ),
+                    id="last_claim",
+                )
+            )
+        else:
+            items.append(
+                MenuItem(
+                    text=Localization.get(locale, "deadmansdeck-table-no-claim"),
+                    id="last_claim",
+                )
+            )
+
+        alive_names = [p.name for p in self.alive_players]
+        items.append(
+            MenuItem(
+                text=Localization.get(
+                    locale,
+                    "deadmansdeck-table-alive",
+                    players=Localization.format_list_and(locale, alive_names),
+                ),
+                id="alive",
+            )
+        )
+        eliminated = [
+            p.name
+            for p in self.get_active_players()
+            if isinstance(p, DeadMansDeckPlayer) and p.eliminated
+        ]
+        if eliminated:
+            items.append(
+                MenuItem(
+                    text=Localization.get(
+                        locale,
+                        "deadmansdeck-table-eliminated",
+                        players=Localization.format_list_and(locale, eliminated),
+                    ),
+                    id="eliminated",
+                )
+            )
+        return items
+
+    def _revolver_status_items(self, locale: str) -> list[MenuItem]:
+        items = [
+            MenuItem(
+                text=Localization.get(locale, "deadmansdeck-revolvers-header"),
+                id="header",
+            )
+        ]
+        for table_player in self.get_active_players():
+            dmd_player: DeadMansDeckPlayer = table_player  # type: ignore[assignment]
+            if dmd_player.eliminated:
+                items.append(
+                    MenuItem(
+                        text=Localization.get(
+                            locale,
+                            "deadmansdeck-revolver-eliminated",
+                            player=dmd_player.name,
+                        ),
+                        id=f"revolver:{dmd_player.id}",
                     )
                 )
                 continue
             remaining = max(1, CHAMBER_COUNT - dmd_player.chamber_index)
-            lines.append(
-                Localization.get(
-                    user.locale,
-                    "deadmansdeck-revolver-status",
-                    player=dmd_player.name,
-                    survived=dmd_player.chamber_index,
-                    remaining=remaining,
+            items.append(
+                MenuItem(
+                    text=Localization.get(
+                        locale,
+                        "deadmansdeck-revolver-status",
+                        player=dmd_player.name,
+                        survived=dmd_player.chamber_index,
+                        remaining=remaining,
+                    ),
+                    id=f"revolver:{dmd_player.id}",
                 )
             )
-        self._speak_lines(user, lines)
-
-    def _speak_lines(self, user, lines: list[str]) -> None:
-        user.speak(" ".join(line for line in lines if line), buffer="game")
+        return items
 
     def _card_for_action(
         self,
@@ -1267,12 +1484,19 @@ class DeadMansDeckGame(Game):
             user = self.get_user(listener)
             if not user:
                 continue
-            user.speak_l(
-                "deadmansdeck-revealed-cards",
-                buffer="game",
-                player=accused.name,
-                cards=self._format_cards(claim.cards, user.locale),
-            )
+            if listener.id == accused.id:
+                user.speak_l(
+                    "deadmansdeck-your-revealed-cards",
+                    buffer="game",
+                    cards=self._format_cards(claim.cards, user.locale),
+                )
+            else:
+                user.speak_l(
+                    "deadmansdeck-revealed-cards",
+                    buffer="game",
+                    player=accused.name,
+                    cards=self._format_cards(claim.cards, user.locale),
+                )
 
     def _announce_challenge_result(self) -> None:
         challenger = self.get_player_by_id(self.pending_challenger_id)
@@ -1288,23 +1512,10 @@ class DeadMansDeckGame(Game):
 
         if self.pending_challenge_success:
             challenger.correct_challenges += 1
-            self.broadcast_l(
-                "deadmansdeck-bluff-caught",
-                buffer="game",
-                challenger=challenger.name,
-                accused=accused.name,
-                penalty=penalty_player.name,
-            )
         else:
             challenger.failed_challenges += 1
             accused.truthful_claims += 1
-            self.broadcast_l(
-                "deadmansdeck-truthful-claim",
-                buffer="game",
-                challenger=challenger.name,
-                accused=accused.name,
-                penalty=penalty_player.name,
-            )
+        self._broadcast_challenge_result(challenger, accused)
 
     def _finish_challenge(self) -> None:
         penalty_player = self.get_player_by_id(self.pending_penalty_player_id)
@@ -1314,16 +1525,18 @@ class DeadMansDeckGame(Game):
             return
 
         self.last_claim = None
+        self.next_round_starter_id = penalty_player.id
         self._start_roulette_sequence(penalty_player)
 
     def _start_roulette_sequence(self, player: DeadMansDeckPlayer) -> None:
         self.phase = PHASE_ROULETTE
         self.pending_penalty_player_id = player.id
         lethal = player.chamber_index == player.bullet_position
-        self.broadcast_l(
+        self.broadcast_personal_l(
+            player,
+            "deadmansdeck-you-face-revolver",
             "deadmansdeck-roulette-start",
             buffer="game",
-            player=player.name,
         )
         self.refresh_menus()
 
@@ -1389,12 +1602,14 @@ class DeadMansDeckGame(Game):
         player.chamber_index += 1
         player.roulette_survivals += 1
         remaining = max(1, CHAMBER_COUNT - player.chamber_index)
-        self.broadcast_l(
+        self.broadcast_personal_l(
+            player,
+            "deadmansdeck-you-roulette-survived",
             "deadmansdeck-roulette-survived",
             buffer="game",
-            player=player.name,
             remaining=remaining,
         )
+        self.refresh_menus()
 
     def _finish_roulette_survival(self) -> None:
         self._start_round()
@@ -1407,7 +1622,13 @@ class DeadMansDeckGame(Game):
         player.eliminated = True
         player.hand.clear()
         player.selected_card_ids.clear()
-        self.broadcast_l("deadmansdeck-player-eliminated", buffer="game", player=player.name)
+        self.broadcast_personal_l(
+            player,
+            "deadmansdeck-you-eliminated-by-gun",
+            "deadmansdeck-player-eliminated",
+            buffer="game",
+        )
+        self.refresh_menus()
 
     def _finish_roulette_elimination(self) -> None:
         if not self._check_game_end():
@@ -1482,26 +1703,35 @@ class DeadMansDeckGame(Game):
 
         if callback_id == "announce_claim":
             player = self.get_player_by_id(payload.get("player_id", ""))
-            if self.last_claim and player:
+            if self.last_claim and isinstance(player, DeadMansDeckPlayer):
                 for listener in self.players:
                     user = self.get_user(listener)
                     if not user:
                         continue
-                    user.speak_l(
-                        "deadmansdeck-player-claims",
-                        buffer="game",
-                        player=player.name,
-                        claim=self._claim_text(
-                            self.last_claim.count,
-                            self.last_claim.target_rank,
-                            user.locale,
-                        ),
+                    claim_text = self._claim_text(
+                        self.last_claim.count,
+                        self.last_claim.target_rank,
+                        user.locale,
                     )
-                if isinstance(player, DeadMansDeckPlayer) and not player.hand:
-                    self.broadcast_l(
+                    if listener.id == player.id:
+                        user.speak_l(
+                            "deadmansdeck-you-claim",
+                            buffer="game",
+                            claim=claim_text,
+                        )
+                    else:
+                        user.speak_l(
+                            "deadmansdeck-player-claims",
+                            buffer="game",
+                            player=player.name,
+                            claim=claim_text,
+                        )
+                if not player.hand:
+                    self.broadcast_personal_l(
+                        player,
+                        "deadmansdeck-you-out-of-cards",
                         "deadmansdeck-player-out-of-cards",
                         buffer="game",
-                        player=player.name,
                     )
             return
 
@@ -1513,17 +1743,14 @@ class DeadMansDeckGame(Game):
         if callback_id == "announce_challenge":
             challenger = self.get_player_by_id(payload.get("challenger_id", ""))
             accused = self.get_player_by_id(self.pending_accused_id)
-            if challenger and accused:
-                key = (
-                    "deadmansdeck-forced-liar-call"
-                    if payload.get("forced")
-                    else "deadmansdeck-player-calls-liar"
-                )
-                self.broadcast_l(
-                    key,
-                    buffer="game",
-                    challenger=challenger.name,
-                    accused=accused.name,
+            if isinstance(challenger, DeadMansDeckPlayer) and isinstance(
+                accused,
+                DeadMansDeckPlayer,
+            ):
+                self._broadcast_challenge_call(
+                    challenger,
+                    accused,
+                    forced=bool(payload.get("forced")),
                 )
             return
 
@@ -1558,7 +1785,12 @@ class DeadMansDeckGame(Game):
         if callback_id == "announce_game_over":
             winner = self.get_player_by_id(self.winner_id) if self.winner_id else None
             if winner:
-                self.broadcast_l("deadmansdeck-player-wins", buffer="game", player=winner.name)
+                self.broadcast_personal_l(
+                    winner,
+                    "deadmansdeck-you-win-game",
+                    "deadmansdeck-player-wins",
+                    buffer="game",
+                )
             else:
                 self.broadcast_l("deadmansdeck-no-winner", buffer="game")
             return
