@@ -44,6 +44,7 @@ from ..games.backgammon.game import (
 )
 from ..messages.localization import Localization
 from ..users.bot import Bot
+from ..users.test_user import MockUser
 
 
 _locales_dir = Path(__file__).parent.parent / "locales"
@@ -59,6 +60,31 @@ def make_game(start: bool = False, **option_overrides) -> BackgammonGame:
     if start:
         game.on_start()
     return game
+
+
+def make_human_game(start: bool = False, **option_overrides):
+    game = BackgammonGame(options=BackgammonOptions(**option_overrides))
+    game.setup_keybinds()
+    alpha = MockUser("Alpha", uuid="p1")
+    beta = MockUser("Beta", uuid="p2")
+    game.add_player("Alpha", alpha)
+    game.add_player("Beta", beta)
+    game.host = "Alpha"
+    if start:
+        game.on_start()
+    return game, alpha, beta
+
+
+def ftl_keys(path: Path) -> set[str]:
+    keys: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        if line[:1].isspace():
+            continue
+        keys.add(stripped.split("=", 1)[0].strip())
+    return keys
 
 
 # ==========================================================================
@@ -542,6 +568,211 @@ class TestGameRegistration:
 
     def test_category(self):
         assert BackgammonGame.get_category() == "board"
+
+    def test_relevant_preferences(self):
+        assert BackgammonGame.relevant_preferences == [
+            "brief_announcements",
+            "confirm_destructive_actions",
+        ]
+
+    def test_locale_key_parity(self):
+        root = Path(__file__).resolve().parents[1]
+        en_keys = ftl_keys(root / "locales" / "en" / "backgammon.ftl")
+        vi_keys = ftl_keys(root / "locales" / "vi" / "backgammon.ftl")
+        assert en_keys == vi_keys
+
+
+class TestBackgammonPolish:
+    def test_roll_uses_personal_and_public_announcements(self):
+        game, _, _ = make_human_game(start=True, match_length=3)
+        actor = game.players[0]
+        other = game.players[1]
+        assert isinstance(actor, BackgammonPlayer)
+        assert isinstance(other, BackgammonPlayer)
+
+        game.game_state.current_color = actor.color
+        game.game_state.turn_phase = "pre_roll"
+        game.current_player = actor
+        actor_user = game.get_user(actor)
+        other_user = game.get_user(other)
+        assert actor_user is not None
+        assert other_user is not None
+        actor_user.clear_messages()
+        other_user.clear_messages()
+
+        game._do_roll(actor)
+
+        actor_text = " ".join(actor_user.get_spoken_messages())
+        other_text = " ".join(other_user.get_spoken_messages())
+        assert "You roll" in actor_text
+        assert f"{actor.name} rolls" in other_text
+
+    def test_brief_move_announcement_omits_points_per_listener(self):
+        game, _, _ = make_human_game(start=True)
+        red = game._get_player_by_color("red")
+        white = game._get_player_by_color("white")
+        assert red is not None
+        assert white is not None
+        red_user = game.get_user(red)
+        white_user = game.get_user(white)
+        assert red_user is not None
+        assert white_user is not None
+
+        gs = game.game_state
+        gs.board.points = [0] * 24
+        gs.board.points[10] = 1
+        gs.dice = [3, 1]
+        gs.dice_used = [False, False]
+        gs.current_color = "red"
+        gs.turn_phase = "moving"
+        game.current_player = red
+        game._forced_dice = None
+        red_user.preferences.brief_announcements = True
+        red_user.clear_messages()
+        white_user.clear_messages()
+
+        game._try_apply_move_direct(red, 10, 7)
+
+        red_text = " ".join(red_user.get_spoken_messages())
+        white_text = " ".join(white_user.get_spoken_messages())
+        assert "You move a checker." in red_text
+        assert "point" not in red_text.lower()
+        assert f"{red.name} moves a checker from point" in white_text
+
+    def test_blocked_destination_speaks_specific_error(self):
+        game, _, _ = make_human_game(start=True)
+        red = game._get_player_by_color("red")
+        assert red is not None
+        user = game.get_user(red)
+        assert user is not None
+
+        gs = game.game_state
+        gs.board.points = [0] * 24
+        gs.board.points[10] = 1
+        gs.board.points[7] = -2
+        gs.dice = [3]
+        gs.dice_used = [False]
+        gs.current_color = "red"
+        gs.turn_phase = "moving"
+        gs.selected_source = 10
+        game.current_player = red
+        game._forced_dice = None
+        user.clear_messages()
+
+        game.execute_action(red, "point_7")
+
+        assert user.get_last_spoken() == "Point 8 is blocked by 2 opposing checkers."
+        assert gs.selected_source is None
+
+    def test_selected_point_label_only_marks_current_player(self):
+        game = make_game(start=True)
+        red = game._get_player_by_color("red")
+        white = game._get_player_by_color("white")
+        assert red is not None
+        assert white is not None
+
+        game.game_state.current_color = "red"
+        game.game_state.selected_source = 10
+
+        assert "selected" in game._get_point_label(red, "point_10")
+        assert "selected" not in game._get_point_label(white, "point_10")
+
+    def test_humans_cannot_use_internal_bot_combined_move_action(self):
+        game, _, _ = make_human_game(start=True)
+        red = game._get_player_by_color("red")
+        assert red is not None
+
+        gs = game.game_state
+        gs.board.points = [0] * 24
+        gs.board.points[10] = 1
+        gs.dice = [3]
+        gs.dice_used = [False]
+        gs.current_color = "red"
+        gs.turn_phase = "moving"
+        game.current_player = red
+
+        game.execute_action(red, "point_10_7")
+
+        assert gs.board.points[10] == 1
+        assert gs.board.points[7] == 0
+        assert gs.dice_used == [False]
+
+    def test_ctrl_navigation_before_roll_explains_roll_requirement(self):
+        game, _, _ = make_human_game(start=True)
+        red = game._get_player_by_color("red")
+        assert red is not None
+        user = game.get_user(red)
+        assert user is not None
+
+        game.game_state.current_color = "red"
+        game.game_state.turn_phase = "pre_roll"
+        game.current_player = red
+        user.clear_messages()
+
+        game.handle_event(red, {"type": "keybind", "key": "right", "control": True})
+
+        assert user.get_spoken_messages() == [
+            Localization.get("en", "backgammon-need-roll-first")
+        ]
+
+    def test_score_shortcuts_split_basic_and_detailed_output(self):
+        game, _, _ = make_human_game(start=True, match_length=5)
+        red = game._get_player_by_color("red")
+        assert red is not None
+        user = game.get_user(red)
+        assert user is not None
+
+        game.game_state.score_red = 2
+        game.game_state.score_white = 1
+        game.game_state.cube_value = 4
+        expected = game._match_score_lines("en")
+
+        assert [keybind.actions for keybind in game._keybinds["s"]] == [["check_score"]]
+        assert [keybind.actions for keybind in game._keybinds["shift+s"]] == [
+            ["check_score_detailed"]
+        ]
+
+        user.clear_messages()
+        game.handle_event(red, {"type": "keybind", "key": "s"})
+        assert user.get_spoken_messages() == expected
+
+        user.clear_messages()
+        game.handle_event(red, {"type": "keybind", "key": "s", "shift": True})
+        status_items = user.get_current_menu_items("status_box") or []
+        status_text = [item.text if hasattr(item, "text") else item for item in status_items]
+        assert status_text == expected
+
+    def test_drop_double_respects_confirm_risky_actions_preference(self):
+        game, _, _ = make_human_game(start=True, match_length=3)
+        red = game._get_player_by_color("red")
+        white = game._get_player_by_color("white")
+        assert red is not None
+        assert white is not None
+        white_user = game.get_user(white)
+        assert white_user is not None
+
+        gs = game.game_state
+        gs.turn_phase = "doubling"
+        gs.current_color = "red"
+        gs.cube_value = 1
+        gs.score_red = 0
+        gs.score_white = 0
+        game.current_player = red
+        white.drop_confirm_ticks = 0
+        white_user.clear_messages()
+
+        game.execute_action(white, "drop_double")
+
+        assert white.drop_confirm_ticks == 200
+        assert gs.score_red == 0
+        assert white_user.get_last_spoken() == (
+            "Dropping concedes this game at the current cube value. Press Drop again within 10 seconds to confirm."
+        )
+
+        game.execute_action(white, "drop_double")
+
+        assert white.drop_confirm_ticks == 0
+        assert gs.score_red == 1
 
 
 class TestDifficultyOptions:

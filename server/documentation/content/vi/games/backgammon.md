@@ -84,4 +84,5 @@ Một trận gồm nhiều ván liên tiếp cho đến khi đạt điểm mục
 \* \*\*P:\*\* Đọc pip của cả hai bên.
 \* \*\*D:\*\* Đọc trạng thái khối nhân đôi.
 \* \*\*S:\*\* Đọc điểm trận hiện tại.
+\* \*\*Shift+S:\*\* Mở điểm trận chi tiết.
 \* \*\*C:\*\* Đọc các viên xúc xắc còn lại trong lượt hiện tại.

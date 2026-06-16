@@ -84,4 +84,5 @@ A match consists of multiple games played to a target score. After each game, th
 \* \*\*P:\*\* Read the pip counts for both players.
 \* \*\*D:\*\* Read the doubling cube status.
 \* \*\*S:\*\* Read the current match score.
+\* \*\*Shift+S:\*\* Open the detailed match score.
 \* \*\*C:\*\* Read the remaining dice for the current turn.
