@@ -177,6 +177,28 @@ class BattleFighter(DataClassJSONMixin):
     display_number: int = 0
 
 
+@dataclass(frozen=True)
+class BattleBotProjection:
+    expected_damage: float
+    expected_healing: float
+    target_health_after: float
+    target_speed_after: int
+    launcher_health_after: float
+    launcher_attack_delta: int
+    launcher_defense_delta: int
+    launcher_speed_delta: int
+    target_attack_delta: int
+    target_defense_delta: int
+    target_speed_delta: int
+
+
+@dataclass(frozen=True)
+class BattleBotPlan:
+    move: BattleMove
+    target: BattleFighter
+    score: float
+
+
 @dataclass
 class BattleOptions(GameOptions):
     game_mode: str = option_field(
@@ -337,6 +359,19 @@ class BattleGame(Game):
 
     def create_player(self, player_id: str, name: str, is_bot: bool = False) -> BattlePlayer:
         return BattlePlayer(id=player_id, name=name, is_bot=is_bot)
+
+    def _replace_with_bot(self, player: Player, *, allow_waiting: bool = False) -> bool:
+        replaced = super()._replace_with_bot(player, allow_waiting=allow_waiting)
+        if not replaced:
+            return False
+        battle_player = self._as_battle_player(player)
+        if battle_player and self.status == "playing":
+            if self.phase == PHASE_SELECTION and not battle_player.selection_locked:
+                self._auto_fill_selection(battle_player)
+            elif self.phase == PHASE_COMBAT and self.current_fighter and self.current_fighter.owner_player_id == battle_player.id:
+                self.bot_wait_ticks = 0
+            self.refresh_menus()
+        return True
 
     def _as_battle_player(self, player: Player | None) -> BattlePlayer | None:
         return player if isinstance(player, BattlePlayer) else None
@@ -840,10 +875,9 @@ class BattleGame(Game):
             self._auto_fill_selection(battle_player)
 
     def _auto_fill_selection(self, player: BattlePlayer) -> None:
-        preset_ids = list(get_preset_map().keys())
         limit = self._selection_limit_for_mode()
-        selection_count = limit if not self._mode_allows_manual_done() else random.randint(1, limit)
-        player.selected_preset_ids = random.sample(preset_ids, k=min(selection_count, len(preset_ids)))
+        selection_count = min(limit, len(get_preset_map()))
+        player.selected_preset_ids = self._choose_bot_roster(selection_count)
         player.selection_locked = True
         self._announce_selected_fighters(player, player.selected_preset_ids)
         self._broadcast_actor_localized(
@@ -852,6 +886,68 @@ class BattleGame(Game):
             "battle-selection-locked-player",
             player=player.name,
         )
+
+    def _choose_bot_roster(self, selection_count: int) -> list[str]:
+        if selection_count <= 0:
+            return []
+        presets = list(get_preset_map().values())
+        chosen: list[str] = []
+        while len(chosen) < selection_count and len(chosen) < len(presets):
+            best_preset = max(
+                (preset for preset in presets if preset.id not in chosen),
+                key=lambda preset: self._score_bot_preset(preset, chosen),
+            )
+            chosen.append(best_preset.id)
+        return chosen
+
+    def _score_bot_preset(self, preset: BattlePreset, chosen_ids: list[str]) -> float:
+        move_map = get_move_map()
+        score = (preset.health * 1.1) + (preset.attack * 18) + (preset.defense * 16) + (preset.speed * 0.45)
+        burst_scores: list[float] = []
+        healing_score = 0.0
+        speed_control = 0.0
+        defense_break = 0.0
+        self_buff = 0.0
+        for move_id in preset.move_ids:
+            move = move_map.get(move_id)
+            if not move:
+                continue
+            move_damage = 0.0
+            for block in move.blocks:
+                if block.type in {"damage", "drain"}:
+                    move_damage += self._block_average(block) + preset.attack
+                elif block.type == "healing":
+                    healing_score += self._block_average(block) * 1.8
+                elif block.type == "target_speed" and (block.change or 0) < 0:
+                    speed_control += abs(block.change or 0) * 1.1
+                elif block.type == "target_defense" and (block.change or 0) < 0:
+                    defense_break += abs(block.change or 0) * 2.0
+                elif block.type.startswith("launcher_") and (block.change or 0) > 0:
+                    self_buff += (block.change or 0) * 2.4
+            if move_damage > 0:
+                burst_scores.append(move_damage)
+        score += sum(sorted(burst_scores, reverse=True)[:4]) * 2.2
+        score += healing_score + speed_control + defense_break + self_buff
+        chosen_presets = [get_preset_map()[preset_id] for preset_id in chosen_ids if preset_id in get_preset_map()]
+        if chosen_presets:
+            chosen_move_ids = {move_id for chosen in chosen_presets for move_id in chosen.move_ids}
+            chosen_has_healing = any(
+                any(block.type == "healing" for block in move_map[move_id].blocks)
+                for move_id in chosen_move_ids
+                if move_id in move_map
+            )
+            if healing_score > 0 and not chosen_has_healing:
+                score += 35
+            chosen_has_speed_control = any(
+                any(block.type == "target_speed" and (block.change or 0) < 0 for block in move_map[move_id].blocks)
+                for move_id in chosen_move_ids
+                if move_id in move_map
+            )
+            if speed_control > 0 and not chosen_has_speed_control:
+                score += 25
+        if self._survival_options_are_active() or self._is_arena_mode():
+            score += healing_score * 0.55 + preset.defense * 8 + preset.health * 0.35
+        return score
 
     def _all_selection_locked(self) -> bool:
         active = [self._as_battle_player(player) for player in self.get_active_players()]
@@ -1514,43 +1610,224 @@ class BattleGame(Game):
         self._perform_bot_turn(fighter)
 
     def _perform_bot_turn(self, fighter: BattleFighter) -> None:
-        move = self._choose_bot_move(fighter)
-        if not move:
+        plan = self._choose_bot_plan(fighter)
+        if not plan:
             self._begin_next_turn()
             return
-        targets = self._valid_targets(fighter, move)
-        if not targets:
-            self._begin_next_turn()
-            return
-        target = self._choose_bot_target(fighter, move, targets)
-        self._begin_move_resolution(fighter, target, move)
+        self._begin_move_resolution(fighter, plan.target, plan.move)
 
-    def _choose_bot_move(self, fighter: BattleFighter) -> BattleMove | None:
+    def _choose_bot_plan(self, fighter: BattleFighter) -> BattleBotPlan | None:
         moves = [get_move_map()[move_id] for move_id in fighter.move_ids if move_id in get_move_map()]
-        if not moves:
-            return None
-        for move in moves:
-            if any(block.type == "healing" for block in move.blocks):
-                for target in self._valid_targets(fighter, move):
-                    if target.health < target.max_health // 2:
-                        return move
+        best_plan: BattleBotPlan | None = None
         for move in moves:
             for target in self._valid_targets(fighter, move):
-                estimated_damage = 0
-                for block in move.blocks:
-                    if block.type in {"damage", "drain"}:
-                        estimated_damage += ((block.min or 0) + (block.max or 0)) // 2 + fighter.attack - target.defense
-                if estimated_damage >= target.health:
-                    return move
-        return random.choice(moves)
+                score = self._score_bot_move(fighter, move, target)
+                if best_plan is None or score > best_plan.score:
+                    best_plan = BattleBotPlan(move=move, target=target, score=score)
+        return best_plan
+
+    def _choose_bot_move(self, fighter: BattleFighter) -> BattleMove | None:
+        plan = self._choose_bot_plan(fighter)
+        return plan.move if plan else None
 
     def _choose_bot_target(self, fighter: BattleFighter, move: BattleMove, targets: list[BattleFighter]) -> BattleFighter:
-        if any(block.type == "healing" for block in move.blocks):
-            return min(targets, key=lambda candidate: candidate.health / max(1, candidate.max_health))
-        enemies = [target for target in targets if target.team_id != fighter.team_id]
-        if enemies:
-            return min(enemies, key=lambda candidate: (candidate.health, candidate.defense))
-        return random.choice(targets)
+        return max(targets, key=lambda target: self._score_bot_move(fighter, move, target))
+
+    def _block_average(self, block: BattleEffectBlock) -> float:
+        return ((block.min or 0) + (block.max or 0)) / 2
+
+    def _project_bot_move(self, launcher: BattleFighter, target: BattleFighter, move: BattleMove) -> BattleBotProjection:
+        same_fighter = launcher.id == target.id
+        launcher_health = float(launcher.health)
+        target_health = float(target.health)
+        launcher_attack = launcher.attack
+        launcher_defense = launcher.defense
+        launcher_speed = launcher.speed
+        target_attack = target.attack
+        target_defense = target.defense
+        target_speed = target.speed
+        expected_damage = 0.0
+        expected_healing = 0.0
+
+        def apply_launcher_stat(stat: str, change: int) -> None:
+            nonlocal launcher_attack, launcher_defense, launcher_speed, target_attack, target_defense, target_speed
+            if stat == "attack":
+                launcher_attack += change
+                if same_fighter:
+                    target_attack += change
+            elif stat == "defense":
+                launcher_defense += change
+                if same_fighter:
+                    target_defense += change
+            elif stat == "speed":
+                launcher_speed += change
+                if same_fighter:
+                    target_speed += change
+
+        def apply_target_stat(stat: str, change: int) -> None:
+            nonlocal launcher_attack, launcher_defense, launcher_speed, target_attack, target_defense, target_speed
+            if stat == "attack":
+                target_attack += change
+                if same_fighter:
+                    launcher_attack += change
+            elif stat == "defense":
+                target_defense += change
+                if same_fighter:
+                    launcher_defense += change
+            elif stat == "speed":
+                target_speed += change
+                if same_fighter:
+                    launcher_speed += change
+
+        for block in move.blocks:
+            if block.type in {"damage", "drain"}:
+                damage = max(0.0, self._block_average(block) + launcher_attack - target_defense)
+                expected_damage += damage
+                target_health = max(0.0, target_health - damage)
+                if same_fighter:
+                    launcher_health = target_health
+                if block.type == "drain":
+                    healing = min(max(0.0, launcher.max_health - launcher_health), damage * ((block.percent or 50) / 100))
+                    expected_healing += healing
+                    launcher_health = min(float(launcher.max_health), launcher_health + healing)
+                    if same_fighter:
+                        target_health = launcher_health
+            elif block.type == "healing":
+                healing = min(max(0.0, target.max_health - target_health), self._block_average(block))
+                expected_healing += healing
+                target_health = min(float(target.max_health), target_health + healing)
+                if same_fighter:
+                    launcher_health = target_health
+            elif block.type == "launcher_attack":
+                apply_launcher_stat("attack", block.change or 0)
+            elif block.type == "launcher_defense":
+                apply_launcher_stat("defense", block.change or 0)
+            elif block.type == "launcher_speed":
+                apply_launcher_stat("speed", block.change or 0)
+            elif block.type == "target_attack":
+                apply_target_stat("attack", block.change or 0)
+            elif block.type == "target_defense":
+                apply_target_stat("defense", block.change or 0)
+            elif block.type == "target_speed":
+                apply_target_stat("speed", block.change or 0)
+
+        return BattleBotProjection(
+            expected_damage=expected_damage,
+            expected_healing=expected_healing,
+            target_health_after=target_health,
+            target_speed_after=target_speed,
+            launcher_health_after=launcher_health,
+            launcher_attack_delta=launcher_attack - launcher.attack,
+            launcher_defense_delta=launcher_defense - launcher.defense,
+            launcher_speed_delta=launcher_speed - launcher.speed,
+            target_attack_delta=target_attack - target.attack,
+            target_defense_delta=target_defense - target.defense,
+            target_speed_delta=target_speed - target.speed,
+        )
+
+    def _alive_enemies(self, fighter: BattleFighter) -> list[BattleFighter]:
+        return [candidate for candidate in self._alive_fighters() if candidate.team_id != fighter.team_id]
+
+    def _best_expected_damage(self, attacker: BattleFighter, target: BattleFighter) -> float:
+        best_damage = 0.0
+        for move_id in attacker.move_ids:
+            move = get_move_map().get(move_id)
+            if not move or target not in self._valid_targets(attacker, move):
+                continue
+            projection = self._project_bot_move(attacker, target, move)
+            best_damage = max(best_damage, projection.expected_damage)
+        return best_damage
+
+    def _fighter_threat(self, fighter: BattleFighter) -> float:
+        enemy_targets = self._alive_enemies(fighter)
+        best_damage = 0.0
+        for target in enemy_targets:
+            best_damage = max(best_damage, self._best_expected_damage(fighter, target))
+        utility = 0.0
+        for move_id in fighter.move_ids:
+            move = get_move_map().get(move_id)
+            if not move:
+                continue
+            for block in move.blocks:
+                if block.type == "healing":
+                    utility += self._block_average(block) * 0.25
+                elif block.type in {"target_attack", "target_defense", "target_speed"} and (block.change or 0) < 0:
+                    utility += abs(block.change or 0) * 0.7
+        return (
+            min(max(1, fighter.health), 120) * 0.18
+            + max(0, fighter.attack) * 8
+            + max(0, fighter.defense) * 5
+            + max(0, fighter.speed - MIN_ACTIVE_SPEED) * 0.28
+            + best_damage * 2.4
+            + utility
+        )
+
+    def _incoming_pressure(self, fighter: BattleFighter) -> float:
+        return sum(self._best_expected_damage(enemy, fighter) for enemy in self._alive_enemies(fighter))
+
+    def _stat_value(self, fighter: BattleFighter, stat: str) -> float:
+        health_ratio = fighter.health / max(1, fighter.max_health)
+        if stat == "attack":
+            return 7.0 + min(8.0, len(self._alive_enemies(fighter)) * 1.5) / (1 + max(0, fighter.attack) / 10)
+        if stat == "defense":
+            return 6.0 + ((1.0 - health_ratio) * 10) + min(8.0, self._incoming_pressure(fighter) / 6)
+        if stat == "speed":
+            urgency = 3.0 if fighter.speed < MIN_ACTIVE_SPEED + 15 else 0.0
+            initiative_value = 0.8 if self.options.turn_mode == TURN_MODE_INITIATIVE else 0.35
+            return initiative_value + urgency
+        return 0.0
+
+    def _stat_delta_score(self, subject: BattleFighter, stat: str, delta: int, *, ally: bool) -> float:
+        if delta == 0:
+            return 0.0
+        score = delta * self._stat_value(subject, stat)
+        return score if ally else -score
+
+    def _score_bot_move(self, launcher: BattleFighter, move: BattleMove, target: BattleFighter) -> float:
+        projection = self._project_bot_move(launcher, target, move)
+        target_is_ally = target.team_id == launcher.team_id
+        target_is_self = target.id == launcher.id
+        score = 0.0
+
+        if target_is_ally:
+            if projection.expected_damage > 0:
+                score -= 120 + (projection.expected_damage * 8)
+            target_health_ratio = target.health / max(1, target.max_health)
+            score += projection.expected_healing * (3.0 + (1 - target_health_ratio) * 5.0)
+            if projection.expected_healing > 0 and target_health_ratio <= 0.25:
+                score += 110 + min(80.0, self._incoming_pressure(target) * 0.6)
+            if not target_is_self:
+                score += self._stat_delta_score(target, "attack", projection.target_attack_delta, ally=True)
+                score += self._stat_delta_score(target, "defense", projection.target_defense_delta, ally=True)
+                score += self._stat_delta_score(target, "speed", projection.target_speed_delta, ally=True)
+                if target.speed >= MIN_ACTIVE_SPEED and projection.target_speed_after < MIN_ACTIVE_SPEED:
+                    score -= 9000
+        else:
+            target_threat = self._fighter_threat(target)
+            score += projection.expected_damage * 3.2
+            score += min(35.0, (projection.expected_damage / max(1, target.health)) * 35)
+            score += target_threat * 0.22
+            if target.health > 0 and projection.target_health_after <= 0:
+                score += 10000 + (target_threat * 12)
+            score += self._stat_delta_score(target, "attack", projection.target_attack_delta, ally=False)
+            score += self._stat_delta_score(target, "defense", projection.target_defense_delta, ally=False)
+            score += self._stat_delta_score(target, "speed", projection.target_speed_delta, ally=False)
+            if target.speed >= MIN_ACTIVE_SPEED and projection.target_speed_after < MIN_ACTIVE_SPEED:
+                score += 8500 + (target_threat * 8)
+
+        score += self._stat_delta_score(launcher, "attack", projection.launcher_attack_delta, ally=True)
+        score += self._stat_delta_score(launcher, "defense", projection.launcher_defense_delta, ally=True)
+        score += self._stat_delta_score(launcher, "speed", projection.launcher_speed_delta, ally=True)
+        if launcher.speed >= MIN_ACTIVE_SPEED and launcher.speed + projection.launcher_speed_delta < MIN_ACTIVE_SPEED:
+            score -= 9500
+        if projection.launcher_health_after <= 0:
+            score -= 10000
+
+        if projection.expected_healing <= 0 and any(block.type == "healing" for block in move.blocks):
+            score -= 25
+        if projection.expected_damage <= 0 and not target_is_ally and all(block.type not in {"target_attack", "target_defense", "target_speed"} for block in move.blocks):
+            score -= 20
+        return score
 
     def create_turn_action_set(self, player: Player) -> ActionSet:
         return ActionSet(name="turn")

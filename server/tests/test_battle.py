@@ -336,6 +336,102 @@ def test_replaced_player_bot_auto_selects_during_selection() -> None:
     assert len(replaced_player.selected_preset_ids) == game._selection_limit_for_mode()
 
 
+def test_bot_selection_uses_full_flexible_roster_limit() -> None:
+    game = make_game(
+        player_count=1,
+        start=True,
+        bot_all=True,
+        game_mode=MODE_FREE_FOR_ALL,
+        unlimited_selection_limit=3,
+    )
+    bot_player = game.players[0]
+
+    assert bot_player.selection_locked is True
+    assert len(bot_player.selected_preset_ids) == 3
+
+
+def test_replacement_bot_takes_current_combat_turn_immediately() -> None:
+    game = make_game(start=True, turn_mode=TURN_MODE_ROUND_ROBIN)
+    p1, p2 = game.players
+    select_and_submit(game, p1, "master_mage")
+    select_and_submit(game, p2, "fighter_plane")
+    assert advance_until(
+        game,
+        lambda: game.phase == PHASE_COMBAT and game.current_fighter is not None and not game.active_sequences,
+        max_ticks=300,
+    )
+    current_owner = game.get_player_by_id(game.current_fighter.owner_player_id)
+    assert current_owner is not None
+
+    assert game._replace_with_bot(current_owner) is True
+    game.on_tick()
+    game.flush_menus()
+
+    assert current_owner.is_bot is True
+    assert game.has_active_sequence(tag="battle_move")
+
+
+def test_bot_prioritizes_speed_incapacitation_debuffs() -> None:
+    game = make_game(start=True, turn_mode=TURN_MODE_ROUND_ROBIN)
+    p1, p2 = game.players
+    select_and_submit(game, p1, "master_of_the_storm")
+    select_and_submit(game, p2, "fighter_plane")
+    assert advance_until(
+        game,
+        lambda: game.phase == PHASE_COMBAT and game.current_fighter is not None and not game.active_sequences,
+        max_ticks=300,
+    )
+    attacker = next(fighter for fighter in game.fighters if fighter.owner_player_id == p1.id)
+    target = next(fighter for fighter in game.fighters if fighter.owner_player_id == p2.id)
+    game.acting_fighter_id = attacker.id
+    game.acting_player_id = p1.id
+    target.health = 999
+    target.max_health = 999
+    target.speed = MIN_ACTIVE_SPEED + 5
+
+    plan = game._choose_bot_plan(attacker)
+    assert plan is not None
+    projection = game._project_bot_move(attacker, target, plan.move)
+
+    assert plan.target == target
+    assert projection.target_speed_after < MIN_ACTIVE_SPEED
+
+
+def test_bot_heals_critically_wounded_allies_before_chipping_tank() -> None:
+    game = make_game(
+        player_count=3,
+        start=True,
+        game_mode=MODE_TEAM_BATTLE,
+        team_mode="2v1",
+        turn_mode=TURN_MODE_ROUND_ROBIN,
+    )
+    p1, p2, p3 = game.players
+    select_and_submit(game, p1, "master_mage")
+    select_and_submit(game, p2, "novice_boxer")
+    select_and_submit(game, p3, "fighter_plane")
+    assert advance_until(
+        game,
+        lambda: game.phase == PHASE_COMBAT and game.current_fighter is not None and not game.active_sequences,
+        max_ticks=300,
+    )
+    healer = next(fighter for fighter in game.fighters if fighter.owner_player_id == p1.id)
+    ally = next(fighter for fighter in game.fighters if fighter.owner_player_id == p2.id)
+    enemy = next(fighter for fighter in game.fighters if fighter.owner_player_id == p3.id)
+    ally.team_id = healer.team_id
+    enemy.team_id = "enemy_test"
+    ally.health = 5
+    enemy.health = 999
+    enemy.max_health = 999
+    game.acting_fighter_id = healer.id
+    game.acting_player_id = p1.id
+
+    plan = game._choose_bot_plan(healer)
+    assert plan is not None
+
+    assert plan.target == ally
+    assert any(block.type == "healing" for block in plan.move.blocks)
+
+
 def test_single_team_selection_finishes_without_hanging() -> None:
     game = make_game(player_count=1, start=True, game_mode=MODE_FREE_FOR_ALL)
     p1 = game.players[0]
