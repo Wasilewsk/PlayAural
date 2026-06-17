@@ -1,5 +1,59 @@
 Changelog
 
+Wednesday 17 June 2026
+
+Server Updates:
+
+Added full UNO documentation in English and Vietnamese. UNO now has beginner-friendly rules available from How to Play and Documentation, and its prompts, color picker, scoring explanations, and option checks have been polished.
+
+Polished Coup, Citadels, Backgammon, Battle, Battleship, Chess, Crazy Eights, Chaos Bear, Dead Man's Deck, Dead Man's Poker, Senet, Ludo, Sorry!, Threes, and 21 (Survival Rules) with clearer announcements, safer option handling, and steadier screen reader menus.
+
+Chess now supports typed move input for common chess notation and coordinate-style moves, follows standard full-move counting, gives shorter Brief announcements when that preference is enabled, and has a stronger bot that stays bounded so multiple chess tables can remain stable.
+
+Battle now supports Team Battle through the standard team setup flow. Fighter skills were completed and rebalanced, character selection announcements are less noisy, team-related menus appear only when Team Mode is relevant, Vietnamese skill names are more dramatic, and both player-replacement bots and enemy AI make stronger tactical choices.
+
+Battleship now gives clearer placement and firing feedback. Manual ship placement uses a cleaner isolated menu again, and checking whose turn during deployment now reports each player's ready status instead of saying no one has the turn.
+
+Crazy Eights now handles Wild 8 suit choice more like UNO. Suit choices appear in a clearer place, focus moves to the first suit option, shortcut keys no longer collide with other actions, and waiting players no longer hear irrelevant "not your turn" errors for suit-choice shortcuts.
+
+Dead Man's Poker now keeps touch action menus anchored during card exchanges, including when spectators join or other table events happen. Showdown announcements are less repetitive, ties are reported as draws instead of as multiple winners, tied players are not counted as round winners, and the bot plays more aggressively and intelligently.
+
+Dead Man's Deck received clearer rule feedback, better status information, and more polished announcements for bluffing, challenges, and survival moments.
+
+Coup now applies the official two-player first-turn coin rule correctly even when the first player is a bot. Exchange menus also keep selected cards visible and mark them as exchanged, which gives screen reader users better context without dropping focus.
+
+Citadels now gives clearer build, character, and scoring feedback, with more natural personal and public announcements throughout the round.
+
+Senet now handles spectators correctly, uses the standard S and Shift+S score shortcuts, gives better context if you try to move before throwing the sticks, and no longer overwrites a different open menu during board refreshes.
+
+Backgammon, Ludo, and Sorry! now make Brief announcements genuinely brief. Movement, hit, capture, and pawn announcements keep the important player, piece, roll, and position details while stripping out unnecessary spoken wording.
+
+Backgammon also now gives a clear spoken error if you try to move a checker before rolling the dice.
+
+Ludo and Sorry! keep touch focus steadier after rolls, draws, automatic moves, and manual piece choices. Sorry! move prompts now include each pawn's current position so choosing a piece or target is easier.
+
+Midnight and Farkle now move focus to the first dice choice immediately after a roll asks you to choose dice to keep.
+
+21 (Survival Rules) no longer reveals an opponent's hidden total when they stand, and it now explains when an active effect prevents you from drawing.
+
+Age of Heroes now handles declined or unavailable road-building requests more safely.
+
+Score and standings checks are more consistent across games. Basic score checks now speak each player or team separately, while detailed score views use clear line-by-line status screens where appropriate.
+
+Leaderboard menus now hide games that do not actually support leaderboards, and old unsupported leaderboard data is cleaned up safely.
+
+Status screens can now stay open and refresh themselves while the game changes, without forcing players to close and reopen them. Opening another menu while a status screen is open is also handled more safely.
+
+Table invitations are safer and more predictable. Pressing the invitation title no longer declines it; invites are only declined through the Decline Invite button, and invitations that arrive while you are typing are queued until you finish the input.
+
+The Play category filter no longer leaks into Documentation, Leaderboards, or My Stats. Those menus now show their own complete game lists instead of accidentally inheriting the last Play filter.
+
+Documentation pages are rendered more consistently, including cleaner handling for escaped Markdown in game rules.
+
+Desktop Client Updates:
+
+Opening How to Play with Ctrl+F1 while the action menu is open no longer leaves the action menu empty after closing the rules screen.
+
 Tuesday 9 June 2026
 
 Server Updates:
@@ -104,7 +158,7 @@ Lobby handling: If the host starts a match while a seated player is disconnected
 
 Updated sounds and announcements: The standard leave sound will play whenever a human seat is handed to a replacement bot, and the standard join sound will play when a player reclaims a bot-held seat. Voice announcements will also clearly identify both the original human name and the replacement bot name.
 
-Wednesday 28 April 2026
+Tuesday 28 April 2026
 
 Server Updates:
 

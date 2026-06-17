@@ -1,5 +1,59 @@
 Nhật ký thay đổi
 
+Thứ Tư 17 Tháng Sáu 2026
+
+Cập nhật máy chủ:
+
+Đã thêm tài liệu đầy đủ cho UNO bằng tiếng Anh và tiếng Việt. UNO giờ đây đã có luật chơi dễ hiểu trong Cách chơi và Tài liệu, đồng thời các lời nhắc, phần chọn màu, giải thích tính điểm và kiểm tra tùy chọn cũng đã được tinh chỉnh.
+
+Đã tiếp tục đánh bóng Đảo Chính, Thành Phố Trung Cổ, Cờ thỏ cáo, Đấu Trường Chiến Kỹ, Tàu Chiến, Cờ vua, Crazy Eights, Gấu Cuồng Loạn, Bộ Bài Tử Thần, Poker Tử Thần, Senet, Cờ cá ngựa, Sorry!, Threes và 21 (Luật Sinh Tồn), tập trung vào thông báo rõ ràng hơn, tùy chọn an toàn hơn và menu ổn định hơn cho trình đọc màn hình.
+
+Cờ vua giờ đây hỗ trợ Nhập nước cờ bằng các dạng phổ biến như ký pháp cờ vua và tọa độ ô cờ, tính số nước theo đúng chuẩn nước trọn vẹn, đọc ngắn hơn khi bật Thông báo ngắn gọn, và có người máy mạnh hơn nhưng vẫn được giới hạn để nhiều bàn Cờ vua có thể chạy ổn định cùng lúc.
+
+Đấu Trường Chiến Kỹ giờ đây hỗ trợ Đấu đội qua luồng sắp xếp đội chuẩn. Các kỹ năng của đấu sĩ đã được hoàn thiện và cân bằng lại, thông báo chọn đấu sĩ bớt dồn dập hơn, các menu liên quan đến đội chỉ xuất hiện khi Chế độ đội thật sự cần dùng, tên kỹ năng tiếng Việt nghe hoành tráng hơn, và cả người máy thay người lẫn kẻ địch trong các chế độ sinh tồn đều ra quyết định chiến thuật tốt hơn.
+
+Tàu Chiến giờ đây đọc rõ hơn trong giai đoạn triển khai và khi khai hỏa. Đặt tàu thủ công dùng lại menu riêng gọn gàng hơn, và khi kiểm tra lượt trong giai đoạn triển khai, trò chơi sẽ đọc trạng thái sẵn sàng của từng người thay vì nói rằng không ai đang có lượt.
+
+Crazy Eights giờ đây xử lý phần chọn chất sau Lá 8 Tự do gần giống UNO hơn. Các lựa chọn chất xuất hiện ở vị trí dễ hiểu hơn, tiêu điểm nhảy tới lựa chọn chất đầu tiên, phím tắt không còn đụng với hành động khác, và người đang chờ lượt sẽ không còn nghe lỗi "Chưa đến lượt của bạn" không liên quan khi bấm nhầm phím chọn chất.
+
+Poker Tử Thần giờ đây giữ vững các nút hành động trên thiết bị cảm ứng trong lúc đổi bài, kể cả khi có khán giả vào/rời bàn hoặc sự kiện bàn khác xảy ra. Thông báo so bài bớt lặp lại, các ván hòa được đọc là hòa thay vì như nhiều người cùng thắng, người hòa không bị tính là thắng vòng, và người máy chơi táo bạo, thông minh hơn.
+
+Bộ Bài Tử Thần đã có phản hồi luật rõ hơn, thông tin trạng thái hữu ích hơn, và lời tường thuật mượt hơn cho các khoảnh khắc lừa phỉnh, vạch mặt và sinh tồn.
+
+Đảo Chính giờ đây áp dụng đúng luật ván hai người: người đi trước bắt đầu với 1 xu, kể cả khi người đó là người máy. Menu Trao đổi bài cũng giữ lá đã chọn trong danh sách và đánh dấu Đã trao đổi, giúp người dùng trình đọc màn hình không bị mất ngữ cảnh.
+
+Thành Phố Trung Cổ giờ đây có thông báo rõ hơn cho xây công trình, nhân vật và tính điểm, với lời nhắc cá nhân và thông báo công khai tự nhiên hơn trong suốt vòng chơi.
+
+Senet giờ đây xử lý khán giả đúng hơn, dùng chuẩn phím S và Shift+S để đọc điểm số, nói đúng ngữ cảnh nếu bạn cố đi quân trước khi tung que, và không còn ghi đè menu khác đang mở khi bàn cờ được làm mới.
+
+Cờ thỏ cáo, Cờ cá ngựa và Sorry! giờ đây làm cho Thông báo ngắn gọn thật sự ngắn gọn. Các thông báo đi quân, đá quân, bắt quân và di chuyển quân vẫn giữ thông tin quan trọng như người chơi, quân, xúc xắc và vị trí, nhưng bỏ bớt câu chữ thừa.
+
+Cờ thỏ cáo cũng đã có thông báo rõ ràng nếu bạn cố đi quân trước khi tung xúc xắc.
+
+Cờ cá ngựa và Sorry! giữ tiêu điểm cảm ứng ổn định hơn sau khi tung xúc xắc, rút bài, tự động đi quân hoặc chọn quân thủ công. Các lời nhắc chọn quân trong Sorry! giờ đây hiển thị vị trí hiện tại của từng quân để bạn dễ chọn hơn.
+
+1-4-24 và Farkle giờ đây đưa tiêu điểm tới lựa chọn xúc xắc đầu tiên ngay sau khi bạn gieo và cần chọn xúc xắc để giữ.
+
+21 (Luật Sinh Tồn) không còn để lộ tổng điểm ẩn của đối thủ khi họ dừng, và giờ đây giải thích rõ khi một hiệu ứng đang hoạt động ngăn bạn rút bài.
+
+Kỷ Nguyên Anh Hùng giờ đây xử lý an toàn hơn khi yêu cầu xây đường bị từ chối hoặc không còn hợp lệ.
+
+Việc kiểm tra điểm số và bảng điểm trong ván đã thống nhất hơn giữa các trò chơi. Kiểm tra điểm cơ bản giờ đây đọc riêng từng người hoặc từng đội, còn phần điểm chi tiết dùng màn hình trạng thái theo từng dòng khi phù hợp.
+
+Menu Bảng xếp hạng giờ đây ẩn những trò chơi không thật sự hỗ trợ bảng xếp hạng, và dữ liệu xếp hạng cũ không còn phù hợp sẽ được dọn dẹp an toàn.
+
+Các màn hình trạng thái giờ đây có thể tự cập nhật khi ván đấu thay đổi mà không bắt người chơi đóng rồi mở lại. Việc mở một menu khác trong lúc màn hình trạng thái đang mở cũng được xử lý ổn định hơn.
+
+Lời mời bàn giờ đây an toàn và dễ đoán hơn. Bấm vào tiêu đề lời mời sẽ không còn tự động từ chối; lời mời chỉ bị từ chối khi bạn chọn đúng nút Từ chối lời mời. Nếu lời mời đến trong lúc bạn đang nhập văn bản, hệ thống sẽ chờ bạn nhập xong rồi mới hỏi trả lời.
+
+Bộ lọc thể loại trong menu Chơi không còn ảnh hưởng nhầm sang Tài liệu, Bảng xếp hạng hoặc Thống kê của tôi. Các menu này giờ đây hiển thị danh sách trò chơi đầy đủ của riêng chúng.
+
+Các trang Tài liệu được hiển thị nhất quán hơn, bao gồm việc xử lý Markdown trong luật chơi sạch hơn.
+
+Cập nhật phần mềm trên máy tính:
+
+Khi đang mở menu hành động, nếu bạn dùng Ctrl+F1 để mở Cách chơi rồi đóng màn hình luật, menu hành động sẽ không còn bị trống.
+
 Thứ Ba 9 Tháng Sáu 2026
 
 Cập nhật máy chủ:
