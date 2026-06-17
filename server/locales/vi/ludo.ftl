@@ -12,7 +12,10 @@ ludo-no-moves = { $player } không có nước đi hợp lệ.
 ludo-you-no-moves = Bạn không có nước đi hợp lệ.
 ludo-you-enter-board =
     { $brief ->
-        [yes] Bạn xuất chuồng quân { $token }.
+        [yes] { $safe ->
+            [yes] Bạn: quân { $token } xuất chuồng +{ $spaces } đến ô { $position }, an toàn.
+           *[no] Bạn: quân { $token } xuất chuồng +{ $spaces } đến ô { $position }.
+        }
        *[no] { $safe ->
             [yes] Bạn xuất chuồng quân { $token } đến ô { $position }, là ô an toàn.
            *[no] Bạn xuất chuồng quân { $token } đến ô { $position }.
@@ -20,13 +23,22 @@ ludo-you-enter-board =
     }
 ludo-enter-board =
     { $brief ->
-        [yes] { $player } ({ $color ->
-            [red] Đỏ
-            [blue] Xanh dương
-            [green] Xanh lá
-            [yellow] Vàng
-           *[other] { $color }
-        }) cho quân { $token } xuất chuồng.
+        [yes] { $safe ->
+            [yes] { $player } ({ $color ->
+                [red] Đỏ
+                [blue] Xanh dương
+                [green] Xanh lá
+                [yellow] Vàng
+               *[other] { $color }
+            }): quân { $token } xuất chuồng +{ $spaces } đến ô { $position }, an toàn.
+           *[no] { $player } ({ $color ->
+                [red] Đỏ
+                [blue] Xanh dương
+                [green] Xanh lá
+                [yellow] Vàng
+               *[other] { $color }
+            }): quân { $token } xuất chuồng +{ $spaces } đến ô { $position }.
+        }
        *[no] { $safe ->
             [yes] { $player } ({ $color ->
                 [red] Đỏ
@@ -46,7 +58,10 @@ ludo-enter-board =
     }
 ludo-you-move-track =
     { $brief ->
-        [yes] Bạn đi quân { $token } trên đường đua.
+        [yes] { $safe ->
+            [yes] Bạn: quân { $token } +{ $spaces } đến ô { $position }, an toàn.
+           *[no] Bạn: quân { $token } +{ $spaces } đến ô { $position }.
+        }
        *[no] { $safe ->
             [yes] Bạn đi quân { $token } đến ô { $position }, là ô an toàn.
            *[no] Bạn đi quân { $token } đến ô { $position }.
@@ -54,13 +69,22 @@ ludo-you-move-track =
     }
 ludo-move-track =
     { $brief ->
-        [yes] { $player } ({ $color ->
-            [red] Đỏ
-            [blue] Xanh dương
-            [green] Xanh lá
-            [yellow] Vàng
-           *[other] { $color }
-        }) đi quân { $token } trên đường đua.
+        [yes] { $safe ->
+            [yes] { $player } ({ $color ->
+                [red] Đỏ
+                [blue] Xanh dương
+                [green] Xanh lá
+                [yellow] Vàng
+               *[other] { $color }
+            }): quân { $token } +{ $spaces } đến ô { $position }, an toàn.
+           *[no] { $player } ({ $color ->
+                [red] Đỏ
+                [blue] Xanh dương
+                [green] Xanh lá
+                [yellow] Vàng
+               *[other] { $color }
+            }): quân { $token } +{ $spaces } đến ô { $position }.
+        }
        *[no] { $safe ->
             [yes] { $player } ({ $color ->
                 [red] Đỏ
@@ -78,25 +102,53 @@ ludo-move-track =
             }) đi quân { $token } đến ô { $position }.
         }
     }
-ludo-you-enter-home = Bạn đưa quân { $token } vào đường về đích.
-ludo-enter-home = { $player } ({ $color ->
-    [red] Đỏ
-    [blue] Xanh dương
-    [green] Xanh lá
-    [yellow] Vàng
-    *[other] { $color }
-}) đưa quân { $token } vào đường về đích.
-ludo-you-home-finish = Quân { $token } của bạn đã về đích. ({ $finished }/4 quân về đích)
-ludo-home-finish = { $player } ({ $color ->
-    [red] Đỏ
-    [blue] Xanh dương
-    [green] Xanh lá
-    [yellow] Vàng
-    *[other] { $color }
-}) đưa quân { $token } về đích. ({ $finished }/4 quân về đích)
+ludo-you-enter-home =
+    { $brief ->
+        [yes] Bạn: quân { $token } +{ $spaces } đến đường về { $position }/{ $total }.
+       *[no] Bạn đưa quân { $token } vào đường về đích ({ $position }/{ $total }).
+    }
+ludo-enter-home =
+    { $brief ->
+        [yes] { $player } ({ $color ->
+            [red] Đỏ
+            [blue] Xanh dương
+            [green] Xanh lá
+            [yellow] Vàng
+           *[other] { $color }
+        }): quân { $token } +{ $spaces } đến đường về { $position }/{ $total }.
+       *[no] { $player } ({ $color ->
+            [red] Đỏ
+            [blue] Xanh dương
+            [green] Xanh lá
+            [yellow] Vàng
+            *[other] { $color }
+        }) đưa quân { $token } vào đường về đích ({ $position }/{ $total }).
+    }
+ludo-you-home-finish =
+    { $brief ->
+        [yes] Bạn: quân { $token } về đích ({ $finished }/4).
+       *[no] Quân { $token } của bạn đã về đích. ({ $finished }/4 quân về đích)
+    }
+ludo-home-finish =
+    { $brief ->
+        [yes] { $player } ({ $color ->
+            [red] Đỏ
+            [blue] Xanh dương
+            [green] Xanh lá
+            [yellow] Vàng
+           *[other] { $color }
+        }): quân { $token } về đích ({ $finished }/4).
+       *[no] { $player } ({ $color ->
+            [red] Đỏ
+            [blue] Xanh dương
+            [green] Xanh lá
+            [yellow] Vàng
+            *[other] { $color }
+        }) đưa quân { $token } về đích. ({ $finished }/4 quân về đích)
+    }
 ludo-you-move-home =
     { $brief ->
-        [yes] Bạn đi quân { $token } trên đường về đích.
+        [yes] Bạn: quân { $token } +{ $spaces } đến đường về { $position }/{ $total }.
        *[no] Bạn đi quân { $token } trên đường về đích ({ $position }/{ $total }).
     }
 ludo-move-home =
@@ -107,7 +159,7 @@ ludo-move-home =
             [green] Xanh lá
             [yellow] Vàng
            *[other] { $color }
-        }) đi quân { $token } trên đường về đích.
+        }): quân { $token } +{ $spaces } đến đường về { $position }/{ $total }.
        *[no] { $player } ({ $color ->
             [red] Đỏ
             [blue] Xanh dương
@@ -116,42 +168,78 @@ ludo-move-home =
            *[other] { $color }
         }) đi quân { $token } trên đường về đích ({ $position }/{ $total }).
     }
-ludo-you-capture = Bạn đá { $count ->
-    [one] 1 quân
-   *[other] { $count } quân
-} của { $captured_player } ({ $captured_color ->
-    [red] Đỏ
-    [blue] Xanh dương
-    [green] Xanh lá
-    [yellow] Vàng
-    *[other] { $captured_color }
-}) về chuồng.
-ludo-your-token-captured = { $player } ({ $color ->
-    [red] Đỏ
-    [blue] Xanh dương
-    [green] Xanh lá
-    [yellow] Vàng
-    *[other] { $color }
-}) đá { $count ->
-    [one] quân của bạn
-   *[other] { $count } quân của bạn
-} về chuồng.
-ludo-captures = { $player } ({ $color ->
-    [red] Đỏ
-    [blue] Xanh dương
-    [green] Xanh lá
-    [yellow] Vàng
-    *[other] { $color }
-}) đá { $count ->
-    [one] 1 quân
-   *[other] { $count } quân
-} của { $captured_player } ({ $captured_color ->
-    [red] Đỏ
-    [blue] Xanh dương
-    [green] Xanh lá
-    [yellow] Vàng
-    *[other] { $captured_color }
-}) về chuồng.
+ludo-you-capture =
+    { $brief ->
+        [yes] Bạn: đá { $count } quân của { $captured_player } ({ $captured_color ->
+            [red] Đỏ
+            [blue] Xanh dương
+            [green] Xanh lá
+            [yellow] Vàng
+           *[other] { $captured_color }
+        }) về chuồng.
+       *[no] Bạn đá { $count ->
+            [one] 1 quân
+           *[other] { $count } quân
+        } của { $captured_player } ({ $captured_color ->
+            [red] Đỏ
+            [blue] Xanh dương
+            [green] Xanh lá
+            [yellow] Vàng
+            *[other] { $captured_color }
+        }) về chuồng.
+    }
+ludo-your-token-captured =
+    { $brief ->
+        [yes] { $player } ({ $color ->
+            [red] Đỏ
+            [blue] Xanh dương
+            [green] Xanh lá
+            [yellow] Vàng
+           *[other] { $color }
+        }): { $count } quân của bạn về chuồng.
+       *[no] { $player } ({ $color ->
+            [red] Đỏ
+            [blue] Xanh dương
+            [green] Xanh lá
+            [yellow] Vàng
+            *[other] { $color }
+        }) đá { $count ->
+            [one] quân của bạn
+           *[other] { $count } quân của bạn
+        } về chuồng.
+    }
+ludo-captures =
+    { $brief ->
+        [yes] { $player } ({ $color ->
+            [red] Đỏ
+            [blue] Xanh dương
+            [green] Xanh lá
+            [yellow] Vàng
+           *[other] { $color }
+        }): đá { $count } quân của { $captured_player } ({ $captured_color ->
+            [red] Đỏ
+            [blue] Xanh dương
+            [green] Xanh lá
+            [yellow] Vàng
+           *[other] { $captured_color }
+        }) về chuồng.
+       *[no] { $player } ({ $color ->
+            [red] Đỏ
+            [blue] Xanh dương
+            [green] Xanh lá
+            [yellow] Vàng
+            *[other] { $color }
+        }) đá { $count ->
+            [one] 1 quân
+           *[other] { $count } quân
+        } của { $captured_player } ({ $captured_color ->
+            [red] Đỏ
+            [blue] Xanh dương
+            [green] Xanh lá
+            [yellow] Vàng
+            *[other] { $captured_color }
+        }) về chuồng.
+    }
 ludo-extra-turn = { $player } gieo được 6 và có thêm lượt.
 ludo-you-extra-turn = Bạn gieo được 6 và được thêm lượt.
 ludo-you-too-many-sixes = Bạn gieo { $count } lần 6 liên tiếp. Các nước đi trong chuỗi lượt này của bạn bị hoàn tác, và lượt của bạn kết thúc.

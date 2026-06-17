@@ -26,26 +26,26 @@ backgammon-no-moves-player = { $player } không còn nước đi hợp lệ, nê
 
 # Brief move commentary
 backgammon-brief-move-normal = { $is_self ->
-    [yes] Bạn đi một quân.
-    *[no] { $player } đi một quân.
+    [yes] Bạn: { $src } sang { $dest }.
+    *[no] { $player }: { $src } sang { $dest }.
 }
 backgammon-brief-move-hit = { $is_self ->
-    [yes] Bạn bắt quân của { $opponent }.
-    [spectator] { $player } bắt quân của { $opponent }.
-    *[no] { $player } bắt quân của bạn.
+    [yes] Bạn: { $src } sang { $dest }, bắt { $opponent }.
+    [spectator] { $player }: { $src } sang { $dest }, bắt { $opponent }.
+    *[no] { $player }: { $src } sang { $dest }, bắt bạn.
 }
 backgammon-brief-move-bar = { $is_self ->
-    [yes] Bạn nhập quân từ thanh.
-    *[no] { $player } nhập quân từ thanh.
+    [yes] Bạn: thanh sang { $dest }.
+    *[no] { $player }: thanh sang { $dest }.
 }
 backgammon-brief-move-bar-hit = { $is_self ->
-    [yes] Bạn nhập quân từ thanh và bắt quân của { $opponent }.
-    [spectator] { $player } nhập quân từ thanh và bắt quân của { $opponent }.
-    *[no] { $player } nhập quân từ thanh và bắt quân của bạn.
+    [yes] Bạn: thanh sang { $dest }, bắt { $opponent }.
+    [spectator] { $player }: thanh sang { $dest }, bắt { $opponent }.
+    *[no] { $player }: thanh sang { $dest }, bắt bạn.
 }
 backgammon-brief-move-bearoff = { $is_self ->
-    [yes] Bạn đưa một quân ra khỏi bàn.
-    *[no] { $player } đưa một quân ra khỏi bàn.
+    [yes] Bạn: { $src } ra.
+    *[no] { $player }: { $src } ra.
 }
 
 # Verbose move commentary

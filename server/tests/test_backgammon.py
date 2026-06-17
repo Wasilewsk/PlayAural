@@ -607,7 +607,7 @@ class TestBackgammonPolish:
         assert "You roll" in actor_text
         assert f"{actor.name} rolls" in other_text
 
-    def test_brief_move_announcement_omits_points_per_listener(self):
+    def test_brief_move_announcement_uses_concise_points_per_listener(self):
         game, _, _ = make_human_game(start=True)
         red = game._get_player_by_color("red")
         white = game._get_player_by_color("white")
@@ -635,7 +635,7 @@ class TestBackgammonPolish:
 
         red_text = " ".join(red_user.get_spoken_messages())
         white_text = " ".join(white_user.get_spoken_messages())
-        assert "You move a checker." in red_text
+        assert "You: 11 to 8." in red_text
         assert "point" not in red_text.lower()
         assert f"{red.name} moves a checker from point" in white_text
 

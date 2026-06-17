@@ -26,26 +26,26 @@ backgammon-no-moves-player = { $player } has no legal moves, so their turn ends.
 
 # Brief move commentary
 backgammon-brief-move-normal = { $is_self ->
-    [yes] You move a checker.
-    *[no] { $player } moves a checker.
+    [yes] You: { $src } to { $dest }.
+    *[no] { $player }: { $src } to { $dest }.
 }
 backgammon-brief-move-hit = { $is_self ->
-    [yes] You hit { $opponent }'s checker.
-    [spectator] { $player } hits { $opponent }'s checker.
-    *[no] { $player } hits your checker.
+    [yes] You: { $src } to { $dest }, hit { $opponent }.
+    [spectator] { $player }: { $src } to { $dest }, hit { $opponent }.
+    *[no] { $player }: { $src } to { $dest }, hit you.
 }
 backgammon-brief-move-bar = { $is_self ->
-    [yes] You enter from the bar.
-    *[no] { $player } enters from the bar.
+    [yes] You: bar to { $dest }.
+    *[no] { $player }: bar to { $dest }.
 }
 backgammon-brief-move-bar-hit = { $is_self ->
-    [yes] You enter from the bar and hit { $opponent }'s checker.
-    [spectator] { $player } enters from the bar and hits { $opponent }'s checker.
-    *[no] { $player } enters from the bar and hits your checker.
+    [yes] You: bar to { $dest }, hit { $opponent }.
+    [spectator] { $player }: bar to { $dest }, hit { $opponent }.
+    *[no] { $player }: bar to { $dest }, hit you.
 }
 backgammon-brief-move-bearoff = { $is_self ->
-    [yes] You bear off a checker.
-    *[no] { $player } bears off a checker.
+    [yes] You: { $src } off.
+    *[no] { $player }: { $src } off.
 }
 
 # Verbose move commentary

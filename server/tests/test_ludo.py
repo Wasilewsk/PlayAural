@@ -597,6 +597,7 @@ class TestLudoActions:
             "en",
             "ludo-you-move-track",
             token=1,
+            spaces=3,
             position=13,
             brief="yes",
             safe="no",
@@ -607,14 +608,15 @@ class TestLudoActions:
             player="Alice",
             color="red",
             token=1,
+            spaces=3,
             position=13,
             brief="no",
             safe="no",
         )
 
         assert expected_self in self.u1.get_spoken_messages()
-        assert "position 13" not in expected_self
-        assert not any("position 13" in message for message in self.u1.get_spoken_messages())
+        assert "to 13" in expected_self
+        assert "position" not in expected_self
         assert expected_other in self.u2.get_spoken_messages()
 
     def test_detailed_move_announcement_marks_safe_square(self):
@@ -666,7 +668,7 @@ class TestLudoActions:
         assert expected_self in self.u1.get_spoken_messages()
         assert "safe square" in expected_self
 
-    def test_brief_move_announcement_omits_safe_square_annotation(self):
+    def test_brief_move_announcement_uses_concise_safe_square_annotation(self):
         self.p1.tokens[0].state = "track"
         self.p1.tokens[0].position = 6
         self.u1.preferences.brief_announcements = True
@@ -678,13 +680,15 @@ class TestLudoActions:
             "en",
             "ludo-you-move-track",
             token=1,
+            spaces=3,
             position=9,
             brief="yes",
             safe="yes",
         )
 
         assert expected_self in self.u1.get_spoken_messages()
-        assert "position 9" not in expected_self
+        assert "to 9" in expected_self
+        assert "safe" in expected_self
         assert "safe square" not in expected_self
 
     def test_check_board_marks_safe_square_tokens(self):
@@ -726,6 +730,7 @@ class TestLudoActions:
             captured_player="Bob",
             captured_color="blue",
             count=1,
+            brief="no",
         ) in self.u1.get_spoken_messages()
         assert Localization.get(
             "en",
@@ -733,6 +738,7 @@ class TestLudoActions:
             player="Alice",
             color="red",
             count=1,
+            brief="no",
         ) in self.u2.get_spoken_messages()
         assert Localization.get(
             "en",
@@ -742,6 +748,7 @@ class TestLudoActions:
             captured_player="Bob",
             captured_color="blue",
             count=1,
+            brief="no",
         ) in observer.get_spoken_messages()
 
     def test_choose_token_prompt_is_announced(self, monkeypatch):

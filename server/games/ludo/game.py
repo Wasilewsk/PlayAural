@@ -571,6 +571,7 @@ class LudoGame(Game):
                     captured_player=captured_player.name,
                     captured_color=captured_player.color,
                     count=count,
+                    brief=self._brief_arm(user),
                 )
             elif listener.id == captured_player.id:
                 user.speak_l(
@@ -579,6 +580,7 @@ class LudoGame(Game):
                     player=player.name,
                     color=player.color,
                     count=count,
+                    brief=self._brief_arm(user),
                 )
             else:
                 user.speak_l(
@@ -589,6 +591,7 @@ class LudoGame(Game):
                     captured_player=captured_player.name,
                     captured_color=captured_player.color,
                     count=count,
+                    brief=self._brief_arm(user),
                 )
 
     # ======================================================================
@@ -911,6 +914,7 @@ class LudoGame(Game):
                 "ludo-you-enter-board",
                 "ludo-enter-board",
                 token=token.token_number,
+                spaces=spaces,
                 position=token.position,
                 safe=self._safe_square_arm(token.position, player),
             )
@@ -932,6 +936,9 @@ class LudoGame(Game):
                         "ludo-you-enter-home",
                         "ludo-enter-home",
                         token=token.token_number,
+                        spaces=spaces,
+                        position=token.position,
+                        total=HOME_COLUMN_LENGTH,
                     )
                     self.play_sound(
                         f"game_squares/token{random.randint(1, NUM_TOKEN_SOUNDS)}.ogg"  # nosec B311
@@ -944,6 +951,7 @@ class LudoGame(Game):
                 "ludo-you-move-track",
                 "ludo-move-track",
                 token=token.token_number,
+                spaces=spaces,
                 position=token.position,
                 safe=self._safe_square_arm(token.position, player),
             )
@@ -963,6 +971,7 @@ class LudoGame(Game):
                     "ludo-you-move-home",
                     "ludo-move-home",
                     token=token.token_number,
+                    spaces=spaces,
                     position=token.position,
                     total=HOME_COLUMN_LENGTH,
                 )

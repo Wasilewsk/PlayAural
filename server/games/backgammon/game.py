@@ -1791,6 +1791,7 @@ class BackgammonGame(Game):
         opponent_name = opp.name if opp else "?"
 
         if move.source == -1:
+            dest_pn = point_number_for_player(move.destination, viewer_color)
             if move.is_hit:
                 user.speak_l(
                     "backgammon-brief-move-bar-hit",
@@ -1798,6 +1799,7 @@ class BackgammonGame(Game):
                     is_self=is_self,
                     player=player_name,
                     opponent=opponent_name,
+                    dest=dest_pn,
                 )
             else:
                 user.speak_l(
@@ -1805,28 +1807,39 @@ class BackgammonGame(Game):
                     buffer="game",
                     is_self=is_self,
                     player=player_name,
+                    dest=dest_pn,
                 )
         elif move.is_bear_off:
+            src_pn = point_number_for_player(move.source, viewer_color)
             user.speak_l(
                 "backgammon-brief-move-bearoff",
                 buffer="game",
                 is_self=is_self,
                 player=player_name,
+                src=src_pn,
             )
         elif move.is_hit:
+            src_pn = point_number_for_player(move.source, viewer_color)
+            dest_pn = point_number_for_player(move.destination, viewer_color)
             user.speak_l(
                 "backgammon-brief-move-hit",
                 buffer="game",
                 is_self=is_self,
                 player=player_name,
                 opponent=opponent_name,
+                src=src_pn,
+                dest=dest_pn,
             )
         else:
+            src_pn = point_number_for_player(move.source, viewer_color)
+            dest_pn = point_number_for_player(move.destination, viewer_color)
             user.speak_l(
                 "backgammon-brief-move-normal",
                 buffer="game",
                 is_self=is_self,
                 player=player_name,
+                src=src_pn,
+                dest=dest_pn,
             )
 
     def _speak_move_verbose(

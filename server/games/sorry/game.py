@@ -986,6 +986,7 @@ class SorryGame(Game):
                         "sorry-you-bumped-own-pawn",
                         buffer="game",
                         pawn=capture.captured_pawn_index,
+                        brief=self._brief_announcement_mode(mover_user),
                     )
                 for player in self.players:
                     if player.id == mover.id:
@@ -997,6 +998,7 @@ class SorryGame(Game):
                             buffer="game",
                             player=mover.name,
                             pawn=capture.captured_pawn_index,
+                            brief=self._brief_announcement_mode(user),
                         )
                 continue
             target_user = self.get_user(target)
@@ -1006,6 +1008,7 @@ class SorryGame(Game):
                     buffer="game",
                     pawn=capture.captured_pawn_index,
                     by_player=mover.name,
+                    brief=self._brief_announcement_mode(target_user),
                 )
             mover_user = self.get_user(mover)
             if mover_user:
@@ -1014,6 +1017,7 @@ class SorryGame(Game):
                     buffer="game",
                     target_player=target.name,
                     pawn=capture.captured_pawn_index,
+                    brief=self._brief_announcement_mode(mover_user),
                 )
             for player in self.players:
                 if player.id in {mover.id, capture.captured_player_id}:
@@ -1026,6 +1030,7 @@ class SorryGame(Game):
                         player=mover.name,
                         target_player=target.name,
                         pawn=capture.captured_pawn_index,
+                        brief=self._brief_announcement_mode(user),
                     )
 
     def _announce_home_arrivals(self, player: Player, move: SorryMove) -> None:

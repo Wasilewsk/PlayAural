@@ -44,73 +44,93 @@ sorry-player-extra-turn = { $player } rút thẻ 2 và được đi thêm lượ
 
 sorry-play-start =
     { $brief ->
-        [yes] { $player } xuất quân { $pawn } khỏi điểm xuất phát.
+        [yes] { $player }: quân { $pawn } xuất phát đến { $destination }.
        *[no] { $player } xuất quân { $pawn } đến { $destination }.
     }
 sorry-you-play-start =
     { $brief ->
-        [yes] Bạn xuất quân { $pawn } khỏi điểm xuất phát.
+        [yes] Bạn: quân { $pawn } xuất phát đến { $destination }.
        *[no] Bạn xuất quân { $pawn } đến { $destination }.
     }
 sorry-play-forward =
     { $brief ->
-        [yes] { $player } đi quân { $pawn } tiến { $steps } bước.
+        [yes] { $player }: quân { $pawn } +{ $steps } đến { $destination }.
        *[no] { $player } đi quân { $pawn } tiến { $steps } bước đến { $destination }.
     }
 sorry-you-play-forward =
     { $brief ->
-        [yes] Bạn đi quân { $pawn } tiến { $steps } bước.
+        [yes] Bạn: quân { $pawn } +{ $steps } đến { $destination }.
        *[no] Bạn đi quân { $pawn } tiến { $steps } bước đến { $destination }.
     }
 sorry-play-backward =
     { $brief ->
-        [yes] { $player } đi quân { $pawn } lùi { $steps } bước.
+        [yes] { $player }: quân { $pawn } -{ $steps } đến { $destination }.
        *[no] { $player } đi quân { $pawn } lùi { $steps } bước về { $destination }.
     }
 sorry-you-play-backward =
     { $brief ->
-        [yes] Bạn đi quân { $pawn } lùi { $steps } bước.
+        [yes] Bạn: quân { $pawn } -{ $steps } đến { $destination }.
        *[no] Bạn đi quân { $pawn } lùi { $steps } bước về { $destination }.
     }
 sorry-play-swap =
     { $brief ->
-        [yes] { $player } đổi chỗ quân { $pawn } với quân { $target_pawn } của { $target_player }.
+        [yes] { $player }: quân { $pawn } đổi { $target_player } quân { $target_pawn }; { $destination }.
        *[no] { $player } đổi chỗ quân { $pawn } với quân { $target_pawn } của { $target_player }, rồi dừng ở { $destination }.
     }
 sorry-you-play-swap =
     { $brief ->
-        [yes] Bạn đổi chỗ quân { $pawn } với quân { $target_pawn } của { $target_player }.
+        [yes] Bạn: quân { $pawn } đổi { $target_player } quân { $target_pawn }; { $destination }.
        *[no] Bạn đổi chỗ quân { $pawn } với quân { $target_pawn } của { $target_player }, rồi dừng ở { $destination }.
     }
 sorry-play-sorry =
     { $brief ->
-        [yes] { $player } dùng lá Sorry! để thay quân { $target_pawn } của { $target_player }.
+        [yes] { $player }: Sorry! quân { $pawn } đến { $destination }; { $target_player } quân { $target_pawn } về xuất phát.
        *[no] { $player } dùng lá Sorry! để thay quân { $target_pawn } của { $target_player }, rồi dừng ở { $destination }.
     }
 sorry-you-play-sorry =
     { $brief ->
-        [yes] Bạn dùng lá Sorry! để thay quân { $target_pawn } của { $target_player }.
+        [yes] Bạn: Sorry! quân { $pawn } đến { $destination }; { $target_player } quân { $target_pawn } về xuất phát.
        *[no] Bạn dùng lá Sorry! để thay quân { $target_pawn } của { $target_player }, rồi dừng ở { $destination }.
     }
 sorry-play-split7 =
     { $brief ->
-        [yes] { $player } chia 7: quân { $pawn_a } đi { $steps_a } bước, còn quân { $pawn_b } đi { $steps_b } bước.
+        [yes] { $player }: quân { $pawn_a } +{ $steps_a } đến { $destination_a }; quân { $pawn_b } +{ $steps_b } đến { $destination_b }.
        *[no] { $player } chia 7: quân { $pawn_a } đi { $steps_a } bước đến { $destination_a }, còn quân { $pawn_b } đi { $steps_b } bước đến { $destination_b }.
     }
 sorry-you-play-split7 =
     { $brief ->
-        [yes] Bạn chia 7: quân { $pawn_a } đi { $steps_a } bước, còn quân { $pawn_b } đi { $steps_b } bước.
+        [yes] Bạn: quân { $pawn_a } +{ $steps_a } đến { $destination_a }; quân { $pawn_b } +{ $steps_b } đến { $destination_b }.
        *[no] Bạn chia 7: quân { $pawn_a } đi { $steps_a } bước đến { $destination_a }, còn quân { $pawn_b } đi { $steps_b } bước đến { $destination_b }.
     }
 
 sorry-pawn-home = { $player } đưa quân { $pawn } về nhà.
 sorry-you-pawn-home = Quân { $pawn } của bạn đã về nhà.
 
-sorry-your-pawn-captured = Quân { $pawn } của bạn bị { $by_player } đẩy về điểm xuất phát.
-sorry-you-captured-pawn = Bạn đẩy quân { $pawn } của { $target_player } về điểm xuất phát.
-sorry-pawn-captured = { $player } đẩy quân { $pawn } của { $target_player } về điểm xuất phát.
-sorry-you-bumped-own-pawn = Bạn đẩy chính quân { $pawn } của mình về điểm xuất phát.
-sorry-player-bumped-own-pawn = { $player } đẩy chính quân { $pawn } của mình về điểm xuất phát.
+sorry-your-pawn-captured =
+    { $brief ->
+        [yes] { $by_player }: quân { $pawn } của bạn về xuất phát.
+       *[no] Quân { $pawn } của bạn bị { $by_player } đẩy về điểm xuất phát.
+    }
+sorry-you-captured-pawn =
+    { $brief ->
+        [yes] Bạn: { $target_player } quân { $pawn } về xuất phát.
+       *[no] Bạn đẩy quân { $pawn } của { $target_player } về điểm xuất phát.
+    }
+sorry-pawn-captured =
+    { $brief ->
+        [yes] { $player }: { $target_player } quân { $pawn } về xuất phát.
+       *[no] { $player } đẩy quân { $pawn } của { $target_player } về điểm xuất phát.
+    }
+sorry-you-bumped-own-pawn =
+    { $brief ->
+        [yes] Bạn: quân mình { $pawn } về xuất phát.
+       *[no] Bạn đẩy chính quân { $pawn } của mình về điểm xuất phát.
+    }
+sorry-player-bumped-own-pawn =
+    { $brief ->
+        [yes] { $player }: quân mình { $pawn } về xuất phát.
+       *[no] { $player } đẩy chính quân { $pawn } của mình về điểm xuất phát.
+    }
 
 sorry-current-card = Thẻ hiện tại: { $card }.
 sorry-view-your-pawn = Quân { $pawn } của bạn: { $zone }.

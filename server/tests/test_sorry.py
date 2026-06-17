@@ -610,8 +610,14 @@ def test_self_bump_uses_dedicated_message() -> None:
 
     assert game.game_state.turn_phase == "resolving"
     assert advance_until(game, lambda: game.current_player != player and game.game_state.turn_phase == "draw", max_ticks=40)
-    assert Localization.get("en", "sorry-you-bumped-own-pawn", pawn=2) in user.get_spoken_messages()
-    assert Localization.get("en", "sorry-you-captured-pawn", target_player=player.name, pawn=2) not in user.get_spoken_messages()
+    assert Localization.get("en", "sorry-you-bumped-own-pawn", pawn=2, brief="no") in user.get_spoken_messages()
+    assert Localization.get(
+        "en",
+        "sorry-you-captured-pawn",
+        target_player=player.name,
+        pawn=2,
+        brief="no",
+    ) not in user.get_spoken_messages()
 
 
 def test_check_board_lists_every_square_status() -> None:
@@ -758,8 +764,8 @@ def test_brief_move_announcement_uses_each_listener_preference() -> None:
     )
 
     assert advance_until(game, lambda: expected_message in user.get_spoken_messages(), max_ticks=40)
-    assert expected_destination not in expected_message
-    assert not any(expected_destination in message for message in user.get_spoken_messages())
+    assert expected_destination in expected_message
+    assert "moves pawn" not in expected_message
     assert expected_other_message in other_user.get_spoken_messages()
 
 
