@@ -881,10 +881,45 @@ class OptionsHandlerMixin:
 
     # Navigation handlers for multi-select options.
 
-    def _refresh_options_menus(self) -> None:
-        """Re-render the options action set for all players and rebuild menus."""
+    def _first_visible_options_action_id(self, player: "Player") -> str | None:
+        """Return the first visible action in the current options view."""
+        options_set = self.get_action_set(player, "options")
+        if not options_set:
+            return None
+        visible = options_set.get_visible_actions(self, player)
+        if not visible:
+            return None
+        return visible[0].action.id
+
+    def _options_focus_target_or_first(
+        self,
+        player: "Player",
+        focus_action_id: str | None,
+    ) -> str | None:
+        """Return a valid options focus target, falling back to the first item."""
+        options_set = self.get_action_set(player, "options")
+        if not options_set:
+            return None
+        if focus_action_id:
+            for resolved in options_set.get_visible_actions(self, player):
+                if resolved.action.id == focus_action_id:
+                    return focus_action_id
+        return self._first_visible_options_action_id(player)
+
+    def _refresh_options_menus(
+        self,
+        player: "Player | None" = None,
+        *,
+        focus_action_id: str | None = None,
+        focus_first: bool = False,
+    ) -> None:
+        """Re-render options and optionally queue an action-driven focus jump."""
         if hasattr(self.options, "update_options_labels"):
             self.options.update_options_labels(self)
+        if player is not None and (focus_action_id or focus_first):
+            focus = self._options_focus_target_or_first(player, focus_action_id)
+            if focus:
+                self.request_menu_focus(player, focus)
         self.refresh_menus()
 
     def _action_open_multiselect(self, player: "Player", action_id: str) -> None:
@@ -897,15 +932,22 @@ class OptionsHandlerMixin:
             self._options_path = {}
         path = self._options_path.setdefault(player.id, [])
         path.append(option_name)
-        self._refresh_options_menus()
+        self._refresh_options_menus(player, focus_first=True)
 
     def _action_options_back(self, player: "Player", action_id: str) -> None:
         """Go back one level in the options navigation (no validation)."""
+        focus_action_id = None
         if hasattr(self, "_options_path"):
             path = self._options_path.get(player.id, [])
             if path:
-                path.pop()
-        self._refresh_options_menus()
+                current = path.pop()
+                if current.startswith("group:") and path:
+                    option_name = path[-1]
+                    group_name = current.removeprefix("group:")
+                    focus_action_id = f"msgroup_{option_name}_{group_name}"
+                elif current:
+                    focus_action_id = f"multiselect_{current}"
+        self._refresh_options_menus(player, focus_action_id=focus_action_id)
 
     def _action_open_ms_group(self, player: "Player", action_id: str) -> None:
         """Open a multi-select group's sub-menu.
@@ -921,7 +963,7 @@ class OptionsHandlerMixin:
                     self._options_path = {}
                 path = self._options_path.setdefault(player.id, [])
                 path.append(f"group:{group_name}")
-                self._refresh_options_menus()
+                self._refresh_options_menus(player, focus_first=True)
                 return
 
     def _get_scoped_choices(
@@ -995,8 +1037,18 @@ class OptionsHandlerMixin:
                 current = path[-1]
                 # Going back from a group level just pops the group.
                 if current.startswith("group:"):
+                    group_name = current.removeprefix("group:")
                     path.pop()
-                    self._refresh_options_menus()
+                    option_name = path[-1] if path else ""
+                    focus_action_id = (
+                        f"msgroup_{option_name}_{group_name}"
+                        if option_name
+                        else None
+                    )
+                    self._refresh_options_menus(
+                        player,
+                        focus_action_id=focus_action_id,
+                    )
                     return
                 # Going back from the option level validates selection count.
                 meta = get_option_meta(type(self.options), current)
@@ -1021,7 +1073,12 @@ class OptionsHandlerMixin:
                             )
                         return
                 path.pop()
-        self._refresh_options_menus()
+                self._refresh_options_menus(
+                    player,
+                    focus_action_id=f"multiselect_{current}",
+                )
+                return
+        self._refresh_options_menus(player)
 
     def _action_toggle_multiselect(self, player: "Player", action_id: str) -> None:
         """Toggle a single choice in a multi-select option.

@@ -212,6 +212,15 @@ def _make_cah(locale: str = "en"):
     return game, host, player
 
 
+def _turn_menu_selection_ids(user: MockUser) -> list[str | None]:
+    return [
+        message.data.get("selection_id")
+        for message in user.messages
+        if message.type == "show_menu"
+        and message.data.get("menu_id") == "turn_menu"
+    ]
+
+
 def test_cah_default_packs_are_base_set():
     game, _, _ = _make_cah()
     base_set = get_pack_groups()["Base Set"]
@@ -277,4 +286,60 @@ def test_cah_back_refused_when_below_min_selected():
     game.execute_action(player, f"mstoggle_card_packs_{base}")
     game.execute_action(player, "options_back")  # pop group → [card_packs]
     game.execute_action(player, "options_back")  # pop option → []
+    assert game._options_path[player.id] == []
+
+
+def test_cah_pack_submenus_focus_first_item_and_restore_parent():
+    game, user, player = _make_cah()
+    groups = get_pack_groups()
+    group_name = "Base + Expansions"
+    first_group = next(iter(groups))
+    first_pack = groups[group_name][0]
+
+    game.refresh_menus(player)
+    game.flush_menus()
+
+    user.clear_messages()
+    game.handle_event(
+        player,
+        {
+            "type": "menu",
+            "menu_id": "turn_menu",
+            "selection_id": "multiselect_card_packs",
+        },
+    )
+    assert _turn_menu_selection_ids(user)[-1] == f"msgroup_card_packs_{first_group}"
+
+    user.clear_messages()
+    game.handle_event(
+        player,
+        {
+            "type": "menu",
+            "menu_id": "turn_menu",
+            "selection_id": f"msgroup_card_packs_{group_name}",
+        },
+    )
+    assert _turn_menu_selection_ids(user)[-1] == f"mstoggle_card_packs_{first_pack}"
+
+    user.clear_messages()
+    game.handle_event(
+        player,
+        {
+            "type": "menu",
+            "menu_id": "turn_menu",
+            "selection_id": "options_back",
+        },
+    )
+    assert _turn_menu_selection_ids(user)[-1] == f"msgroup_card_packs_{group_name}"
+
+    user.clear_messages()
+    game.handle_event(
+        player,
+        {
+            "type": "menu",
+            "menu_id": "turn_menu",
+            "selection_id": "options_back",
+        },
+    )
+    assert _turn_menu_selection_ids(user)[-1] == "multiselect_card_packs"
     assert game._options_path[player.id] == []
