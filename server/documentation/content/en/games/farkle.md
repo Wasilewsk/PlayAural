@@ -1,96 +1,53 @@
 \*\*Farkle\*\*
 
-
-
-Farkle is a push-your-luck game which dates back to at least the 18th century. It is probably one of the most well-known dice games in the blind community, and you may have played it before on any number of platforms.
-
-
-
-The goal is to make combinations of dice without getting Farkles (rolls entirely devoid of valid combinations). Each combination is worth a number of points. Victory is achieved when someone's score passes a certain threshold; 500, 1,000, 3,000 and 5,000 are common choices.
-
-
+Farkle is a push-your-luck dice game. On each turn, you roll dice, keep scoring dice or combinations, and decide whether to bank your turn score or risk another roll. If a roll has no scoring dice, you Farkle and lose the points accumulated in that turn.
 
 \*\*Gameplay\*\*
 
+Each turn starts with six dice. Roll all available dice, then keep at least one scoring die or scoring combination from that roll.
 
+After keeping a scoring die or combination, you may either:
 
-The game is divided into distinct rounds, in which everyone takes a turn. On your turn, you will start with six dice. At this point, your only choice is to roll.
+\* \*\*Bank\*\* your turn score, adding it to your total and ending your turn, if you meet the configured minimum.
+\* \*\*Roll\*\* the remaining dice, risking the entire turn score.
 
+You do not have to keep every scoring die from a roll. For example, if you roll a single 1 and three 2s, you may keep only the single 1, then bank or roll the remaining dice if the rules allow it.
 
+If all six dice score, you get \*\*Hot Dice\*\*. You may bank, or roll all six dice again and continue adding to the same turn score.
 
-Then, take any combinations you see fit, adding their value to your turn score; to be clear, you aren't obliged to take every combination you roll. That is one strategic part of the game. The dice you haven't used in combinations can be rolled again.
+When a player reaches the target score, the round finishes so every player in that round has had the same number of turns. If multiple players are tied at or above the target, only those tied players continue into tiebreaker rounds until one player leads alone.
 
+\*\*Scoring\*\*
 
+PlayAural uses a compact score scale for faster games. The ratios match common Farkle scoring, but values are divided by 10 compared with many tabletop score sheets.
 
-If you manage to use all six of your dice, you'll get a fresh new set - this is known as having obtained \*\*"Hot Dice"\*\*, and can be done many times in one turn if you're lucky.
-
-
-
-However, if you do not roll any valid combinations, you are considered to have \*\*Farkled\*\*; your turn ends and all your accumulated points for that turn are forfeit. If you have enough points and think the risk outweighs the reward, you \*\*Bank\*\* your turn score, adding it to your total and ending your turn.
-
-
-
-Note that there are configurable minimums for banking points. If you have a total score of 0, you must reach the \*\*minimal entrance score\*\* (default 50) in a single turn to be able to bank for the first time. On any subsequent turn after getting on the board, your turn score must reach the \*\*minimal bank score\*\* (default 30) before you can bank.
-
-
-
-\*\*Example Turn\*\*
-
-
-
-It's the start of the game and you're up first.
-
-1\. You roll 1-2-3-4-5-6. You take the \*\*Large Straight\*\* (200 points), achieving \*\*Hot Dice\*\*.
-
-2\. You roll again: 1-2-2-2-6-6. You choose to take only the \*\*Single 1\*\* (10 points), ignoring the three twos to keep more dice for the next roll.
-
-3\. Your turn score is now 210. You roll the remaining 5 dice: they land on 1-1-4-4-5. 
-
-4\. You take the two ones (10 pts each) and the five (5 pts) and \*\*Bank\*\*, for a total score of 235.
-
-
-
-\*\*Scoring Combinations\*\*
-
-
-
-\* \*\*Single Five:\*\* 5 points | \*\*Single One:\*\* 10 points
-
-\* \*\*Three of a Kind:\*\* 20 to 100 points (Ones are highest)
-
-\* \*\*Four of a Kind:\*\* 40 to 200 points
-
-\* \*\*Five of a Kind:\*\* 80 to 400 points
-
-\* \*\*Six of a Kind:\*\* 160 to 800 points
-
-\* \*\*Small Straight:\*\* 100 points
-
-\* \*\*Three Pairs / Full House:\*\* 150 points
-
-\* \*\*Large Straight:\*\* 200 points
-
-\* \*\*Double Triplets:\*\* 250 points
-
-
+\* \*\*Single 1:\*\* 10 points
+\* \*\*Single 5:\*\* 5 points
+\* \*\*Three of a kind:\*\* 20 to 100 points; three 1s are worth 100
+\* \*\*Four of a kind:\*\* 40 to 200 points
+\* \*\*Five of a kind:\*\* 80 to 400 points
+\* \*\*Six of a kind:\*\* 160 to 800 points
+\* \*\*Small straight:\*\* 100 points
+\* \*\*Three pairs:\*\* 150 points
+\* \*\*Four of a kind with a pair:\*\* 150 points
+\* \*\*Large straight:\*\* 200 points
+\* \*\*Double triplets:\*\* 250 points
 
 \*\*Game Options\*\*
 
-\* \*\*Target Score:\*\* The score needed to win (default 500).
+\* \*\*Target Score:\*\* The score needed to win. Range: 500 to 5000. Default: 500.
+\* \*\*Minimum Entrance Score:\*\* The minimum turn score required to bank your first points. Range: 0 to 5000, but it cannot be higher than the target score. Default: 50.
+\* \*\*Minimum Bank Score:\*\* The minimum turn score required to bank after you are already on the board. Range: 0 to 5000, but it cannot be higher than the target score. Default: 30.
 
-\* \*\*Minimum Entrance Score:\*\* The minimum turn score required to bank for the first time (default 50).
+\*\*Personal Options\*\*
 
-\* \*\*Minimum Bank Score:\*\* The minimum turn score required to bank on subsequent turns (default 30).
-
-
+\* \*\*Brief announcements:\*\* Uses shorter roll, scoring, Farkle, hot-dice, bank, and win messages.
+\* \*\*Confirm risky actions:\*\* If enabled, rolling again with a large bankable turn score asks you to repeat the roll action before risking those points.
 
 \*\*Keyboard Shortcuts\*\*
 
-
-
 \* \*\*R:\*\* Roll the dice.
-
-\* \*\*B:\*\* Bank your score.
-
+\* \*\*B:\*\* Bank your turn score.
 \* \*\*C:\*\* Check the current turn score.
-
+\* \*\*S:\*\* Check scores.
+\* \*\*Shift+S:\*\* Open detailed scores.

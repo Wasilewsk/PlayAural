@@ -1,96 +1,53 @@
 \*\*Farkle\*\*
 
-
-
-Farkle là một trò chơi thử thách vận may có lịch sử từ ít nhất là thế kỷ 18. Đây là một trong những trò chơi xúc xắc nổi tiếng nhất trong cộng đồng người mù và bạn có thể đã từng trải nghiệm nó trên nhiều nền tảng khác nhau.
-
-
-
-Mục tiêu của trò chơi là tạo ra các tổ hợp xúc xắc có điểm mà không bị "Farkle" (gieo xúc xắc nhưng không ra được tổ hợp nào). Mỗi tổ hợp tương ứng với một số điểm nhất định. Bạn sẽ giành chiến thắng khi tổng điểm vượt qua một mốc quy định; các mốc phổ biến thường là 500, 1.000, 3.000 hoặc 5.000 điểm.
-
-
+Farkle là trò chơi xúc xắc kiểu thử vận may. Trong mỗi lượt, bạn gieo xúc xắc, giữ các viên hoặc tổ hợp có điểm, rồi quyết định chốt điểm lượt hay mạo hiểm gieo tiếp. Nếu một lần gieo không có viên nào ghi điểm, bạn bị Farkle và mất toàn bộ điểm đã tích lũy trong lượt đó.
 
 \*\*Cách chơi\*\*
 
+Mỗi lượt bắt đầu với sáu viên xúc xắc. Bạn gieo tất cả xúc xắc hiện có, sau đó phải giữ ít nhất một viên hoặc một tổ hợp có điểm từ lần gieo đó.
 
+Sau khi đã giữ một viên hoặc tổ hợp có điểm, bạn có thể:
 
-Trò chơi được chia thành các vòng, mỗi người chơi sẽ thực hiện lượt của mình trong vòng đó. Khi bắt đầu lượt, bạn có 6 viên xúc xắc và hành động duy nhất bạn có thể làm là gieo chúng.
+\* \*\*Chốt điểm:\*\* cộng điểm lượt vào tổng điểm và kết thúc lượt, nếu đã đạt mức tối thiểu đang áp dụng.
+\* \*\*Gieo tiếp:\*\* gieo các viên còn lại, nhưng nếu bị Farkle thì mất toàn bộ điểm lượt.
 
+Bạn không bắt buộc phải giữ tất cả các viên có điểm trong một lần gieo. Ví dụ, nếu gieo được một con 1 và ba con 2, bạn có thể chỉ giữ một con 1, rồi chốt hoặc gieo tiếp nếu luật cho phép.
 
+Nếu cả sáu viên đều đã được dùng để ghi điểm, bạn đạt trạng thái \*\*Nóng tay\*\*. Khi đó, bạn có thể chốt điểm hoặc gieo lại đủ sáu viên để tiếp tục cộng điểm vào cùng lượt.
 
-Sau khi gieo, hãy chọn bất kỳ tổ hợp nào bạn muốn để cộng điểm vào lượt này. Lưu ý: bạn không bắt buộc phải lấy tất cả các tổ hợp gieo được, đây chính là yếu tố chiến thuật của trò chơi. Những viên xúc xắc chưa dùng để tính điểm có thể được gieo lại.
+Khi một người chơi đạt điểm mục tiêu, vòng hiện tại vẫn kết thúc để mọi người trong vòng có số lượt bằng nhau. Nếu nhiều người cùng hòa ở hoặc trên điểm mục tiêu, chỉ những người đang hòa bước vào các vòng phân thắng bại cho đến khi có một người dẫn đầu duy nhất.
 
+\*\*Tính điểm\*\*
 
+PlayAural dùng thang điểm gọn để ván chơi nhanh hơn. Tỷ lệ điểm vẫn theo Farkle phổ biến, nhưng giá trị được chia 10 so với nhiều bảng điểm truyền thống.
 
-Nếu bạn sử dụng hết cả 6 viên xúc xắc để tính điểm, bạn sẽ nhận được một bộ 6 viên mới - trạng thái này gọi là \*\*"Nóng tay" (Hot Dice)\*\*. Bạn có thể được "Nóng tay" nhiều lần trong một lượt nếu may mắn.
-
-
-
-Tuy nhiên, nếu bạn gieo xúc xắc mà không ra được bất kỳ tổ hợp nào, bạn bị coi là \*\*Farkle\*\*; lượt của bạn kết thúc ngay lập tức và toàn bộ số điểm tích lũy trong lượt đó sẽ bị mất trắng. Nếu bạn thấy số điểm đã đủ lớn và rủi ro quá cao, hãy chọn \*\*Chốt điểm\*\* để cộng điểm lượt vào tổng điểm và kết thúc lượt chơi.
-
-
-
-Lưu ý rằng có các mức tối thiểu có thể cấu hình để chốt điểm. Nếu bạn có tổng điểm là 0, bạn phải đạt mức \*\*điểm vào chơi tối thiểu\*\* (mặc định 50) trong một lượt duy nhất để có thể chốt lần đầu tiên. Trong bất kỳ lượt nào tiếp theo sau khi đã có điểm, điểm trong lượt của bạn phải đạt mức \*\*điểm chốt tối thiểu\*\* (mặc định 30) trước khi bạn có thể chốt.
-
-
-
-\*\*Ví dụ một lượt chơi\*\*
-
-
-
-Trò chơi bắt đầu và bạn là người đi đầu tiên.
-
-1\. Bạn gieo được 1-2-3-4-5-6. Bạn lấy \*\*Sảnh lớn\*\* (200 điểm) và đạt trạng thái \*\*Nóng tay\*\*.
-
-2\. Bạn gieo tiếp 6 viên mới: được 1-2-2-2-6-6. Bạn chọn chỉ lấy \*\*Một con 1\*\* (10 điểm), bỏ qua bộ ba con 2 để giữ lại nhiều xúc xắc hơn cho lần gieo sau.
-
-3\. Điểm lượt của bạn hiện là 210. Bạn gieo 5 viên còn lại: được 1-1-4-4-5.
-
-4\. Bạn lấy hai con 1 (10 điểm mỗi con) và một con 5 (5 điểm) rồi chọn \*\*Chốt điểm\*\*. Tổng điểm bạn nhận được là 235.
-
-
-
-\*\*Các tổ hợp tính điểm\*\*
-
-
-
-\* \*\*Một con 5:\*\* 5 điểm | \*\*Một con 1:\*\* 10 điểm
-
-\* \*\*Ba con giống nhau:\*\* 20 đến 100 điểm (Bộ ba con 1 cao nhất)
-
+\* \*\*Một con 1:\*\* 10 điểm
+\* \*\*Một con 5:\*\* 5 điểm
+\* \*\*Ba con giống nhau:\*\* 20 đến 100 điểm; ba con 1 được 100 điểm
 \* \*\*Bốn con giống nhau:\*\* 40 đến 200 điểm
-
 \* \*\*Năm con giống nhau:\*\* 80 đến 400 điểm
-
 \* \*\*Sáu con giống nhau:\*\* 160 đến 800 điểm
-
-\* \*\*Sảnh nhỏ (5 số liên tiếp):\*\* 100 điểm
-
-\* \*\*Ba đôi / Cù lũ:\*\* 150 điểm
-
-\* \*\*Sảnh lớn (1-2-3-4-5-6):\*\* 200 điểm
-
+\* \*\*Sảnh nhỏ:\*\* 100 điểm
+\* \*\*Ba đôi:\*\* 150 điểm
+\* \*\*Bốn con giống nhau kèm một đôi:\*\* 150 điểm
+\* \*\*Sảnh lớn:\*\* 200 điểm
 \* \*\*Hai bộ ba:\*\* 250 điểm
-
-
 
 \*\*Tùy chọn trò chơi\*\*
 
-\* \*\*Điểm mục tiêu:\*\* Số điểm cần đạt để thắng (mặc định 500).
+\* \*\*Điểm mục tiêu:\*\* Số điểm cần đạt để thắng. Phạm vi: 500 đến 5000. Mặc định: 500.
+\* \*\*Điểm nhập cuộc tối thiểu:\*\* Điểm lượt tối thiểu cần có để chốt điểm lần đầu. Phạm vi: 0 đến 5000, nhưng không được cao hơn điểm mục tiêu. Mặc định: 50.
+\* \*\*Điểm chốt tối thiểu:\*\* Điểm lượt tối thiểu cần có để chốt sau khi bạn đã có điểm trên bảng. Phạm vi: 0 đến 5000, nhưng không được cao hơn điểm mục tiêu. Mặc định: 30.
 
-\* \*\*Điểm nhập cuộc tối thiểu:\*\* Số điểm tối thiểu trong một lượt để chốt lần đầu tiên (mặc định 50).
+\*\*Tùy chọn cá nhân\*\*
 
-\* \*\*Điểm chốt tối thiểu:\*\* Số điểm tối thiểu trong một lượt để chốt ở các lượt sau (mặc định 30).
-
-
+\* \*\*Thông báo ngắn gọn:\*\* Rút gọn thông báo gieo, giữ điểm, Farkle, Nóng tay, chốt điểm và thắng ván.
+\* \*\*Xác nhận hành động rủi ro:\*\* Nếu bật, khi bạn có điểm lượt lớn và đã có thể chốt, trò chơi sẽ yêu cầu lặp lại hành động Gieo trước khi bạn mạo hiểm số điểm đó.
 
 \*\*Phím tắt bàn phím\*\*
 
-
-
 \* \*\*R:\*\* Gieo xúc xắc.
-
-\* \*\*B:\*\* Chốt điểm.
-
+\* \*\*B:\*\* Chốt điểm lượt.
 \* \*\*C:\*\* Xem điểm lượt này.
-
+\* \*\*S:\*\* Xem điểm.
+\* \*\*Shift+S:\*\* Mở bảng điểm chi tiết.
