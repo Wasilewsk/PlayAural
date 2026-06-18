@@ -9,9 +9,12 @@ Color Game is PlayAural's adaptation of the traditional Filipino \*perya\* color
 \* Each die contains the same 6 colors, so a color may appear \*\*0, 1, 2, or 3 times\*\* in a round.
 \* At the start of the match, every player receives a \*\*starting bankroll\*\* based on the host setting.
 \* A round opens with a \*\*shared betting phase\*\*. This is not a strict one-player turn. All live players may place or change bets during the same timer window.
-\* A \*\*live player\*\* in this implementation means a player whose bankroll is still above 0.
+\* A \*\*live player\*\* means a player whose bankroll can still cover the table's Minimum Bet.
 \* During betting, you may place chips on \*\*one color\*\* or split your total across \*\*multiple colors\*\*.
 \* Every color bet is treated independently. You are not choosing one overall winning color for the whole round.
+\* Selecting a color opens a \*\*quick-bet menu\*\*. It offers legal preset amounts based on your remaining bankroll and the table's round limit, including 25 percent, 50 percent, and the largest amount currently allowed.
+\* Choose \*\*Custom input\*\* when you need an exact amount. Entering 0 clears that color.
+\* Choosing \*\*All-in\*\* uses all betting capacity still available for that color in the current round. The host's Maximum Total Bet Per Round still applies, so this choice never bypasses the table limit.
 \* When you are satisfied with your bets, use \*\*Lock bets\*\*.
 \* If all live players lock their bets before the timer expires, the dice roll immediately.
 \* If the timer expires first, every remaining live player is automatically locked with their current bet sheet, including the possibility of locking \*\*no bet at all\*\*.
@@ -22,8 +25,10 @@ Color Game is PlayAural's adaptation of the traditional Filipino \*perya\* color
 \* \*\*Shared betting phase:\*\* all live players may act during the same betting window.
 \* \*\*Locked bets:\*\* once you lock your bets for the round, you cannot edit them again until the next round.
 \* \*\*Sitting out:\*\* you may lock an empty bet sheet. In that case, you neither win nor lose chips in that round.
-\* \*\*Bankrupt players:\*\* if your bankroll reaches 0, you remain on the standings but cannot place new bets.
+\* \*\*Players below the minimum:\*\* if your bankroll falls below the table's Minimum Bet, you remain on the standings but are out of the betting because no legal wager is possible.
 \* \*\*Round timer:\*\* the timer does not discard your current bets. It simply locks whatever you already have when time runs out.
+\* \*\*Confirm risky actions:\*\* when your personal preference is enabled, All-in and locking an empty bet sheet require the same choice a second time within 10 seconds.
+\* \*\*Brief announcements:\*\* when enabled in your personal Game Options, round, roll, lock, and payout messages use compact data-first wording.
 
 \*\*Scoring\*\*
 
@@ -60,9 +65,9 @@ The game supports two win conditions:
 \* \*\*Last Player Standing\*\*
 \* \*\*Highest Bankroll At The Round Limit\*\*
 
-However, the current code also contains one shared early-end rule:
+Both modes also share one practical early-end rule:
 
-\* If only \*\*one live player\*\* remains, the match ends immediately, even if the round limit has not been reached yet.
+\* If only \*\*one player able to meet the minimum bet\*\* remains, the match ends immediately, even if the round limit has not been reached yet.
 
 That means the exact behavior is:
 
@@ -71,7 +76,7 @@ That means the exact behavior is:
 \* If the round limit is reached first, the player with the highest bankroll wins.
 \* \*\*Highest Bankroll At The Round Limit:\*\*
 \* The intended focus is bankroll at the end of the limit.
-\* But if only one player still has chips before the limit, the current implementation also ends immediately at that point.
+\* If only one player still has chips before the limit, the match ends because no other player can place another wager or change the standings.
 
 If players are tied at the top, ranking is broken in this exact order:
 
@@ -109,12 +114,12 @@ If players are tied at the top, ranking is broken in this exact order:
 
 \*\*Keyboard Shortcuts\*\*
 
-\* \*\*R:\*\* Set the red bet.
-\* \*\*U:\*\* Set the blue bet.
-\* \*\*Y:\*\* Set the yellow bet.
-\* \*\*G:\*\* Set the green bet.
-\* \*\*W:\*\* Set the white bet.
-\* \*\*O:\*\* Set the orange bet.
+\* \*\*R:\*\* Open the red quick-bet menu.
+\* \*\*U:\*\* Open the blue quick-bet menu.
+\* \*\*Y:\*\* Open the yellow quick-bet menu.
+\* \*\*G:\*\* Open the green quick-bet menu.
+\* \*\*W:\*\* Open the white quick-bet menu.
+\* \*\*O:\*\* Open the orange quick-bet menu.
 \* \*\*C:\*\* Clear your current bets.
 \* \*\*Space:\*\* Lock your bets for the current round.
 \* \*\*E:\*\* Hear the current phase, timer, bankroll, lock state, and leader.

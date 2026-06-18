@@ -6,7 +6,7 @@ import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
-from ...game_utils.actions import Action, ActionSet, EditboxInput, Visibility
+from ...game_utils.actions import Action, ActionSet, EditboxInput, MenuInput, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.options import IntOption, MenuOption, option_field
@@ -29,6 +29,12 @@ ROLL_SEQUENCE_TAG = "colorgame_roll"
 SHAKE_TO_ROLL_DELAY_TICKS = 34
 ROLL_TO_RESULT_DELAY_TICKS = 24
 TICKS_PER_SECOND = 20
+RISK_CONFIRM_SECONDS = 10
+RISK_CONFIRM_TICKS = RISK_CONFIRM_SECONDS * TICKS_PER_SECOND
+
+QUICK_BET_CUSTOM = "custom"
+QUICK_BET_CLEAR = "clear"
+QUICK_BET_ALL_IN = "all_in"
 
 
 def roll_colors() -> list[str]:
@@ -53,6 +59,8 @@ class ColorGamePlayer(Player):
     bets_locked: bool = False
     profitable_rounds: int = 0
     biggest_win: int = 0
+    pending_risky_action: str = ""
+    risky_confirm_ticks: int = 0
 
 
 @dataclass
@@ -135,6 +143,8 @@ class ColorGameOptions(GameOptions):
 class ColorGameGame(Game):
     """Traditional Filipino Perya Color Game adaptation."""
 
+    relevant_preferences = ["brief_announcements", "confirm_destructive_actions"]
+
     players: list[ColorGamePlayer] = field(default_factory=list)
     options: ColorGameOptions = field(default_factory=ColorGameOptions)
     phase: str = PHASE_BETTING
@@ -175,10 +185,36 @@ class ColorGameGame(Game):
 
     def prestart_validate(self) -> list[str | tuple[str, dict]]:
         errors = super().prestart_validate()
+        if self.options.minimum_bet > self.options.starting_bankroll:
+            errors.append(
+                (
+                    "colorgame-error-minimum-exceeds-bankroll",
+                    {
+                        "minimum": self.options.minimum_bet,
+                        "bankroll": self.options.starting_bankroll,
+                    },
+                )
+            )
         if self.options.maximum_total_bet < self.options.minimum_bet:
-            errors.append("colorgame-error-max-bet-too-small")
+            errors.append(
+                (
+                    "colorgame-error-max-bet-too-small",
+                    {
+                        "maximum": self.options.maximum_total_bet,
+                        "minimum": self.options.minimum_bet,
+                    },
+                )
+            )
         if self.options.maximum_total_bet > self.options.starting_bankroll:
-            errors.append("colorgame-error-max-bet-too-large")
+            errors.append(
+                (
+                    "colorgame-error-max-bet-too-large",
+                    {
+                        "maximum": self.options.maximum_total_bet,
+                        "bankroll": self.options.starting_bankroll,
+                    },
+                )
+            )
         return errors
 
     def _sync_team_scores(self) -> None:
@@ -218,17 +254,189 @@ class ColorGameGame(Game):
             return Localization.get(locale, "colorgame-no-bets")
         return Localization.format_list_and(locale, parts)
 
+    def _wants_brief(self, user) -> bool:
+        return bool(
+            user
+            and user.preferences.get_effective(
+                "brief_announcements", game_type=self.get_type()
+            )
+        )
+
+    def _broadcast_actor_l(
+        self,
+        actor: ColorGamePlayer,
+        personal_key: str,
+        others_key: str,
+        *,
+        brief_personal_key: str | None = None,
+        brief_others_key: str | None = None,
+        **kwargs,
+    ) -> None:
+        """Broadcast an actor event with per-listener perspective and verbosity."""
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+
+            is_actor = listener is actor
+            key = personal_key if is_actor else others_key
+            if self._wants_brief(user):
+                if is_actor and brief_personal_key:
+                    key = brief_personal_key
+                elif not is_actor and brief_others_key:
+                    key = brief_others_key
+
+            payload = dict(kwargs)
+            if not is_actor:
+                payload["player"] = actor.name
+            user.speak_l(key, buffer="game", **payload)
+
+    def _broadcast_global_l(
+        self,
+        full_key: str,
+        brief_key: str,
+        **kwargs,
+    ) -> None:
+        """Broadcast a global event using each listener's verbosity preference."""
+        for listener in self.players:
+            user = self.get_user(listener)
+            if user:
+                user.speak_l(
+                    brief_key if self._wants_brief(user) else full_key,
+                    buffer="game",
+                    **kwargs,
+                )
+
     def _player_total_bet(self, player: ColorGamePlayer) -> int:
         return sum(player.current_bets.values())
 
     def _player_bet_cap(self, player: ColorGamePlayer) -> int:
         return min(player.bankroll, self.options.maximum_total_bet)
 
+    def _player_can_bet(self, player: ColorGamePlayer) -> bool:
+        return player.bankroll >= self.options.minimum_bet
+
+    def _maximum_color_bet(self, player: ColorGamePlayer, color: str) -> int:
+        """Return the largest legal replacement wager for one color."""
+        other_bets = sum(
+            amount
+            for bet_color, amount in player.current_bets.items()
+            if bet_color != color
+        )
+        return max(0, self._player_bet_cap(player) - other_bets)
+
+    def _clear_risky_confirmation(self, player: ColorGamePlayer) -> None:
+        player.pending_risky_action = ""
+        player.risky_confirm_ticks = 0
+
+    def _should_confirm_risky_action(
+        self,
+        player: ColorGamePlayer,
+        signature: str,
+        message_key: str,
+        **kwargs,
+    ) -> bool:
+        """Return True after prompting; repeat the same action to confirm."""
+        if player.is_bot:
+            self._clear_risky_confirmation(player)
+            return False
+
+        user = self.get_user(player)
+        if not user or not user.preferences.get_effective(
+            "confirm_destructive_actions", game_type=self.get_type()
+        ):
+            self._clear_risky_confirmation(player)
+            return False
+
+        if (
+            player.pending_risky_action == signature
+            and player.risky_confirm_ticks > 0
+        ):
+            self._clear_risky_confirmation(player)
+            return False
+
+        player.pending_risky_action = signature
+        player.risky_confirm_ticks = RISK_CONFIRM_TICKS
+        user.speak_l(
+            message_key,
+            buffer="game",
+            seconds=RISK_CONFIRM_SECONDS,
+            **kwargs,
+        )
+        return True
+
+    def _selected_bet_color(self, player: ColorGamePlayer) -> str:
+        action_id = self._pending_actions.get(player.id, "")
+        color = action_id.removeprefix("set_bet_")
+        return color if color in COLORS else ""
+
+    def _quick_bet_options(self, player: ColorGamePlayer) -> list[str]:
+        """Build legal quick-wager choices for the selected color."""
+        color = self._selected_bet_color(player)
+        if not color:
+            return []
+
+        maximum = self._maximum_color_bet(player, color)
+        minimum = self.options.minimum_bet
+        amount_kinds: dict[int, str] = {}
+
+        def add_amount(kind: str, amount: int, *, replace: bool = False) -> None:
+            amount = min(amount, maximum)
+            if amount < minimum:
+                return
+            if amount == minimum and amount in amount_kinds:
+                return
+            if replace or amount not in amount_kinds:
+                amount_kinds[amount] = kind
+
+        add_amount("minimum", minimum)
+        for amount in (5, 10, 25, 50, 100):
+            add_amount("preset", amount)
+        add_amount("quarter", maximum // 4, replace=True)
+        add_amount("half", maximum // 2, replace=True)
+
+        if maximum >= minimum:
+            amount_kinds[maximum] = QUICK_BET_ALL_IN
+
+        options = [
+            f"{amount_kinds[amount]}:{amount}" for amount in sorted(amount_kinds)
+        ]
+
+        if player.current_bets.get(color, 0) > 0:
+            options.append(QUICK_BET_CLEAR)
+        options.append(QUICK_BET_CUSTOM)
+        return options
+
+    def _quick_bet_option_label(
+        self, player: ColorGamePlayer, option: str
+    ) -> str:
+        locale = self._player_locale(player)
+        if option == QUICK_BET_CLEAR:
+            return Localization.get(locale, "colorgame-quick-bet-clear")
+        if option == QUICK_BET_CUSTOM:
+            return Localization.get(locale, "colorgame-quick-bet-custom")
+
+        kind, _, raw_amount = option.partition(":")
+        try:
+            amount = int(raw_amount)
+        except ValueError:
+            return option
+
+        key = {
+            "minimum": "colorgame-quick-bet-minimum",
+            "preset": "colorgame-quick-bet-preset",
+            "quarter": "colorgame-quick-bet-quarter",
+            "half": "colorgame-quick-bet-half",
+            QUICK_BET_ALL_IN: "colorgame-quick-bet-all-in",
+        }.get(kind, "colorgame-quick-bet-preset")
+        return Localization.get(locale, key, amount=amount)
+
     def _live_players(self) -> list[ColorGamePlayer]:
         return [
             player
             for player in self.get_active_players()
-            if isinstance(player, ColorGamePlayer) and player.bankroll > 0
+            if isinstance(player, ColorGamePlayer)
+            and self._player_can_bet(player)
         ]
 
     def _all_betting_players_locked(self) -> bool:
@@ -267,7 +475,8 @@ class ColorGameGame(Game):
         for player in self.get_active_players():
             if isinstance(player, ColorGamePlayer):
                 player.current_bets.clear()
-                player.bets_locked = player.bankroll <= 0
+                player.bets_locked = not self._player_can_bet(player)
+                self._clear_risky_confirmation(player)
 
     def _queue_betting_bots(self) -> None:
         for player in self._live_players():
@@ -286,9 +495,9 @@ class ColorGameGame(Game):
         self._reset_round_state()
 
         self.play_sound("game_bunko/roundstart.ogg")
-        self.broadcast_l(
+        self._broadcast_global_l(
             "colorgame-round-start",
-            buffer="game",
+            "colorgame-round-start-brief",
             round=self.round,
             limit=self.options.round_limit,
             seconds=self.options.betting_timer_seconds,
@@ -364,7 +573,11 @@ class ColorGameGame(Game):
             user = self.get_user(listener)
             if user:
                 user.speak_l(
-                    "colorgame-roll-result",
+                    (
+                        "colorgame-roll-result-brief"
+                        if self._wants_brief(user)
+                        else "colorgame-roll-result"
+                    ),
                     buffer="game",
                     colors=self._format_color_list(user.locale, rolled),
                 )
@@ -373,32 +586,40 @@ class ColorGameGame(Game):
             net = self.last_round_net_changes.get(player.id, 0)
             bets = self.last_round_bets.get(player.id, {})
             if not bets:
-                self.broadcast_l(
+                self._broadcast_actor_l(
+                    player,
+                    "colorgame-you-sat-out",
                     "colorgame-player-sat-out",
-                    buffer="game",
-                    player=player.name,
+                    brief_personal_key="colorgame-you-sat-out-brief",
+                    brief_others_key="colorgame-player-sat-out-brief",
                     bankroll=player.bankroll,
                 )
             elif net > 0:
-                self.broadcast_l(
+                self._broadcast_actor_l(
+                    player,
+                    "colorgame-you-won",
                     "colorgame-player-won",
-                    buffer="game",
-                    player=player.name,
+                    brief_personal_key="colorgame-you-won-brief",
+                    brief_others_key="colorgame-player-won-brief",
                     amount=net,
                     bankroll=player.bankroll,
                 )
             elif net == 0:
-                self.broadcast_l(
+                self._broadcast_actor_l(
+                    player,
+                    "colorgame-you-even",
                     "colorgame-player-even",
-                    buffer="game",
-                    player=player.name,
+                    brief_personal_key="colorgame-you-even-brief",
+                    brief_others_key="colorgame-player-even-brief",
                     bankroll=player.bankroll,
                 )
             else:
-                self.broadcast_l(
+                self._broadcast_actor_l(
+                    player,
+                    "colorgame-you-lost",
                     "colorgame-player-lost",
-                    buffer="game",
-                    player=player.name,
+                    brief_personal_key="colorgame-you-lost-brief",
+                    brief_others_key="colorgame-player-lost-brief",
                     amount=abs(net),
                     bankroll=player.bankroll,
                 )
@@ -413,16 +634,25 @@ class ColorGameGame(Game):
         if player.bets_locked:
             return
         player.bets_locked = True
+        self._clear_risky_confirmation(player)
         total = self._player_total_bet(player)
         if total > 0:
-            self.broadcast_l(
+            self._broadcast_actor_l(
+                player,
+                "colorgame-you-locked-bets",
                 "colorgame-player-locked-bets",
-                buffer="game",
-                player=player.name,
+                brief_personal_key="colorgame-you-locked-bets-brief",
+                brief_others_key="colorgame-player-locked-bets-brief",
                 total=total,
             )
         else:
-            self.broadcast_l("colorgame-player-sits-out", buffer="game", player=player.name)
+            self._broadcast_actor_l(
+                player,
+                "colorgame-you-sit-out",
+                "colorgame-player-sits-out",
+                brief_personal_key="colorgame-you-sit-out-brief",
+                brief_others_key="colorgame-player-sits-out-brief",
+            )
 
     def _auto_lock_unconfirmed_players(self) -> None:
         for player in self._live_players():
@@ -494,13 +724,23 @@ class ColorGameGame(Game):
 
     def _standings_lines(self, locale: str) -> list[str]:
         lines = []
+        previous_key: tuple[int, int, int] | None = None
+        rank = 0
         for index, player in enumerate(self._sorted_players_by_standing(), 1):
-            status_key = "colorgame-standing-bust" if player.bankroll <= 0 else "colorgame-standing-live"
+            standing_key = self._standings_key(player)
+            if standing_key != previous_key:
+                rank = index
+                previous_key = standing_key
+            status_key = (
+                "colorgame-standing-bust"
+                if not self._player_can_bet(player)
+                else "colorgame-standing-live"
+            )
             lines.append(
                 Localization.get(
                     locale,
                     "colorgame-score-line",
-                    rank=index,
+                    rank=rank,
                     player=player.name,
                     bankroll=player.bankroll,
                     profitable_rounds=player.profitable_rounds,
@@ -531,18 +771,36 @@ class ColorGameGame(Game):
         return lines
 
     def _is_set_bet_enabled(self, player: Player, *, action_id: str) -> str | None:
-        _ = action_id
         if self.status != "playing":
             return "action-not-playing"
         if player.is_spectator:
             return "action-spectator"
         cg_player: ColorGamePlayer = player  # type: ignore[assignment]
-        if cg_player.bankroll <= 0:
-            return "colorgame-bankrupt"
+        if not self._player_can_bet(cg_player):
+            return (
+                "colorgame-below-minimum-bankroll",
+                {
+                    "bankroll": cg_player.bankroll,
+                    "minimum": self.options.minimum_bet,
+                },
+            )
         if self.phase != PHASE_BETTING:
-            return "action-game-in-progress"
+            return "colorgame-betting-closed"
         if cg_player.bets_locked:
             return "colorgame-bets-already-locked"
+        color = action_id.removeprefix("set_bet_").removeprefix("custom_bet_")
+        if (
+            color in COLORS
+            and not cg_player.current_bets.get(color)
+            and self._maximum_color_bet(cg_player, color) < self.options.minimum_bet
+        ):
+            return (
+                "colorgame-no-room-for-color-bet",
+                {
+                    "minimum": self.options.minimum_bet,
+                    "available": self._maximum_color_bet(cg_player, color),
+                },
+            )
         return None
 
     def _is_set_bet_hidden(self, player: Player, *, action_id: str) -> Visibility:
@@ -550,7 +808,7 @@ class ColorGameGame(Game):
         if self.status != "playing" or player.is_spectator:
             return Visibility.HIDDEN
         cg_player: ColorGamePlayer = player  # type: ignore[assignment]
-        if self.phase != PHASE_BETTING or cg_player.bankroll <= 0 or cg_player.bets_locked:
+        if not self._player_can_bet(cg_player):
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 
@@ -565,6 +823,10 @@ class ColorGameGame(Game):
             amount=cg_player.current_bets.get(color, 0),
         )
 
+    def _is_custom_bet_hidden(self, player: Player) -> Visibility:
+        _ = player
+        return Visibility.HIDDEN
+
     def _is_clear_bets_enabled(self, player: Player) -> str | None:
         if self.status != "playing":
             return "action-not-playing"
@@ -572,7 +834,7 @@ class ColorGameGame(Game):
             return "action-spectator"
         cg_player: ColorGamePlayer = player  # type: ignore[assignment]
         if self.phase != PHASE_BETTING:
-            return "action-game-in-progress"
+            return "colorgame-betting-closed"
         if cg_player.bets_locked:
             return "colorgame-bets-already-locked"
         if not cg_player.current_bets:
@@ -583,7 +845,7 @@ class ColorGameGame(Game):
         if self.status != "playing" or player.is_spectator:
             return Visibility.HIDDEN
         cg_player: ColorGamePlayer = player  # type: ignore[assignment]
-        if self.phase != PHASE_BETTING or cg_player.bets_locked or not cg_player.current_bets:
+        if not self._player_can_bet(cg_player):
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 
@@ -593,10 +855,16 @@ class ColorGameGame(Game):
         if player.is_spectator:
             return "action-spectator"
         cg_player: ColorGamePlayer = player  # type: ignore[assignment]
-        if cg_player.bankroll <= 0:
-            return "colorgame-bankrupt"
+        if not self._player_can_bet(cg_player):
+            return (
+                "colorgame-below-minimum-bankroll",
+                {
+                    "bankroll": cg_player.bankroll,
+                    "minimum": self.options.minimum_bet,
+                },
+            )
         if self.phase != PHASE_BETTING:
-            return "action-game-in-progress"
+            return "colorgame-betting-closed"
         if cg_player.bets_locked:
             return "colorgame-bets-already-locked"
         return None
@@ -605,7 +873,7 @@ class ColorGameGame(Game):
         if self.status != "playing" or player.is_spectator:
             return Visibility.HIDDEN
         cg_player: ColorGamePlayer = player  # type: ignore[assignment]
-        if self.phase != PHASE_BETTING or cg_player.bankroll <= 0 or cg_player.bets_locked:
+        if not self._player_can_bet(cg_player):
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 
@@ -697,10 +965,24 @@ class ColorGameGame(Game):
                     is_enabled="_is_set_bet_enabled",
                     is_hidden="_is_set_bet_hidden",
                     get_label="_get_set_bet_label",
+                    input_request=MenuInput(
+                        prompt="colorgame-select-quick-bet",
+                        options="_quick_bet_options",
+                        option_label="_quick_bet_option_label",
+                    ),
+                    show_in_actions_menu=False,
+                )
+            )
+            action_set.add(
+                Action(
+                    id=f"custom_bet_{color}",
+                    label="",
+                    handler="_action_custom_bet",
+                    is_enabled="_is_set_bet_enabled",
+                    is_hidden="_is_custom_bet_hidden",
                     input_request=EditboxInput(
-                        prompt="colorgame-enter-bet-amount",
+                        prompt="colorgame-enter-custom-bet-amount",
                         default="",
-                        bot_input="_bot_input_bet_amount",
                     ),
                     show_in_actions_menu=False,
                 )
@@ -813,17 +1095,62 @@ class ColorGameGame(Game):
         self, player: ColorGamePlayer, input_value: str, action_id: str
     ) -> None:
         color = action_id.removeprefix("set_bet_")
+        if input_value == QUICK_BET_CUSTOM:
+            self.execute_action(player, f"custom_bet_{color}")
+            return
+        if input_value == QUICK_BET_CLEAR:
+            self._apply_color_bet(player, color, 0)
+            return
+
+        kind, separator, raw_amount = input_value.partition(":")
+        if not separator:
+            raw_amount = input_value
+
+        try:
+            amount = int(raw_amount.strip())
+        except ValueError:
+            user = self.get_user(player)
+            if user:
+                user.speak_l("colorgame-invalid-bet-amount", buffer="game")
+            return
+
+        if (
+            kind == QUICK_BET_ALL_IN
+            and player.current_bets.get(color, 0) != amount
+            and self._should_confirm_risky_action(
+                player,
+                f"all_in:{color}:{amount}",
+                "colorgame-confirm-all-in",
+                amount=amount,
+                color=self._color_name(self._player_locale(player), color),
+            )
+        ):
+            self.request_menu_focus(player, action_id)
+            return
+
+        self._apply_color_bet(player, color, amount)
+
+    def _action_custom_bet(
+        self, player: ColorGamePlayer, input_value: str, action_id: str
+    ) -> None:
+        color = action_id.removeprefix("custom_bet_")
+        try:
+            amount = int(input_value.strip())
+        except ValueError:
+            user = self.get_user(player)
+            if user:
+                user.speak_l("colorgame-invalid-bet-amount", buffer="game")
+            return
+        self._apply_color_bet(player, color, amount)
+
+    def _apply_color_bet(
+        self, player: ColorGamePlayer, color: str, amount: int
+    ) -> None:
         user = self.get_user(player)
         if not user:
             return
 
-        try:
-            amount = int(input_value.strip())
-        except ValueError:
-            user.speak_l("colorgame-invalid-bet-amount", buffer="game")
-            return
-
-        if amount < 0:
+        if color not in COLORS or amount < 0:
             user.speak_l("colorgame-invalid-bet-amount", buffer="game")
             return
 
@@ -841,29 +1168,63 @@ class ColorGameGame(Game):
             proposed[color] = amount
 
         total = sum(proposed.values())
-        cap = self._player_bet_cap(player)
-        if total > cap:
-            user.speak_l("colorgame-bet-exceeds-bankroll", buffer="game", amount=cap)
+        if total > player.bankroll:
+            user.speak_l(
+                "colorgame-bet-exceeds-bankroll",
+                buffer="game",
+                amount=player.bankroll,
+            )
+            return
+        if total > self.options.maximum_total_bet:
+            user.speak_l(
+                "colorgame-bet-exceeds-round-limit",
+                buffer="game",
+                amount=self.options.maximum_total_bet,
+            )
             return
 
         player.current_bets = proposed
-        user.speak_l(
-            "colorgame-bet-updated",
-            buffer="game",
-            color=self._color_name(user.locale, color),
-            amount=player.current_bets.get(color, 0),
-            total=total,
-        )
+        self._clear_risky_confirmation(player)
+        color_name = self._color_name(user.locale, color)
+        if amount == 0:
+            user.speak_l(
+                "colorgame-color-bet-cleared",
+                buffer="game",
+                color=color_name,
+                total=total,
+            )
+        else:
+            user.speak_l(
+                "colorgame-bet-updated",
+                buffer="game",
+                color=color_name,
+                amount=amount,
+                total=total,
+            )
+        self.request_menu_focus(player, f"set_bet_{color}")
+        self.refresh_menus()
 
     def _action_clear_bets(self, player: ColorGamePlayer, action_id: str) -> None:
         _ = action_id
         player.current_bets.clear()
+        self._clear_risky_confirmation(player)
         user = self.get_user(player)
         if user:
             user.speak_l("colorgame-bets-cleared", buffer="game")
+        self.refresh_menus()
 
     def _action_confirm_bets(self, player: ColorGamePlayer, action_id: str) -> None:
         _ = action_id
+        if (
+            self._player_total_bet(player) == 0
+            and self._should_confirm_risky_action(
+                player,
+                "sit_out",
+                "colorgame-confirm-sit-out-risk",
+            )
+        ):
+            self.request_menu_focus(player, "confirm_bets")
+            return
         self._lock_player_bets(player)
         self.refresh_menus()
         if self._all_betting_players_locked():
@@ -1009,13 +1370,6 @@ class ColorGameGame(Game):
         lines.extend(self._standings_lines(locale))
         return lines
 
-    def _bot_input_bet_amount(self, player: ColorGamePlayer) -> str:
-        if player.current_bets:
-            pending = self._pending_actions.get(player.id, "")
-            color = pending.removeprefix("set_bet_")
-            return str(player.current_bets.get(color, 0))
-        return str(self.options.minimum_bet)
-
     def on_start(self) -> None:
         self.status = "playing"
         self._sync_table_status()
@@ -1038,6 +1392,7 @@ class ColorGameGame(Game):
                 player.bets_locked = False
                 player.profitable_rounds = 0
                 player.biggest_win = 0
+                self._clear_risky_confirmation(player)
 
         self.set_turn_players(active_players)
         self._sync_team_scores()
@@ -1051,6 +1406,13 @@ class ColorGameGame(Game):
         self.process_sequences()
         if self.status != "playing" or self.is_sequence_bot_paused():
             return
+        for player in self.get_active_players():
+            if not isinstance(player, ColorGamePlayer):
+                continue
+            if player.risky_confirm_ticks > 0:
+                player.risky_confirm_ticks -= 1
+                if player.risky_confirm_ticks == 0:
+                    player.pending_risky_action = ""
         if self.phase == PHASE_BETTING:
             if self.betting_ticks_remaining > 0:
                 self.betting_ticks_remaining -= 1
@@ -1080,10 +1442,17 @@ class ColorGameGame(Game):
             player for player in sorted_players if self._standings_key(player) == top_key
         ]
         rankings = []
-        for player in sorted_players:
+        previous_key: tuple[int, int, int] | None = None
+        rank = 0
+        for index, player in enumerate(sorted_players, 1):
+            standing_key = self._standings_key(player)
+            if standing_key != previous_key:
+                rank = index
+                previous_key = standing_key
             rankings.append(
                 {
                     "members": [player.name],
+                    "rank": rank,
                     "bankroll": player.bankroll,
                     "profitable_rounds": player.profitable_rounds,
                     "biggest_win": player.biggest_win,
@@ -1113,6 +1482,29 @@ class ColorGameGame(Game):
 
     def format_end_screen(self, result: GameResult, locale: str) -> list[str]:
         lines = [Localization.get(locale, "game-final-scores")]
+        winner_ids = set(result.custom_data.get("winner_ids", []))
+        winner_names = [
+            player.player_name
+            for player in result.player_results
+            if player.player_id in winner_ids
+        ]
+        if len(winner_names) == 1:
+            lines.append(
+                Localization.get(
+                    locale,
+                    "colorgame-game-winner",
+                    player=winner_names[0],
+                )
+            )
+        elif winner_names:
+            lines.append(
+                Localization.get(
+                    locale,
+                    "colorgame-game-tie",
+                    players=Localization.format_list_and(locale, winner_names),
+                )
+            )
+
         rankings = result.custom_data.get("rankings", [])
         for index, entry in enumerate(rankings, 1):
             members = entry.get("members", [])
@@ -1121,7 +1513,7 @@ class ColorGameGame(Game):
                 Localization.get(
                     locale,
                     "colorgame-score-line",
-                    rank=index,
+                    rank=entry.get("rank", index),
                     player=name,
                     bankroll=entry.get("bankroll", 0),
                     profitable_rounds=entry.get("profitable_rounds", 0),
@@ -1129,7 +1521,7 @@ class ColorGameGame(Game):
                     status=Localization.get(
                         locale,
                         "colorgame-standing-live"
-                        if entry.get("bankroll", 0) > 0
+                        if entry.get("bankroll", 0) >= self.options.minimum_bet
                         else "colorgame-standing-bust",
                     ),
                 )
