@@ -1,0 +1,52 @@
+EAS iOS signing & build - Instructions
+
+Credential folder (example):
+C:\Users\natan\Downloads\VIETNAM AIRLINES JSC 2\VIETNAM AIRLINES JSC 2
+
+Project path:
+C:\Users\natan\PlayAural\mobile_client
+
+1) Install EAS CLI (requires Node/npm):
+npm install -g eas-cli
+eas --version
+
+2) Login to Expo/EAS:
+cd C:\Users\natan\PlayAural\mobile_client
+eas login
+
+3) Prepare credential folder inside project (manual):
+mkdir ios-creds
+copy "C:\Users\natan\Downloads\VIETNAM AIRLINES JSC 2\VIETNAM AIRLINES JSC 2\cert.p12" ios-creds
+copy "C:\Users\natan\Downloads\VIETNAM AIRLINES JSC 2\VIETNAM AIRLINES JSC 2\profile.mobileprovision" ios-creds
+
+(Or run the included batch file: prepare_eas_ios_creds_fixed.bat from repo root)
+
+4) Open EAS iOS credentials manager and upload files:
+eas credentials --platform ios
+
+- When prompted, choose to upload your own Distribution Certificate (.p12)
+  * Provide the path to the .p12 file and enter its password when asked.
+- Then choose to upload your own Provisioning Profile (.mobileprovision)
+  * EAS will validate the provisioning profile against the uploaded cert and the app bundle id.
+
+5) Build commands (choose profile from eas.json):
+# production (App Store)
+eas build --platform ios --profile production
+# enterprise (enterprise provisioning)
+eas build --platform ios --profile enterprise
+# development (dev client/internal)
+eas build --platform ios --profile development
+
+Notes & troubleshooting:
+- Always quote paths with spaces. Use full absolute paths.
+- The provisioning profile's App ID must match app.json bundleIdentifier: one.ddt.playaural.mobile
+- The .p12 must be the certificate corresponding to the provisioning profile. If validation fails, ask your friend to export the .p12 from Keychain using the same certificate used to create the provisioning profile.
+- If EAS asks for Apple ID, select the option to upload existing credentials / do not let EAS manage credentials.
+- Do NOT paste the .p12 password publicly. Enter it interactively when prompted.
+
+Files included in repo (created by helper):
+- prepare_eas_ios_creds.bat
+- prepare_eas_ios_creds_fixed.bat
+- ios-creds/  (target folder where files will be copied)
+
+If you want, provide the exact filenames (cert and profile) and I will update the batch file and this text to prefill them.

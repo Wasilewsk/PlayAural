@@ -1,0 +1,76 @@
+name: Build unsigned iOS IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_unsigned_ipa:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install npm dependencies
+        run: |
+          cd mobile_client
+          npm ci
+
+      - name: Prebuild iOS
+        run: |
+          cd mobile_client
+          npx expo prebuild --platform ios --no-install
+
+      - name: Install CocoaPods
+        run: |
+          cd mobile_client/ios
+          pod install --repo-update
+
+      - name: Build unsigned archive and package .ipa
+        run: |
+          set -e
+          cd mobile_client/ios
+
+          # find workspace
+          WORKSPACE=$(ls *.xcworkspace 2>/dev/null | head -n 1)
+          if [ -z "$WORKSPACE" ]; then
+            XCODEPROJ=$(ls *.xcodeproj 2>/dev/null | head -n 1)
+            if [ -n "$XCODEPROJ" ]; then
+              WORKSPACE="${XCODEPROJ%.xcodeproj}.xcworkspace"
+            fi
+          fi
+          echo "Using workspace: $WORKSPACE"
+
+          # detect scheme
+          SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | awk '/Schemes:/{flag=1;next} flag && NF{print $1; exit}')
+          echo "Using scheme: $SCHEME"
+
+          ARCHIVE_PATH="$PWD/build/Archive.xcarchive"
+          mkdir -p "$(dirname "$ARCHIVE_PATH")"
+
+          # archive without code signing
+          xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release -archivePath "$ARCHIVE_PATH" archive CODE_SIGNING_ALLOWED=NO
+
+          # package unsigned .ipa from .xcarchive
+          APP_PATH="$ARCHIVE_PATH/Products/Applications/${SCHEME}.app"
+          echo "App path: $APP_PATH"
+
+          mkdir -p unsigned/Payload
+          cp -R "$APP_PATH" unsigned/Payload/
+          cd unsigned
+          zip -r ../"${SCHEME}"-unsigned.ipa Payload
+          cd ..
+          ls -lh "${SCHEME}"-unsigned.ipa
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-ipa
+          path: |
+            mobile_client/ios/*.ipa
+            mobile_client/ios/**/*.ipa
+            mobile_client/ios/**/**.ipa
