@@ -17,6 +17,7 @@ from ..games.bunko.game import BunkoGame
 from ..games.farkle.game import FarkleGame
 from ..games.humanitycards.game import HumanityCardsGame
 from ..games.leftrightcenter.game import LeftRightCenterGame
+from ..games.lightturret.game import LightTurretGame
 from ..games.ludo.game import LudoGame
 from ..games.midnight.game import MidnightGame
 from ..games.milebymile.game import MileByMileGame
@@ -439,6 +440,7 @@ def test_disabled_turn_menu_action_click_speaks_same_reason_as_keybind() -> None
         (AgeOfHeroesGame, 2),
         (BackgammonGame, 2),
         (HumanityCardsGame, 3),
+        (LightTurretGame, 2),
         (MetalPipeGame, 2),
         (NineGame, 2),
         (PusoyDosGame, 3),

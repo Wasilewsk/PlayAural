@@ -1,82 +1,70 @@
 \*\*Light Turret\*\*
 
+Light Turret is a 2 to 4 player push-your-luck score race. Each player controls a turret that stores light, coins, and power capacity. The aim is to finish with the most light without letting the turret overload too early.
 
-
-Light Turret is a resource management game for 2 to 4 players, blending risk and reward in a strategic push-your-luck format. The concept is simple: you manage a turret, shooting it to accumulate light and coins. But be careful — if your light exceeds your turret's power capacity, you are eliminated.
-
-
-
-The goal is to finish the game with the most light. You can spend coins on upgrades to raise your power limit, giving yourself more room to keep shooting. However, upgrades carry a 25% chance of backfiring and adding light to your turret instead. The game runs for a set number of rounds, and whoever has the most light at the end wins.
-
-
+The game is built around a simple risk decision: firing gives immediate light and coins, while upgrading spends coins to increase your safe capacity. A turret overloads only when its light is greater than its power. Light exactly equal to power is still safe.
 
 \*\*Gameplay\*\*
 
+At the start of the game, every turret receives the same starting power. The game then proceeds through complete rounds. In each round, every active turret gets one turn.
 
+On your turn, you can choose one of two main actions:
 
-The game is divided into rounds, in which every surviving player takes a turn. On your turn, you have two main choices: shoot the turret or buy an upgrade.
+\* \*\*Fire turret:\*\* Gain 1 to 4 light. You also gain twice that amount in coins.
+\* \*\*Upgrade core:\*\* Spend 10 coins to attempt a power upgrade.
 
+If firing or a failed upgrade pushes your light above your power, your turret overloads and you are eliminated. Eliminated players no longer take turns, but their final light total still counts in the final standings.
 
+\*\*Firing\*\*
 
-\*\*Shooting\*\*
+Firing is the fastest way to score. Each shot gives a random 1 to 4 light and awards coins equal to twice the light gained.
 
-Shooting the turret is the core action. When you shoot, you gain a random amount of light (between 1 and 4) and earn coins equal to twice the light gained. For example, if you gain 3 light, you also pocket 6 coins. If your total light exceeds your power, you are eliminated on the spot. Your light total still counts toward the final standings, but you can no longer take turns.
+For example, if you fire and gain 3 light, you also gain 6 coins. If that brings your turret from 6 light to 9 light with 10 power, you are still active. If it brings your turret from 9 light to 12 light with 10 power, you overload and are eliminated.
 
-
+The action label shows whether the next shot is currently safe or has an overload risk. If \*\*Confirm risky actions\*\* is enabled in your personal game options, shots with a 50% or higher overload risk require a second press within 10 seconds.
 
 \*\*Upgrading\*\*
 
-If you have at least 10 coins, you can spend them on a power upgrade. 
+Upgrading costs 10 coins.
 
-\* \*\*Success:\*\* Increases your power by a random amount between 2 and 8.
+\* \*\*Success:\*\* Your power increases by 2 to 8.
+\* \*\*Backfire:\*\* There is a 25% chance that the core backfires instead. When that happens, you gain 1 to 5 light and may overload.
 
-\* \*\*Backfire (25% chance):\*\* Instead of gaining power, a random amount of light (between 1 and 5) is added to your turret. This can result in elimination.
-
-
+Upgrading is usually safest when your next shot has a high overload risk and you have enough rounds left to benefit from the extra capacity.
 
 \*\*Game End\*\*
 
+The game ends when either:
 
+1. The maximum number of rounds is completed.
+2. Every turret has overloaded.
 
-The game ends when one of two conditions is met:
+The final round is always fair: if the round limit is reached, the game waits until every still-active turret has taken its turn for that round before ending.
 
-1\. The maximum number of rounds is reached (default: 50).
+The winner is the player with the most light. If multiple players have the same highest light total, the game records a first-place tie.
 
-2\. All players have been eliminated.
+\*\*Scores and Status\*\*
 
+\* \*\*S:\*\* Read the current light score for each player, one line at a time.
+\* \*\*Shift+S:\*\* Open detailed scores.
+\* \*\*C:\*\* Open the live turret status panel.
 
-
-The player with the most accumulated light wins. Eliminated players are still ranked by their light total, so getting eliminated early doesn't always mean you will finish last.
-
-
-
-\*\*Example Turn\*\*
-
-
-
-You start with the default power of 10. You currently have 6 light and 8 coins. 
-
-1\. You decide to shoot. You gain 3 light (total 9) and 6 coins (total 14). You are now at 9/10 capacity.
-
-2\. Next round, you spend 10 coins on an upgrade. It succeeds, granting 5 extra power. Your power is now 15, and your light remains at 9. You now have 6 points of "headroom" to continue shooting safely.
-
-
+The live status panel updates while it remains open. It shows the round, each turret's light, power, coins, safe capacity, and next-shot overload risk.
 
 \*\*Game Options\*\*
 
-\* \*\*Starting Power:\*\* The initial power capacity for each player (default 10).
+\* \*\*Starting Power:\*\* The starting power capacity for every turret. Range: 5 to 30. Default: 10.
+\* \*\*Maximum Rounds:\*\* The number of complete rounds before final scoring. Range: 10 to 200. Default: 50.
 
-\* \*\*Max Rounds:\*\* The maximum number of rounds before the game ends (default 50).
+\*\*Personal Game Options\*\*
 
-
+\* \*\*Brief announcements:\*\* Shortens round starts, shots, upgrades, overloads, and winner messages while preserving the important numbers.
+\* \*\*Confirm risky actions:\*\* Adds a confirmation prompt before firing when the shot has at least a 50% chance to overload your turret.
 
 \*\*Keyboard Shortcuts\*\*
 
-
-
-\* \*\*Space:\*\* Shoot the turret.
-
-\* \*\*U:\*\* Buy an upgrade (costs 10 coins).
-
-\* \*\*C:\*\* Check stats for all players.
-
+\* \*\*Space:\*\* Fire turret.
+\* \*\*U:\*\* Upgrade core.
+\* \*\*C:\*\* View turret status.
+\* \*\*S:\*\* Check scores.
+\* \*\*Shift+S:\*\* Check detailed scores.

@@ -1,36 +1,55 @@
-"""
-Light Turret Game Implementation.
-
-A resource management game where you shoot a turret to gain light and coins.
-"""
+"""Light Turret push-your-luck game implementation."""
 
 from dataclasses import dataclass, field
 from datetime import datetime
 import random
 
-from ..base import Game, Player
+from ..base import Game, GameOptions, Player
 from ..registry import register_game
 from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.game_result import GameResult, PlayerResult
-from ...game_utils.options import IntOption, option_field, GameOptions
+from ...game_utils.options import IntOption, option_field
+from ...game_utils.sequence_runner_mixin import SequenceBeat, SequenceOperation
 from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
+from ...users.base import MenuItem
+
+
+UPGRADE_COST = 10
+SHOT_MIN_GAIN = 1
+SHOT_MAX_GAIN = 4
+UPGRADE_POWER_MIN = 2
+UPGRADE_POWER_MAX = 8
+UPGRADE_ACCIDENT_LIGHT_MIN = 1
+UPGRADE_ACCIDENT_LIGHT_MAX = 5
+UPGRADE_ACCIDENT_CHANCE = 0.25
+RISK_CONFIRM_TICKS = 200
+RISK_CONFIRM_SECONDS = 10
+ACTION_SEQUENCE_ID = "lightturret_action"
+ACTION_SEQUENCE_TAG = "lightturret_action"
+ACTION_SOUND_DELAY_TICKS = 5
+RESULT_DELAY_TICKS = 4
+OVERLOAD_SOUND_DELAY_TICKS = 6
+END_REASON_MAX_ROUNDS = "max_rounds"
+END_REASON_ALL_ELIMINATED = "all_eliminated"
 
 
 @dataclass
 class LightTurretPlayer(Player):
-    """Player state for Light Turret game."""
+    """Per-player Light Turret state."""
 
-    power: int = 10  # Maximum light before elimination
-    light: int = 0  # Current accumulated light
-    coins: int = 0  # Currency for upgrades
-    alive: bool = True  # Whether player is still in the game
+    power: int = 10
+    light: int = 0
+    coins: int = 0
+    alive: bool = True
+    pending_risky_action: str = ""
+    risky_confirm_ticks: int = 0
 
 
 @dataclass
 class LightTurretOptions(GameOptions):
-    """Options for Light Turret game."""
+    """Host-configurable Light Turret settings."""
 
     starting_power: int = option_field(
         IntOption(
@@ -41,6 +60,7 @@ class LightTurretOptions(GameOptions):
             label="lightturret-set-starting-power",
             prompt="lightturret-enter-starting-power",
             change_msg="lightturret-option-changed-power",
+            description="lightturret-desc-starting-power",
         )
     )
     max_rounds: int = option_field(
@@ -52,6 +72,7 @@ class LightTurretOptions(GameOptions):
             label="lightturret-set-max-rounds",
             prompt="lightturret-enter-max-rounds",
             change_msg="lightturret-option-changed-rounds",
+            description="lightturret-desc-max-rounds",
         )
     )
 
@@ -59,20 +80,18 @@ class LightTurretOptions(GameOptions):
 @dataclass
 @register_game
 class LightTurretGame(Game):
-    """
-    Light Turret game.
+    """A tactical score race built around capacity management and overload risk."""
 
-    Players take turns shooting a turret to gain light and coins.
-    If a player's light exceeds their power, they are eliminated.
-    Players can buy upgrades to increase power, but there's a 25% chance
-    the upgrade backfires and adds light instead.
-    The player with the most light at the end wins.
-    """
+    relevant_preferences = ["brief_announcements", "confirm_destructive_actions"]
 
     players: list[LightTurretPlayer] = field(default_factory=list)
     options: LightTurretOptions = field(default_factory=LightTurretOptions)
-
-    # Flag to delay finish_game until sounds complete
+    score_unit_key = "game-score-unit-light"
+    end_reason: str = ""
+    pending_action_player_id: str = ""
+    pending_action_kind: str = ""
+    pending_action_resolved: bool = False
+    # Backward-compatible completion flag for games saved by older releases.
     _pending_finish: bool = field(default=False, repr=False)
 
     @classmethod
@@ -97,509 +116,1046 @@ class LightTurretGame(Game):
 
     @classmethod
     def get_supported_leaderboards(cls) -> list[str]:
-        return ["wins", "rating", "games_played"]
+        return [
+            "wins",
+            "total_score",
+            "high_score",
+            "rating",
+            "games_played",
+        ]
 
     def create_player(
         self, player_id: str, name: str, is_bot: bool = False
     ) -> LightTurretPlayer:
-        """Create a new player with Light Turret-specific state."""
         return LightTurretPlayer(id=player_id, name=name, is_bot=is_bot)
 
-    def create_turn_action_set(self, player: LightTurretPlayer) -> ActionSet:
-        """Create the turn action set for a player."""
+    def _player_locale(self, player: Player) -> str:
         user = self.get_user(player)
-        locale = user.locale if user else "en"
+        return user.locale if user else "en"
 
+    def _active_light_players(self) -> list[LightTurretPlayer]:
+        return [
+            player
+            for player in self.get_active_players()
+            if isinstance(player, LightTurretPlayer)
+        ]
+
+    def _alive_players(self) -> list[LightTurretPlayer]:
+        return [player for player in self._active_light_players() if player.alive]
+
+    def _wants_brief(self, user) -> bool:
+        return bool(
+            user
+            and user.preferences.get_effective(
+                "brief_announcements", game_type=self.get_type()
+            )
+        )
+
+    def _broadcast_actor_l(
+        self,
+        actor: LightTurretPlayer,
+        personal_key: str,
+        others_key: str,
+        *,
+        brief_personal_key: str | None = None,
+        brief_others_key: str | None = None,
+        **kwargs,
+    ) -> None:
+        """Broadcast an actor event with listener-specific perspective."""
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+            is_actor = listener.id == actor.id
+            key = personal_key if is_actor else others_key
+            if self._wants_brief(user):
+                if is_actor and brief_personal_key:
+                    key = brief_personal_key
+                elif not is_actor and brief_others_key:
+                    key = brief_others_key
+            payload = dict(kwargs)
+            if not is_actor:
+                payload["player"] = actor.name
+            user.speak_l(key, buffer="game", **payload)
+
+    def _broadcast_global_l(
+        self, full_key: str, brief_key: str | None = None, **kwargs
+    ) -> None:
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+            key = brief_key if brief_key and self._wants_brief(user) else full_key
+            user.speak_l(key, buffer="game", **kwargs)
+
+    def _shot_overload_risk(self, player: LightTurretPlayer) -> int:
+        """Return the exact overload percentage for a uniformly random shot."""
+        headroom = player.power - player.light
+        overload_results = sum(
+            gain > headroom for gain in range(SHOT_MIN_GAIN, SHOT_MAX_GAIN + 1)
+        )
+        return int(overload_results * 100 / (SHOT_MAX_GAIN - SHOT_MIN_GAIN + 1))
+
+    def _upgrade_overload_risk(self, player: LightTurretPlayer) -> int:
+        """Return total overload risk from the 25% upgrade accident branch."""
+        headroom = player.power - player.light
+        overload_accidents = sum(
+            gain > headroom
+            for gain in range(
+                UPGRADE_ACCIDENT_LIGHT_MIN, UPGRADE_ACCIDENT_LIGHT_MAX + 1
+            )
+        )
+        accident_outcomes = (
+            UPGRADE_ACCIDENT_LIGHT_MAX - UPGRADE_ACCIDENT_LIGHT_MIN + 1
+        )
+        return int(
+            UPGRADE_ACCIDENT_CHANCE * overload_accidents * 100 / accident_outcomes
+        )
+
+    def _clear_risky_confirmation(self, player: LightTurretPlayer) -> None:
+        player.pending_risky_action = ""
+        player.risky_confirm_ticks = 0
+
+    def _should_confirm_risky_shot(self, player: LightTurretPlayer) -> bool:
+        risk = self._shot_overload_risk(player)
+        if player.is_bot or risk < 50:
+            self._clear_risky_confirmation(player)
+            return False
+
+        user = self.get_user(player)
+        if not user or not user.preferences.get_effective(
+            "confirm_destructive_actions", game_type=self.get_type()
+        ):
+            self._clear_risky_confirmation(player)
+            return False
+
+        signature = f"shoot:{player.light}:{player.power}:{self.round}"
+        if (
+            player.pending_risky_action == signature
+            and player.risky_confirm_ticks > 0
+        ):
+            self._clear_risky_confirmation(player)
+            return False
+
+        player.pending_risky_action = signature
+        player.risky_confirm_ticks = RISK_CONFIRM_TICKS
+        user.speak_l(
+            "lightturret-confirm-risky-shot",
+            buffer="game",
+            risk=risk,
+            light=player.light,
+            power=player.power,
+            seconds=RISK_CONFIRM_SECONDS,
+        )
+        return True
+
+    # ======================================================================
+    # Actions and menus
+    # ======================================================================
+
+    def _turn_action_disabled_reason(self, player: Player) -> str | None:
+        if self.status != "playing":
+            return "action-not-playing"
+        if player.is_spectator:
+            return "action-spectator"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        if not isinstance(player, LightTurretPlayer) or not player.alive:
+            return "lightturret-you-are-eliminated"
+        if self.is_sequence_gameplay_locked():
+            return "lightturret-action-resolving"
+        return None
+
+    def _is_shoot_enabled(self, player: Player) -> str | None:
+        return self._turn_action_disabled_reason(player)
+
+    def _is_upgrade_enabled(
+        self, player: Player
+    ) -> str | tuple[str, dict] | None:
+        reason = self._turn_action_disabled_reason(player)
+        if reason:
+            return reason
+        assert isinstance(player, LightTurretPlayer)
+        if player.coins < UPGRADE_COST:
+            return (
+                "lightturret-not-enough-coins",
+                {"have": player.coins, "need": UPGRADE_COST},
+            )
+        return None
+
+    def _is_turn_action_hidden(self, player: Player) -> Visibility:
+        if self.status != "playing" or player.is_spectator:
+            return Visibility.HIDDEN
+        if not isinstance(player, LightTurretPlayer) or not player.alive:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _get_shoot_label(self, player: Player, action_id: str) -> str:
+        if not isinstance(player, LightTurretPlayer):
+            return Localization.get(self._player_locale(player), "lightturret-shoot")
+        locale = self._player_locale(player)
+        risk = self._shot_overload_risk(player)
+        if risk:
+            return Localization.get(
+                locale, "lightturret-shoot-risk-label", risk=risk
+            )
+        return Localization.get(
+            locale,
+            "lightturret-shoot-safe-label",
+            headroom=max(0, player.power - player.light),
+        )
+
+    def _get_upgrade_label(self, player: Player, action_id: str) -> str:
+        coins = player.coins if isinstance(player, LightTurretPlayer) else 0
+        return Localization.get(
+            self._player_locale(player),
+            "lightturret-upgrade-label",
+            cost=UPGRADE_COST,
+            coins=coins,
+        )
+
+    def _is_check_stats_enabled(self, player: Player) -> str | None:
+        if self.status != "playing":
+            return "action-not-playing"
+        return None
+
+    def _is_check_stats_hidden(self, player: Player) -> Visibility:
+        user = self.get_user(player)
+        if self.is_touch_client(user):
+            return Visibility.VISIBLE if self.status == "playing" else Visibility.HIDDEN
+        return Visibility.HIDDEN
+
+    def _is_whos_at_table_hidden(self, player: Player) -> Visibility:
+        user = self.get_user(player)
+        if self.is_touch_client(user):
+            return Visibility.VISIBLE
+        return super()._is_whos_at_table_hidden(player)
+
+    def _is_whose_turn_hidden(self, player: Player) -> Visibility:
+        user = self.get_user(player)
+        if self.is_touch_client(user):
+            return Visibility.VISIBLE if self.status == "playing" else Visibility.HIDDEN
+        return super()._is_whose_turn_hidden(player)
+
+    def _is_check_scores_hidden(self, player: Player) -> Visibility:
+        user = self.get_user(player)
+        if self.is_touch_client(user):
+            return Visibility.VISIBLE if self.status == "playing" else Visibility.HIDDEN
+        return super()._is_check_scores_hidden(player)
+
+    def create_turn_action_set(self, player: LightTurretPlayer) -> ActionSet:
+        locale = self._player_locale(player)
         action_set = ActionSet(name="turn")
         action_set.add(
             Action(
                 id="shoot",
                 label=Localization.get(locale, "lightturret-shoot"),
                 handler="_action_shoot",
-                is_enabled="_is_turn_action_enabled",
+                is_enabled="_is_shoot_enabled",
                 is_hidden="_is_turn_action_hidden",
+                get_label="_get_shoot_label",
                 show_in_actions_menu=False,
             )
         )
         action_set.add(
             Action(
                 id="upgrade",
-                label=Localization.get(locale, "lightturret-upgrade"),
+                label=Localization.get(
+                    locale,
+                    "lightturret-upgrade-label",
+                    cost=UPGRADE_COST,
+                    coins=0,
+                ),
                 handler="_action_upgrade",
-                is_enabled="_is_turn_action_enabled",
+                is_enabled="_is_upgrade_enabled",
                 is_hidden="_is_turn_action_hidden",
+                get_label="_get_upgrade_label",
                 show_in_actions_menu=False,
             )
         )
-        
         return action_set
-
-    # WEB-SPECIFIC: Target order for Standard Actions
-    web_target_order = ["check_stats", "whose_turn", "whos_at_table"]
 
     def create_standard_action_set(self, player: Player) -> ActionSet:
         action_set = super().create_standard_action_set(player)
-        user = self.get_user(player)
-        locale = user.locale if user else "en"
-
         action_set.add(
             Action(
                 id="check_stats",
-                label=Localization.get(locale, "lightturret-check-stats"),
+                label=Localization.get(
+                    self._player_locale(player), "lightturret-check-stats"
+                ),
                 handler="_action_check_stats",
                 is_enabled="_is_check_stats_enabled",
                 is_hidden="_is_check_stats_hidden",
                 include_spectators=True,
             )
         )
-
+        user = self.get_user(player)
         if self.is_touch_client(user):
-            self._order_touch_standard_actions(action_set, self.web_target_order)
-
+            self._order_touch_standard_actions(
+                action_set,
+                [
+                    "check_stats",
+                    "check_scores",
+                    "whose_turn",
+                    "whos_at_table",
+                ],
+            )
         return action_set
 
     def setup_keybinds(self) -> None:
-        """Define all keybinds for the game."""
         super().setup_keybinds()
 
-        # Turn action keybinds
+        host_user = None
+        if self.host:
+            host_player = self.get_player_by_name(self.host)
+            if host_player:
+                host_user = self.get_user(host_player)
+        locale = host_user.locale if host_user else "en"
+
         self.define_keybind(
-            "space", "Shoot turret", ["shoot"], state=KeybindState.ACTIVE
+            "space",
+            Localization.get(locale, "lightturret-shoot"),
+            ["shoot"],
+            state=KeybindState.ACTIVE,
         )
-        self.define_keybind("u", "Buy upgrade", ["upgrade"], state=KeybindState.ACTIVE)
+        self.define_keybind(
+            "u",
+            Localization.get(locale, "lightturret-upgrade"),
+            ["upgrade"],
+            state=KeybindState.ACTIVE,
+        )
         self.define_keybind(
             "c",
-            "Check stats",
+            Localization.get(locale, "lightturret-check-stats"),
             ["check_stats"],
             state=KeybindState.ACTIVE,
             include_spectators=True,
         )
 
-    # ==========================================================================
-    # Declarative Action Callbacks
-    # ==========================================================================
-    
-    # WEB-SPECIFIC: Visibility Overrides
-
-    def _is_whos_at_table_hidden(self, player: "Player") -> Visibility:
-        """Override: Visible for Web (always), hidden otherwise."""
-        user = self.get_user(player)
-        if self.is_touch_client(user):
-            return Visibility.VISIBLE
-        return super()._is_whos_at_table_hidden(player)
-
-    def _is_whose_turn_hidden(self, player: "Player") -> Visibility:
-        """Override: Visible for Web (Playing only), hidden otherwise."""
-        user = self.get_user(player)
-        if self.is_touch_client(user):
-            if self.status == "playing":
-                return Visibility.VISIBLE
-            return Visibility.HIDDEN
-        return super()._is_whose_turn_hidden(player)
-
-    def _is_turn_action_enabled(self, player: Player) -> str | None:
-        """Check if turn actions (shoot/upgrade) are enabled."""
-        if self.status != "playing":
-            return "action-not-playing"
-        if self.current_player != player:
-            return "action-not-your-turn"
-        if player.is_spectator:
-            return "action-spectator"
-        lt_player: LightTurretPlayer = player  # type: ignore
-        if not lt_player.alive:
-            return "lightturret-you-are-eliminated"
-        return None
-
-    def _is_turn_action_hidden(self, player: Player) -> Visibility:
-        """Check if turn actions are hidden."""
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        if player.is_spectator:
-            return Visibility.HIDDEN
-        lt_player: LightTurretPlayer = player  # type: ignore
-        if not lt_player.alive:
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
-
-    def _is_check_stats_enabled(self, player: Player) -> str | None:
-        """Check if check stats action is enabled."""
-        if self.status != "playing":
-            return "action-not-playing"
-        return None
-
-    def _is_check_stats_hidden(self, player: Player) -> Visibility:
-        """Check stats is always hidden (keybind only), unless Web."""
-        user = self.get_user(player)
-        if self.is_touch_client(user):
-            return Visibility.VISIBLE
-        return Visibility.HIDDEN
-
-    def _action_shoot(self, player: Player, action_id: str) -> None:
-        """Handle shooting the turret."""
-        lt_player = player
-        if not isinstance(lt_player, LightTurretPlayer) or not lt_player.alive:
-            return
-
-        # Play shoot sound
-        shoot_sound = f"game_lightturret/shoot{random.randint(1, 3)}.ogg"
-        self.play_sound(shoot_sound)
-
-        # Gain light and coins
-        gain = random.randint(1, 4)
-        lt_player.light += gain
-        lt_player.coins += gain * 2
-
-        self.broadcast_l(
-            "lightturret-shoot-result", buffer="game",
-            player=player.name,
-            gain=gain,
-            light=lt_player.light,
-        )
-        self.broadcast_l(
-            "lightturret-coins-gained", buffer="game",
-            player=player.name,
-            coins=gain * 2,
-            total=lt_player.coins,
-        )
-
-        # Check for elimination - schedule explosion sound after delay
-        if lt_player.light > lt_player.power:
-            self.schedule_sound("game_lightturret/overpowered.ogg", delay_ticks=5)
-            self._eliminate_player(lt_player)
-
-        self.end_turn()
-
-    def _action_upgrade(self, player: Player, action_id: str) -> None:
-        """Handle buying an upgrade."""
-        lt_player = player
-        if not isinstance(lt_player, LightTurretPlayer) or not lt_player.alive:
-            return
-
-        # Check if player has enough coins
-        if lt_player.coins < 10:
-            user = self.get_user(player)
-            if user:
-                user.speak_l(
-                    "lightturret-not-enough-coins", buffer="game", have=lt_player.coins, need=10
-                )
-            return
-
-        # Deduct coins
-        lt_player.coins -= 10
-        self.play_sound("game_lightturret/upgrade.ogg")
-        self.broadcast_l("lightturret-buys-upgrade", buffer="game", player=player.name)
-
-        # 25% chance of accident
-        if random.randint(0, 3) == 3:
-            # Accident - upgrade infuses with turret
-            accident_light = random.randint(1, 5)
-            lt_player.light += accident_light
-            # Schedule merge sound after delay (5 ticks = 250ms)
-            self.schedule_sound("game_lightturret/upgrademerge.ogg", delay_ticks=5)
-            self.broadcast_l("lightturret-upgrade-accident", buffer="game", light=lt_player.light)
-
-            # Check for elimination - schedule explosion at same time as merge
-            if lt_player.light > lt_player.power:
-                self.schedule_sound("game_lightturret/overpowered.ogg", delay_ticks=5)
-                self._eliminate_player(lt_player)
-        else:
-            # Normal upgrade
-            power_gain = random.randint(2, 8)
-            lt_player.power += power_gain
-            self.broadcast_l(
-                "lightturret-power-gained", buffer="game",
-                player=player.name,
-                gain=power_gain,
-                power=lt_player.power,
+    def _status_items(self, locale: str) -> list[MenuItem]:
+        items = [
+            MenuItem(
+                text=Localization.get(
+                    locale,
+                    "lightturret-status-round",
+                    round=self.round,
+                    total=self.options.max_rounds,
+                    alive=len(self._alive_players()),
+                ),
+                id="round",
             )
-
-        self.end_turn()
+        ]
+        for player in self._active_light_players():
+            if player.alive:
+                text = Localization.get(
+                    locale,
+                    "lightturret-stats-alive",
+                    player=player.name,
+                    power=player.power,
+                    light=player.light,
+                    coins=player.coins,
+                    headroom=max(0, player.power - player.light),
+                    risk=self._shot_overload_risk(player),
+                )
+            else:
+                text = Localization.get(
+                    locale,
+                    "lightturret-stats-eliminated",
+                    player=player.name,
+                    power=player.power,
+                    light=player.light,
+                )
+            items.append(MenuItem(text=text, id=f"player:{player.id}"))
+        return items
 
     def _action_check_stats(self, player: Player, action_id: str) -> None:
-        """Show stats for all players."""
         user = self.get_user(player)
         if not user:
             return
+        self.live_status_box(
+            player,
+            "lightturret_status",
+            lambda _player, live_user: self._status_items(live_user.locale),
+            focus_id="round",
+        )
 
-        for p in self.get_active_players():
-            if isinstance(p, LightTurretPlayer):
-                if p.alive:
-                    user.speak_l(
-                        "lightturret-stats-alive",
-                        buffer="game",
-                        player=p.name,
-                        power=p.power,
-                        light=p.light,
-                        coins=p.coins,
-                    )
-                else:
-                    user.speak_l(
-                        "lightturret-stats-eliminated", buffer="game", player=p.name, light=p.light
-                    )
+    # ======================================================================
+    # Action resolution
+    # ======================================================================
 
-    def _eliminate_player(self, player: LightTurretPlayer) -> None:
-        """Eliminate a player from the game. Sound is scheduled by caller."""
-        self.broadcast_l("lightturret-eliminated", buffer="game", player=player.name)
-        player.alive = False
+    def _set_pending_action(self, player: LightTurretPlayer, kind: str) -> None:
+        self.pending_action_player_id = player.id
+        self.pending_action_kind = kind
+        self.pending_action_resolved = False
+
+    def _clear_pending_action(self) -> None:
+        self.pending_action_player_id = ""
+        self.pending_action_kind = ""
+        self.pending_action_resolved = False
+
+    def _pending_actor(
+        self, payload: dict, expected_kind: str
+    ) -> LightTurretPlayer | None:
+        player = self.get_player_by_id(str(payload.get("player_id", "")))
+        if not isinstance(player, LightTurretPlayer):
+            return None
+        if player is not self.current_player or not player.alive:
+            return None
+        if (
+            self.pending_action_player_id != player.id
+            or self.pending_action_kind != expected_kind
+        ):
+            return None
+        return player
+
+    def _action_shoot(self, player: Player, action_id: str) -> None:
+        if not isinstance(player, LightTurretPlayer) or not player.alive:
+            return
+        if self.has_active_sequence(tag=ACTION_SEQUENCE_TAG):
+            return
+        if self._should_confirm_risky_shot(player):
+            return
+
+        gain = random.randint(SHOT_MIN_GAIN, SHOT_MAX_GAIN)
+        shoot_sound = f"game_lightturret/shoot{random.randint(1, 3)}.ogg"
+        overloaded = player.light + gain > player.power
+        payload = {
+            "player_id": player.id,
+            "gain": gain,
+            "overloaded": overloaded,
+        }
+        beats = [
+            SequenceBeat(
+                ops=[SequenceOperation.sound_op(shoot_sound)],
+                delay_after_ticks=ACTION_SOUND_DELAY_TICKS,
+            ),
+            SequenceBeat(
+                ops=[SequenceOperation.callback_op("resolve_shoot", payload)],
+                delay_after_ticks=RESULT_DELAY_TICKS,
+            ),
+        ]
+        if overloaded:
+            beats.append(
+                SequenceBeat(
+                    ops=[
+                        SequenceOperation.sound_op(
+                            "game_lightturret/overpowered.ogg"
+                        )
+                    ],
+                    delay_after_ticks=OVERLOAD_SOUND_DELAY_TICKS,
+                )
+            )
+        beats.append(
+            SequenceBeat(
+                ops=[SequenceOperation.callback_op("complete_action", payload)]
+            )
+        )
+
+        self._set_pending_action(player, "shoot")
+        self.start_sequence(
+            ACTION_SEQUENCE_ID,
+            beats,
+            tag=ACTION_SEQUENCE_TAG,
+            lock_scope=self.SEQUENCE_LOCK_GAMEPLAY,
+            pause_bots=True,
+            replace_existing=False,
+        )
+        self.refresh_menus(player)
+
+    def _action_upgrade(self, player: Player, action_id: str) -> None:
+        if not isinstance(player, LightTurretPlayer) or not player.alive:
+            return
+        if self.has_active_sequence(tag=ACTION_SEQUENCE_TAG):
+            return
+        if player.coins < UPGRADE_COST:
+            return
+
+        self._clear_risky_confirmation(player)
+        accident = random.random() < UPGRADE_ACCIDENT_CHANCE
+        if accident:
+            gain = random.randint(
+                UPGRADE_ACCIDENT_LIGHT_MIN, UPGRADE_ACCIDENT_LIGHT_MAX
+            )
+            overloaded = player.light + gain > player.power
+            payload = {
+                "player_id": player.id,
+                "accident": True,
+                "gain": gain,
+                "overloaded": overloaded,
+            }
+            beats = [
+                SequenceBeat(
+                    ops=[
+                        SequenceOperation.sound_op(
+                            "game_lightturret/upgrade.ogg"
+                        )
+                    ],
+                    delay_after_ticks=ACTION_SOUND_DELAY_TICKS,
+                ),
+                SequenceBeat(
+                    ops=[
+                        SequenceOperation.sound_op(
+                            "game_lightturret/upgrademerge.ogg"
+                        ),
+                        SequenceOperation.callback_op("resolve_upgrade", payload),
+                    ],
+                    delay_after_ticks=RESULT_DELAY_TICKS,
+                ),
+            ]
+            if overloaded:
+                beats.append(
+                    SequenceBeat(
+                        ops=[
+                            SequenceOperation.sound_op(
+                                "game_lightturret/overpowered.ogg"
+                            )
+                        ],
+                        delay_after_ticks=OVERLOAD_SOUND_DELAY_TICKS,
+                    )
+                )
+        else:
+            gain = random.randint(UPGRADE_POWER_MIN, UPGRADE_POWER_MAX)
+            payload = {
+                "player_id": player.id,
+                "accident": False,
+                "gain": gain,
+                "overloaded": False,
+            }
+            beats = [
+                SequenceBeat(
+                    ops=[
+                        SequenceOperation.sound_op(
+                            "game_lightturret/upgrade.ogg"
+                        )
+                    ],
+                    delay_after_ticks=ACTION_SOUND_DELAY_TICKS,
+                ),
+                SequenceBeat(
+                    ops=[SequenceOperation.callback_op("resolve_upgrade", payload)],
+                    delay_after_ticks=RESULT_DELAY_TICKS,
+                ),
+            ]
+        beats.append(
+            SequenceBeat(
+                ops=[SequenceOperation.callback_op("complete_action", payload)]
+            )
+        )
+
+        self._set_pending_action(player, "upgrade")
+        self.start_sequence(
+            ACTION_SEQUENCE_ID,
+            beats,
+            tag=ACTION_SEQUENCE_TAG,
+            lock_scope=self.SEQUENCE_LOCK_GAMEPLAY,
+            pause_bots=True,
+            replace_existing=False,
+        )
+        self.refresh_menus(player)
+
+    def _resolve_shoot(self, player: LightTurretPlayer, payload: dict) -> bool:
+        try:
+            gain = int(payload.get("gain", 0))
+        except (TypeError, ValueError):
+            return False
+        if not SHOT_MIN_GAIN <= gain <= SHOT_MAX_GAIN:
+            return False
+
+        coins_gained = gain * 2
+        player.light += gain
+        player.coins += coins_gained
+        overloaded = player.light > player.power
+        headroom = max(0, player.power - player.light)
+        self._sync_team_scores()
+
+        if overloaded:
+            player.alive = False
+            self._broadcast_actor_l(
+                player,
+                "lightturret-you-shoot-overload",
+                "lightturret-player-shoots-overload",
+                brief_personal_key="lightturret-you-shoot-overload-brief",
+                brief_others_key="lightturret-player-shoots-overload-brief",
+                gain=gain,
+                coins=coins_gained,
+                total_coins=player.coins,
+                light=player.light,
+                power=player.power,
+                overload=player.light - player.power,
+            )
+        else:
+            self._broadcast_actor_l(
+                player,
+                "lightturret-you-shoot",
+                "lightturret-player-shoots",
+                brief_personal_key="lightturret-you-shoot-brief",
+                brief_others_key="lightturret-player-shoots-brief",
+                gain=gain,
+                coins=coins_gained,
+                total_coins=player.coins,
+                light=player.light,
+                power=player.power,
+                headroom=headroom,
+            )
+        self.refresh_menus()
+        return True
+
+    def _resolve_upgrade(self, player: LightTurretPlayer, payload: dict) -> bool:
+        if player.coins < UPGRADE_COST:
+            return False
+        try:
+            gain = int(payload.get("gain", 0))
+        except (TypeError, ValueError):
+            return False
+
+        accident = bool(payload.get("accident", False))
+        if accident and not (
+            UPGRADE_ACCIDENT_LIGHT_MIN <= gain <= UPGRADE_ACCIDENT_LIGHT_MAX
+        ):
+            return False
+        if not accident and not UPGRADE_POWER_MIN <= gain <= UPGRADE_POWER_MAX:
+            return False
+
+        player.coins -= UPGRADE_COST
+        if accident:
+            player.light += gain
+            overloaded = player.light > player.power
+            self._sync_team_scores()
+            if overloaded:
+                player.alive = False
+                self._broadcast_actor_l(
+                    player,
+                    "lightturret-you-upgrade-overload",
+                    "lightturret-player-upgrades-overload",
+                    brief_personal_key="lightturret-you-upgrade-overload-brief",
+                    brief_others_key="lightturret-player-upgrades-overload-brief",
+                    cost=UPGRADE_COST,
+                    coins=player.coins,
+                    gain=gain,
+                    light=player.light,
+                    power=player.power,
+                    overload=player.light - player.power,
+                )
+            else:
+                self._broadcast_actor_l(
+                    player,
+                    "lightturret-you-upgrade-accident",
+                    "lightturret-player-upgrades-accident",
+                    brief_personal_key="lightturret-you-upgrade-accident-brief",
+                    brief_others_key="lightturret-player-upgrades-accident-brief",
+                    cost=UPGRADE_COST,
+                    coins=player.coins,
+                    gain=gain,
+                    light=player.light,
+                    power=player.power,
+                    headroom=max(0, player.power - player.light),
+                )
+        else:
+            player.power += gain
+            self._broadcast_actor_l(
+                player,
+                "lightturret-you-upgrade",
+                "lightturret-player-upgrades",
+                brief_personal_key="lightturret-you-upgrade-brief",
+                brief_others_key="lightturret-player-upgrades-brief",
+                cost=UPGRADE_COST,
+                coins=player.coins,
+                gain=gain,
+                power=player.power,
+                light=player.light,
+                headroom=max(0, player.power - player.light),
+            )
+        self.refresh_menus()
+        return True
+
+    def on_sequence_callback(
+        self, sequence_id: str, callback_id: str, payload: dict
+    ) -> None:
+        if sequence_id != ACTION_SEQUENCE_ID or self.status != "playing":
+            return
+
+        if callback_id == "resolve_shoot":
+            player = self._pending_actor(payload, "shoot")
+            if player and not self.pending_action_resolved:
+                self.pending_action_resolved = self._resolve_shoot(player, payload)
+            return
+
+        if callback_id == "resolve_upgrade":
+            player = self._pending_actor(payload, "upgrade")
+            if player and not self.pending_action_resolved:
+                self.pending_action_resolved = self._resolve_upgrade(player, payload)
+            return
+
+        if callback_id == "complete_action":
+            player = self.get_player_by_id(str(payload.get("player_id", "")))
+            if (
+                isinstance(player, LightTurretPlayer)
+                and player is self.current_player
+                and self.pending_action_player_id == player.id
+                and self.pending_action_resolved
+            ):
+                self._clear_pending_action()
+                self._on_turn_end()
+
+    # ======================================================================
+    # Game flow
+    # ======================================================================
 
     def on_start(self) -> None:
-        """Called when the game starts."""
+        self.cancel_sequences_by_tag(ACTION_SEQUENCE_TAG)
+        self.clear_scheduled_sounds()
         self.status = "playing"
         self._sync_table_status()
         self.game_active = True
         self.round = 0
+        self.end_reason = ""
+        self._pending_finish = False
+        self._clear_pending_action()
 
-        # Initialize players with starting power
-        active_players = self.get_active_players()
+        active_players = self._active_light_players()
+        self.team_manager.team_mode = "individual"
+        self.team_manager.setup_teams([player.name for player in active_players])
         for player in active_players:
-            if isinstance(player, LightTurretPlayer):
-                player.power = self.options.starting_power
-                player.light = 0
-                player.coins = 0
-                player.alive = True
-
-        # Initialize turn order
+            player.power = self.options.starting_power
+            player.light = 0
+            player.coins = 0
+            player.alive = True
+            self._clear_risky_confirmation(player)
+        self._sync_team_scores()
         self.set_turn_players(active_players)
 
-        # Play music and intro sound
         self.play_music("game_lightturret/music.ogg")
         self.play_sound("game_3cardpoker/roundstart.ogg")
-
-        # Game intro
-        self.broadcast_l("lightturret-intro", buffer="game", power=self.options.starting_power)
-
-        # Start first round
+        self._broadcast_global_l(
+            "lightturret-intro",
+            "lightturret-intro-brief",
+            power=self.options.starting_power,
+            rounds=self.options.max_rounds,
+            cost=UPGRADE_COST,
+        )
         self._start_round()
 
     def _start_round(self) -> None:
-        """Start a new round."""
+        alive_players = self._alive_players()
+        if not alive_players:
+            self._end_game(END_REASON_ALL_ELIMINATED)
+            return
+
         self.round += 1
-
-        # Refresh turn order to only include alive players
-        alive_players = [
-            p
-            for p in self.get_active_players()
-            if isinstance(p, LightTurretPlayer) and p.alive
-        ]
         self.set_turn_players(alive_players)
-
+        self._broadcast_global_l(
+            "lightturret-round-start",
+            "lightturret-round-start-brief",
+            round=self.round,
+            total=self.options.max_rounds,
+            alive=len(alive_players),
+        )
         self._start_turn()
 
     def _start_turn(self) -> None:
-        """Start a player's turn."""
         player = self.current_player
-        if not player:
-            # No more alive players
-            self._end_game()
+        if not isinstance(player, LightTurretPlayer):
+            self._end_game(END_REASON_ALL_ELIMINATED)
             return
 
-        # Skip eliminated players (shouldn't happen normally due to turn order filtering)
-        if isinstance(player, LightTurretPlayer) and not player.alive:
-            self._on_turn_end()
-            return
-
-        # Announce turn
+        self._clear_risky_confirmation(player)
         self.announce_turn()
-
         if player.is_bot:
             BotHelper.jolt_bot(player, ticks=random.randint(12, 20))
-
         self.refresh_menus()
 
+    def _on_turn_end(self) -> None:
+        if not self._alive_players():
+            self._end_game(END_REASON_ALL_ELIMINATED)
+            return
+
+        round_complete = self.turn_index >= len(self.turn_players) - 1
+        if round_complete:
+            if self.round >= self.options.max_rounds:
+                self._end_game(END_REASON_MAX_ROUNDS)
+            else:
+                self._start_round()
+            return
+
+        self.advance_turn(announce=False)
+        self._start_turn()
+
     def on_tick(self) -> None:
-        """Called every tick. Handle bot AI and scheduled sounds."""
         super().on_tick()
         self.process_scheduled_sounds()
+        self.process_sequences()
 
-        # Check if we're waiting to finish after sounds complete
+        # Complete games saved by older builds after their scheduled outro ends.
         if self._pending_finish and not self.scheduled_sounds:
             self._pending_finish = False
             self.game_active = False
             self.finish_game(show_end_screen=False)
             return
 
-        # Don't process bots if game is finished or inactive
-        if not self.game_active or self.status == "finished":
-            return
-        BotHelper.on_tick(self)
+        for player in self._active_light_players():
+            if player.risky_confirm_ticks > 0:
+                player.risky_confirm_ticks -= 1
+                if player.risky_confirm_ticks <= 0:
+                    self._clear_risky_confirmation(player)
+
+        if self.status == "playing" and not self.is_sequence_bot_paused():
+            BotHelper.on_tick(self)
 
     def bot_think(self, player: Player) -> str | None:
-        """Bot AI decision making."""
         if not isinstance(player, LightTurretPlayer) or not player.alive:
             return None
-
-        # AI: buy upgrade if coins >= 10 and close to capacity
-        if player.coins >= 10 and (player.power - player.light) <= 4:
-            return "upgrade"
-        else:
+        if self.round >= self.options.max_rounds:
+            return "shoot"
+        if player.coins < UPGRADE_COST:
             return "shoot"
 
-    def _on_turn_end(self) -> None:
-        """Handle end of a player's turn."""
-        # Check for game end conditions
-        winner = self._check_for_winner()
-        if winner is not None:
-            self._end_game()
+        shot_risk = self._shot_overload_risk(player)
+        leader_light = max(
+            (opponent.light for opponent in self._active_light_players()),
+            default=player.light,
+        )
+        trailing_by = leader_light - player.light
+        rounds_remaining = self.options.max_rounds - self.round
+
+        # Near the finish, a trailing bot must score rather than spend a turn
+        # defending a position that cannot catch the leader.
+        if rounds_remaining <= 1 or trailing_by >= 5:
+            return "shoot"
+        if shot_risk >= 50:
+            return "upgrade"
+        if shot_risk == 25 and player.light >= leader_light:
+            return "upgrade"
+        if (
+            rounds_remaining >= 5
+            and player.power - player.light <= SHOT_MAX_GAIN
+            and self._upgrade_overload_risk(player) < shot_risk
+        ):
+            return "upgrade"
+        return "shoot"
+
+    def _winner_players(self) -> list[LightTurretPlayer]:
+        players = self._active_light_players()
+        if not players:
+            return []
+        top_light = max(player.light for player in players)
+        return [player for player in players if player.light == top_light]
+
+    def _announce_tie(self, winners: list[LightTurretPlayer]) -> None:
+        winner_ids = {winner.id for winner in winners}
+        winner_names = [winner.name for winner in winners]
+        top_light = winners[0].light
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+            if listener.id in winner_ids:
+                other_names = [
+                    winner.name for winner in winners if winner.id != listener.id
+                ]
+                key = (
+                    "lightturret-you-tie-brief"
+                    if self._wants_brief(user)
+                    else "lightturret-you-tie"
+                )
+                user.speak_l(
+                    key,
+                    buffer="game",
+                    players=Localization.format_list_and(user.locale, other_names),
+                    light=top_light,
+                )
+            else:
+                key = (
+                    "lightturret-players-tie-brief"
+                    if self._wants_brief(user)
+                    else "lightturret-players-tie"
+                )
+                user.speak_l(
+                    key,
+                    buffer="game",
+                    players=Localization.format_list_and(user.locale, winner_names),
+                    light=top_light,
+                )
+
+    def _end_game(self, reason: str) -> None:
+        if self.status == "finished":
             return
 
-        # Check if round is over
-        if self.turn_index >= len(self.turn_players) - 1:
-            self._start_round()
-        else:
-            self.advance_turn(announce=False)
-            self._start_turn()
-
-    def _check_for_winner(self) -> LightTurretPlayer | None:
-        """Check if the game should end."""
-        # Check max rounds
-        if self.round >= self.options.max_rounds:
-            return self._find_light_winner()
-
-        # Check if ALL players are eliminated (game ends)
-        # Exclude spectators from the count
-        alive_count = sum(
-            1
-            for p in self.get_active_players()
-            if isinstance(p, LightTurretPlayer) and p.alive
-        )
-        if alive_count == 0:
-            return self._find_light_winner()
-
-        return None
-
-    def _find_light_winner(self) -> LightTurretPlayer | None:
-        """Find the player with the most light."""
-        max_light = 0
-        winner = None
-        for p in self.get_active_players():
-            if (
-                isinstance(p, LightTurretPlayer)
-                and p.light > max_light
-            ):
-                max_light = p.light
-                winner = p
-        return winner
-
-    def _end_game(self) -> None:
-        """End the game and announce results."""
-        # Mark status as finished to disable turn actions, but keep game_active
-        # True until sounds finish playing (so ticks continue)
+        self.cancel_sequences_by_tag(ACTION_SEQUENCE_TAG)
+        self._clear_pending_action()
+        self.end_reason = reason
         self.status = "finished"
+        self._sync_table_status()
 
-        self.broadcast_l("lightturret-game-over", buffer="game")
-
-        # Find max light and count winners
-        max_light = 0
-        winners = []
-        for p in self.players:
-            if isinstance(p, LightTurretPlayer) and not p.is_spectator:
-                # Announce each player's result
-                if p.alive:
-                    self.broadcast_l(
-                        "lightturret-final-alive", buffer="game", player=p.name, light=p.light
-                    )
-                else:
-                    self.broadcast_l(
-                        "lightturret-final-eliminated", buffer="game", player=p.name, light=p.light
-                    )
-
-                if p.light > max_light:
-                    max_light = p.light
-                    winners = [p]
-                elif p.light == max_light:
-                    winners.append(p)
-
-        # Announce winner or tie
-        if len(winners) > 1:
-            self.broadcast_l("lightturret-tie", buffer="game", light=max_light)
-        elif len(winners) == 1:
+        self._broadcast_global_l(
+            f"lightturret-end-{reason.replace('_', '-')}",
+            f"lightturret-end-{reason.replace('_', '-')}-brief",
+            round=self.round,
+            total=self.options.max_rounds,
+        )
+        winners = self._winner_players()
+        if len(winners) == 1:
+            winner = winners[0]
             self.play_sound("game_pig/win.ogg")
-            self.broadcast_l(
-                "lightturret-winner", buffer="game", player=winners[0].name, light=max_light
+            self._broadcast_actor_l(
+                winner,
+                "lightturret-you-win",
+                "lightturret-player-wins",
+                brief_personal_key="lightturret-you-win-brief",
+                brief_others_key="lightturret-player-wins-brief",
+                light=winner.light,
+                power=winner.power,
+                survived=str(winner.alive).lower(),
             )
+        elif winners:
+            self._announce_tie(winners)
 
-        # Update actions to reflect game ended state
         self.refresh_menus()
+        self.finish_game()
 
-        # Show final menu first (before potential destruction)
-        result = self.build_game_result()
-        self._show_end_screen(result)
+    # ======================================================================
+    # Scores, validation, and results
+    # ======================================================================
 
-        # Delay final cleanup if sounds are pending
-        if self.scheduled_sounds:
-            self._pending_finish = True
-            # Keep game_active = True so ticks continue and sounds play
-        else:
-            self.game_active = False
-            self.finish_game(show_end_screen=False)
+    def _sync_team_scores(self) -> None:
+        for team in self.team_manager.teams:
+            team.total_score = 0
+        for player in self._active_light_players():
+            team = self.team_manager.get_team(player.name)
+            if team:
+                team.total_score = player.light
 
-    def build_game_result(self) -> GameResult:
-        """Build the game result with LightTurret-specific data."""
-        sorted_players = sorted(
-            [
-                p
-                for p in self.players
-                if isinstance(p, LightTurretPlayer) and not p.is_spectator
-            ],
-            key=lambda p: p.light,
+    def prestart_validate(self) -> list[str | tuple[str, dict]]:
+        errors: list[str | tuple[str, dict]] = list(super().prestart_validate())
+        if not 5 <= self.options.starting_power <= 30:
+            errors.append(
+                (
+                    "lightturret-error-starting-power-invalid",
+                    {
+                        "power": self.options.starting_power,
+                        "min": 5,
+                        "max": 30,
+                    },
+                )
+            )
+        if not 10 <= self.options.max_rounds <= 200:
+            errors.append(
+                (
+                    "lightturret-error-max-rounds-invalid",
+                    {
+                        "rounds": self.options.max_rounds,
+                        "min": 10,
+                        "max": 200,
+                    },
+                )
+            )
+        return errors
+
+    def _sorted_players(self) -> list[LightTurretPlayer]:
+        return sorted(
+            self._active_light_players(),
+            key=lambda player: player.light,
             reverse=True,
         )
 
-        # Build final light values
-        final_light = {}
-        alive_status = {}
-        for p in sorted_players:
-            final_light[p.name] = p.light
-            alive_status[p.name] = p.alive
+    def build_game_result(self) -> GameResult:
+        sorted_players = self._sorted_players()
+        winners = self._winner_players()
+        winner_ids = {winner.id for winner in winners}
+        rankings = []
+        previous_light: int | None = None
+        rank = 0
+        for index, player in enumerate(sorted_players, 1):
+            if player.light != previous_light:
+                rank = index
+                previous_light = player.light
+            rankings.append(
+                {
+                    "members": [player.name],
+                    "rank": rank,
+                    "score": player.light,
+                    "light": player.light,
+                    "power": player.power,
+                    "coins": player.coins,
+                    "alive": player.alive,
+                }
+            )
 
-        winner = sorted_players[0] if sorted_players else None
-
+        final_light = {player.name: player.light for player in sorted_players}
         return GameResult(
             game_type=self.get_type(),
             timestamp=datetime.now().isoformat(),
             duration_ticks=self.sound_scheduler_tick,
             player_results=[
                 PlayerResult(
-                    player_id=p.id,
-                    player_name=p.name,
-                    is_bot=p.is_bot and not p.replaced_human,
+                    player_id=player.id,
+                    player_name=player.name,
+                    is_bot=player.is_bot and not player.replaced_human,
                 )
-                for p in sorted_players
+                for player in sorted_players
             ],
             custom_data={
-                "winner_name": winner.name if winner else None,
-                "winner_light": winner.light if winner else 0,
+                "winner_ids": [
+                    player.id for player in sorted_players if player.id in winner_ids
+                ],
+                "winner_name": winners[0].name if len(winners) == 1 else None,
+                "winner_light": winners[0].light if winners else 0,
+                "final_scores": final_light,
                 "final_light": final_light,
-                "alive_status": alive_status,
+                "alive_status": {
+                    player.name: player.alive for player in sorted_players
+                },
+                "rankings": rankings,
+                "team_rankings": rankings,
                 "rounds_played": self.round,
+                "round_limit": self.options.max_rounds,
+                "end_reason": self.end_reason,
             },
         )
 
     def format_end_screen(self, result: GameResult, locale: str) -> list[str]:
-        """Format the end screen for LightTurret game."""
         lines = [Localization.get(locale, "game-final-scores")]
-
-        final_light = result.custom_data.get("final_light", {})
-        alive_status = result.custom_data.get("alive_status", {})
-
-        for i, (name, light) in enumerate(final_light.items(), 1):
-            is_alive = alive_status.get(name, True)
-            status_key = "lightturret-status-survived" if is_alive else "lightturret-status-eliminated"
-            status_str = Localization.get(locale, status_key)
-            
-            line = Localization.get(
-                locale, 
-                "lightturret-line-format", 
-                rank=i, 
-                player=name, 
-                light=light, 
-                status=status_str
+        winner_ids = set(result.custom_data.get("winner_ids", []))
+        winner_names = [
+            player.player_name
+            for player in result.player_results
+            if player.player_id in winner_ids
+        ]
+        if len(winner_names) == 1:
+            lines.append(
+                Localization.get(
+                    locale,
+                    "lightturret-end-winner",
+                    player=winner_names[0],
+                    light=result.custom_data.get("winner_light", 0),
+                )
             )
-            lines.append(line)
+        elif winner_names:
+            lines.append(
+                Localization.get(
+                    locale,
+                    "lightturret-end-tie",
+                    players=Localization.format_list_and(locale, winner_names),
+                    light=result.custom_data.get("winner_light", 0),
+                )
+            )
 
+        for index, entry in enumerate(result.custom_data.get("rankings", []), 1):
+            members = entry.get("members", [])
+            name = members[0] if members else Localization.get(locale, "unknown-player")
+            status_key = (
+                "lightturret-status-survived"
+                if entry.get("alive", False)
+                else "lightturret-status-eliminated"
+            )
+            lines.append(
+                Localization.get(
+                    locale,
+                    "lightturret-line-format",
+                    rank=entry.get("rank", index),
+                    player=name,
+                    light=entry.get("light", 0),
+                    power=entry.get("power", 0),
+                    coins=entry.get("coins", 0),
+                    status=Localization.get(locale, status_key),
+                )
+            )
         return lines
-
-    def end_turn(self, jolt_min: int = 15, jolt_max: int = 25) -> None:
-        """End the current player's turn."""
-        BotHelper.jolt_bots(self, ticks=random.randint(jolt_min, jolt_max))
-        self._on_turn_end()

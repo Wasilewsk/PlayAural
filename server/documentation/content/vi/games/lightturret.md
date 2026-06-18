@@ -1,82 +1,70 @@
-\*\*Tháp Ánh Sáng (Light Turret)\*\*
+\*\*Tháp Pháo Quang Năng\*\*
 
+Tháp Pháo Quang Năng là một cuộc đua điểm theo phong cách liều ăn nhiều dành cho 2 đến 4 người chơi. Mỗi người điều khiển một tháp pháo có quang năng, xu, và công suất chịu tải. Mục tiêu là kết thúc trận với nhiều quang năng nhất mà không để tháp quá tải quá sớm.
 
-
-Tháp Ánh Sáng là một trò chơi quản lý tài nguyên dành cho 2 đến 4 người chơi, kết hợp giữa rủi ro và phần thưởng theo phong cách thử thách vận may đầy chiến thuật. Khái niệm rất đơn giản: bạn sở hữu một tòa tháp, bạn bắn vào tháp để tích lũy ánh sáng và xu. Nhưng hãy cẩn thận - nếu lượng ánh sáng vượt quá sức chịu đựng (sức mạnh) của tháp, bạn sẽ bị loại.
-
-
-
-Mục tiêu là kết thúc trò chơi với nhiều ánh sáng nhất. Bạn có thể dùng xu để mua nâng cấp nhằm tăng giới hạn sức mạnh, giúp bạn có thêm không gian để tiếp tục bắn. Tuy nhiên, việc nâng cấp có 25% tỉ lệ phản tác dụng, khiến tháp bị tăng thêm ánh sáng thay vì tăng sức mạnh. Trò chơi diễn ra trong một số vòng nhất định, và ai có nhiều ánh sáng nhất vào cuối game sẽ thắng.
-
-
+Cốt lõi của trò chơi là quyết định rủi ro: khai hỏa giúp bạn lấy quang năng và xu ngay lập tức, còn nâng cấp lõi dùng xu để tăng công suất an toàn. Tháp pháo chỉ quá tải khi quang năng vượt công suất. Nếu quang năng đúng bằng công suất thì vẫn an toàn.
 
 \*\*Cách chơi\*\*
 
+Khi bắt đầu trận, mọi tháp pháo có cùng công suất ban đầu. Trận đấu diễn ra theo các vòng trọn vẹn. Trong mỗi vòng, mọi tháp pháo còn hoạt động đều có một lượt.
 
+Trong lượt của mình, bạn có hai hành động chính:
 
-Trò chơi được chia thành các vòng, mỗi người chơi còn sống sẽ thực hiện một lượt. Trong lượt của mình, bạn có hai lựa chọn chính: bắn vào tháp hoặc mua nâng cấp.
+\* \*\*Khai hỏa:\*\* Nhận 1 đến 4 quang năng. Bạn cũng nhận số xu gấp đôi lượng quang năng vừa nhận.
+\* \*\*Nâng cấp lõi:\*\* Dùng 10 xu để thử tăng công suất.
 
+Nếu khai hỏa hoặc một lần nâng cấp phản tác dụng làm quang năng vượt công suất, tháp pháo của bạn quá tải và bạn bị loại. Người bị loại không còn lượt, nhưng tổng quang năng cuối cùng vẫn được tính trong bảng xếp hạng.
 
+\*\*Khai hỏa\*\*
 
-\*\*Bắn vào tháp\*\*
+Khai hỏa là cách ghi điểm nhanh nhất. Mỗi phát bắn cho 1 đến 4 quang năng ngẫu nhiên và thưởng số xu gấp đôi lượng quang năng đó.
 
-Đây là hành động cốt lõi. Khi bắn, bạn nhận được một lượng ánh sáng ngẫu nhiên (từ 1 đến 4) và kiếm được số xu gấp đôi lượng ánh sáng đó. Ví dụ: nếu bạn nhận 3 ánh sáng, bạn sẽ bỏ túi 6 xu. Nếu tổng ánh sáng vượt quá sức mạnh của tháp, bạn bị loại ngay lập tức. Tổng số ánh sáng bạn có vẫn được tính vào bảng xếp hạng cuối cùng, nhưng bạn không thể thực hiện thêm lượt chơi nào nữa.
+Ví dụ: nếu bạn khai hỏa và nhận 3 quang năng, bạn cũng nhận 6 xu. Nếu tháp đang có 6 quang năng và 10 công suất, bạn lên 9 quang năng và vẫn an toàn. Nếu tháp đang có 9 quang năng và 10 công suất, bạn lên 12 quang năng, tháp quá tải, và bạn bị loại.
 
+Nhãn hành động sẽ cho biết phát bắn tiếp theo còn an toàn hay đang có nguy cơ quá tải. Nếu tùy chọn cá nhân \*\*Xác nhận hành động rủi ro\*\* đang bật, những phát bắn có nguy cơ quá tải từ 50% trở lên sẽ yêu cầu bấm lần thứ hai trong vòng 10 giây để xác nhận.
 
+\*\*Nâng cấp lõi\*\*
 
-\*\*Nâng cấp\*\*
+Nâng cấp lõi tốn 10 xu.
 
-Nếu có ít nhất 10 xu, bạn có thể dùng chúng để mua nâng cấp sức mạnh thay vì bắn.
+\* \*\*Thành công:\*\* Công suất tăng thêm 2 đến 8.
+\* \*\*Phản tác dụng:\*\* Có 25% khả năng lõi phản tác dụng. Khi đó, tháp nhận thêm 1 đến 5 quang năng và có thể quá tải.
 
-\* \*\*Thành công:\*\* Tăng sức mạnh của tháp thêm một khoảng ngẫu nhiên từ 2 đến 8.
+Nâng cấp thường là lựa chọn hợp lý khi phát bắn tiếp theo quá nguy hiểm và bạn còn đủ số vòng để tận dụng công suất mới.
 
-\* \*\*Phản tác dụng (25% tỉ lệ):\*\* Thay vì tăng sức mạnh, một lượng ánh sáng ngẫu nhiên (từ 1 đến 5) sẽ bị hấp thụ vào tháp. Điều này thậm chí có thể khiến bạn bị loại nếu nó đẩy lượng ánh sáng vượt quá sức mạnh hiện tại.
+\*\*Kết thúc trận\*\*
 
+Trận đấu kết thúc khi xảy ra một trong hai điều kiện:
 
+1. Hoàn thành đủ số vòng tối đa.
+2. Mọi tháp pháo đều đã quá tải.
 
-\*\*Kết thúc trò chơi\*\*
+Vòng cuối luôn công bằng: nếu đã đạt giới hạn vòng, trò chơi vẫn chờ mọi tháp pháo còn hoạt động thực hiện lượt của vòng đó trước khi kết thúc.
 
+Người thắng là người có nhiều quang năng nhất. Nếu nhiều người cùng có tổng quang năng cao nhất, trận đấu ghi nhận đồng hạng nhất.
 
+\*\*Điểm và trạng thái\*\*
 
-Trò chơi kết thúc khi đáp ứng một trong hai điều kiện:
+\* \*\*S:\*\* Đọc quang năng hiện tại của từng người chơi, mỗi người một dòng.
+\* \*\*Shift+S:\*\* Mở bảng điểm chi tiết.
+\* \*\*C:\*\* Mở bảng trạng thái tháp pháo trực tiếp.
 
-1\. Đạt đến số vòng tối đa (mặc định là 50 vòng).
-
-2\. Tất cả người chơi đều đã bị loại.
-
-
-
-Người chơi có nhiều ánh sáng tích lũy nhất sẽ thắng. Những người chơi bị loại vẫn được xếp hạng dựa trên tổng ánh sáng của họ, vì vậy bị loại sớm không nhất thiết là bạn sẽ thua cuộc - nó chỉ có nghĩa là bạn không thể kiếm thêm ánh sáng được nữa.
-
-
-
-\*\*Ví dụ một lượt chơi\*\*
-
-
-
-Bạn bắt đầu với sức mạnh mặc định là 10. Hiện bạn có 6 ánh sáng và 8 xu.
-
-1\. Bạn quyết định bắn. Tháp kích hoạt và bạn nhận được 3 ánh sáng (tổng là 9) và 6 xu (tổng có 14). Bạn đang ở rất gần giới hạn 9/10.
-
-2\. Vòng tiếp theo, bạn dùng 10 xu mua nâng cấp. Nâng cấp thành công, giúp bạn có thêm 5 sức mạnh. Giờ sức mạnh của bạn là 15, ánh sáng vẫn là 9. Bạn đã tạo ra một khoảng trống an toàn để tiếp tục bắn.
-
-
+Bảng trạng thái trực tiếp tự cập nhật khi còn mở. Bảng này hiển thị vòng hiện tại, quang năng, công suất, xu, công suất an toàn còn lại, và nguy cơ quá tải của phát bắn tiếp theo cho từng tháp.
 
 \*\*Tùy chọn trò chơi\*\*
 
-\* \*\*Sức mạnh khởi đầu:\*\* Mức sức mạnh ban đầu cho mỗi người chơi (mặc định 10).
+\* \*\*Công suất ban đầu:\*\* Công suất khởi đầu của mọi tháp pháo. Phạm vi: 5 đến 30. Mặc định: 10.
+\* \*\*Số vòng tối đa:\*\* Số vòng trọn vẹn trước khi tính điểm cuối. Phạm vi: 10 đến 200. Mặc định: 50.
 
-\* \*\*Số vòng tối đa:\*\* Số vòng tối đa trước khi trò chơi kết thúc (mặc định 50).
+\*\*Tùy chọn cá nhân\*\*
 
-
+\* \*\*Thông báo ngắn gọn:\*\* Rút gọn thông báo bắt đầu vòng, khai hỏa, nâng cấp, quá tải, và thắng trận nhưng vẫn giữ các con số quan trọng.
+\* \*\*Xác nhận hành động rủi ro:\*\* Thêm bước xác nhận trước khi khai hỏa nếu phát bắn có ít nhất 50% nguy cơ làm tháp quá tải.
 
 \*\*Phím tắt bàn phím\*\*
 
-
-
-\* \*\*Dấu cách (Space):\*\* Bắn vào tháp.
-
-\* \*\*U:\*\* Mua nâng cấp (tốn 10 xu).
-
-\* \*\*C:\*\* Xem chỉ số của tất cả người chơi.
-
+\* \*\*Dấu cách:\*\* Khai hỏa.
+\* \*\*U:\*\* Nâng cấp lõi.
+\* \*\*C:\*\* Xem trạng thái tháp pháo.
+\* \*\*S:\*\* Xem điểm.
+\* \*\*Shift+S:\*\* Xem điểm chi tiết.

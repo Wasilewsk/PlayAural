@@ -9,6 +9,7 @@ from ..games.blackjack.game import BlackjackGame
 from ..games.fivecarddraw.game import FiveCardDrawGame
 from ..games.holdem.game import HoldemGame
 from ..games.leftrightcenter.game import LeftRightCenterGame
+from ..games.lightturret.game import LightTurretGame
 from ..games.ludo.game import LudoGame
 from ..games.deadmansdeck.game import DeadMansDeckGame
 from ..games.ninetynine.game import NinetyNineGame
@@ -81,6 +82,7 @@ def test_team_manager_uses_target_score_for_target_unit_pluralization() -> None:
         (FiveCardDrawGame, "game-score-unit-chips"),
         (HoldemGame, "game-score-unit-chips"),
         (LeftRightCenterGame, "game-score-unit-chips"),
+        (LightTurretGame, "game-score-unit-light"),
         (LudoGame, "game-score-unit-tokens-home"),
         (NinetyNineGame, "game-score-unit-ninetynine-tokens"),
         (SorryGame, "game-score-unit-pawns-home"),
@@ -117,6 +119,39 @@ def test_games_with_non_point_scores_declare_score_unit(game_cls, unit_key) -> N
             {"final_chips": {"Alice": 1, "Bob": 2}, "center_pot": 3},
             ["Alice: 1 chip", "Bob: 2 chips", "Center pot: 3 chips."],
             ["Alice: 1 chip", "Bob: 2 chip", "Hũ giữa: 3 chip."],
+        ),
+        (
+            LightTurretGame,
+            {
+                "winner_ids": ["bob"],
+                "winner_light": 2,
+                "rankings": [
+                    {
+                        "members": ["Bob"],
+                        "rank": 1,
+                        "light": 2,
+                        "power": 10,
+                        "coins": 4,
+                        "alive": True,
+                    },
+                    {
+                        "members": ["Alice"],
+                        "rank": 2,
+                        "light": 1,
+                        "power": 10,
+                        "coins": 2,
+                        "alive": False,
+                    },
+                ],
+            },
+            [
+                "1. Bob: 2 light, 10 power, 4 coins, Active",
+                "2. Alice: 1 light, 10 power, 2 coins, Eliminated",
+            ],
+            [
+                "1. Bob: 2 quang năng, 10 công suất, 4 xu, Còn hoạt động",
+                "2. Alice: 1 quang năng, 10 công suất, 2 xu, Đã bị loại",
+            ],
         ),
         (
             LudoGame,
@@ -174,6 +209,7 @@ def test_custom_score_unit_end_screens_use_game_terms(
         FiveCardDrawGame,
         HoldemGame,
         LeftRightCenterGame,
+        LightTurretGame,
         LudoGame,
         NinetyNineGame,
         SorryGame,

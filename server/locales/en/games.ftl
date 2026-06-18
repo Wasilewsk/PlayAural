@@ -34,6 +34,7 @@ game-score-unit-hand-wins = { $count ->
     [one] hand win
    *[other] hand wins
 }
+game-score-unit-light = light
 game-final-scores-header = Final Scores:
 
 game-winner = { $player } wins!
