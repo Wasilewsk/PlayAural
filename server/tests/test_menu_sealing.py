@@ -18,6 +18,7 @@ import pytest
 from ..game_utils.menu_management_mixin import SEALED_MENU_ORCHESTRATORS
 from ..game_utils.action_context import ActionContext
 from ..users.base import MenuItem
+from ..users.network_user import NetworkUser
 from ..games.pig.game import PigGame
 from ..messages.localization import Localization
 from ..users.test_user import MockUser
@@ -170,6 +171,94 @@ class TestRecordAndFlush:
             {"type": "menu", "menu_id": "turn_menu", "selection_id": "whos_at_table"},
         )
         assert len(turn_menu_messages(user1)) >= 1
+
+
+class TestPersistentStartAction:
+    def test_start_stays_visible_before_minimum_players_join(self) -> None:
+        game = make_game(player_count=1)
+        host = game.players[0]
+
+        visible = {
+            resolved.action.id: resolved
+            for resolved in game.get_all_visible_actions(host)
+        }
+
+        assert "start_game" in visible
+        assert visible["start_game"].enabled is True
+
+    def test_non_host_sees_start_but_cannot_use_it(self) -> None:
+        game = make_game()
+        guest = game.players[1]
+
+        visible = {
+            resolved.action.id: resolved
+            for resolved in game.get_all_visible_actions(guest)
+        }
+
+        assert "start_game" in visible
+        assert visible["start_game"].disabled_reason == "action-not-host"
+
+    def test_failed_start_reports_context_without_forcing_focus(self) -> None:
+        game = make_game(player_count=1)
+        host = game.players[0]
+        user = game.get_user(host)
+        assert isinstance(user, MockUser)
+
+        game.refresh_menus()
+        game.flush_menus()
+        user.clear_messages()
+
+        game.handle_event(
+            host,
+            {
+                "type": "menu",
+                "menu_id": "turn_menu",
+                "selection_id": "start_game",
+            },
+        )
+
+        assert game.status == "waiting"
+        assert (
+            "Cannot start. Active players: 1. Minimum required: 2."
+            in user.get_spoken_messages()
+        )
+        assert turn_menu_messages(user)[-1].data["selection_id"] is None
+
+    def test_failed_start_sends_no_redundant_network_menu_packet(self) -> None:
+        game = PigGame()
+        game.setup_keybinds()
+        user = NetworkUser("Player1", "en", connection=None)
+        host = game.add_player("Player1", user)
+        game.host = host.name
+
+        game.refresh_menus()
+        game.flush_menus()
+        user.get_queued_messages()
+
+        game.handle_event(
+            host,
+            {
+                "type": "menu",
+                "menu_id": "turn_menu",
+                "selection_id": "start_game",
+            },
+        )
+
+        packets = user.get_queued_messages()
+        assert any(packet.get("type") == "speak" for packet in packets)
+        assert not any(packet.get("type") == "menu" for packet in packets)
+
+    def test_validate_start_combines_count_and_game_errors(self) -> None:
+        game = make_game(player_count=1)
+        game.options.team_mode = "2v2"
+
+        assert game.validate_start() == [
+            (
+                "action-start-needs-more-players",
+                {"current": 1, "minimum": 2},
+            ),
+            "game-error-invalid-team-mode",
+        ]
 
 
 class TestFocusIntent:

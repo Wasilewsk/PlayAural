@@ -842,15 +842,6 @@ class CitadelsGame(Game):
         self.broadcast_l("citadels-game-start", buffer="game")
         self._start_selection_phase()
 
-    def prestart_validate(self) -> list[str] | list[tuple[str, dict]]:
-        errors = super().prestart_validate()
-        active_count = len(self.get_active_players())
-        if active_count < self.get_min_players():
-            errors.append("action-need-more-players")
-        if active_count > self.get_max_players():
-            errors.append("action-table-full")
-        return errors
-
     def on_tick(self) -> None:
         super().on_tick()
         self.process_scheduled_sounds()

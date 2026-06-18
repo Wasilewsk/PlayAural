@@ -133,15 +133,6 @@ class CoupGame(Game):
     def get_supported_leaderboards(cls) -> list[str]:
         return ["wins", "rating", "games_played"]
 
-    def prestart_validate(self) -> list[str]:
-        errors: list[str] = []
-        active_count = self.get_active_player_count()
-        if active_count < self.get_min_players():
-            errors.append("action-need-more-players")
-        if active_count > self.get_max_players():
-            errors.append("action-table-full")
-        return errors
-
     def create_player(
         self, player_id: str, name: str, is_bot: bool = False
     ) -> CoupPlayer:

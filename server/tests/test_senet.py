@@ -37,13 +37,13 @@ def test_prestart_validate_requires_exactly_two_active_players() -> None:
     too_many = make_game(player_count=3)
 
     assert (
-        "senet-error-exactly-two-players",
-        {"count": 1},
-    ) in too_few.prestart_validate()
+        "action-start-requires-exact-players",
+        {"current": 1, "required": 2},
+    ) in too_few.validate_start()
     assert (
-        "senet-error-exactly-two-players",
-        {"count": 3},
-    ) in too_many.prestart_validate()
+        "action-start-requires-exact-players",
+        {"current": 3, "required": 2},
+    ) in too_many.validate_start()
 
 
 def test_spectator_leave_during_play_does_not_create_replacement_bot() -> None:

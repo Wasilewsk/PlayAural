@@ -373,7 +373,7 @@ class GameSimulator:
             )
 
         # Validate before starting
-        errors = self.game.prestart_validate()
+        errors = self.game.validate_start()
         if errors:
             for err in errors:
                 if isinstance(err, tuple):

@@ -141,18 +141,28 @@ def test_game_registered_and_defaults() -> None:
 
 
 def test_prestart_validation_enforces_four_to_eight_players() -> None:
-    assert "action-need-more-players" in make_game(player_count=2).prestart_validate()
-    assert "action-need-more-players" in make_game(player_count=3).prestart_validate()
-    assert make_game(player_count=4).prestart_validate() == []
+    assert make_game(player_count=2).validate_start() == [
+        (
+            "action-start-needs-more-players",
+            {"current": 2, "minimum": 4},
+        )
+    ]
+    assert make_game(player_count=3).validate_start() == [
+        (
+            "action-start-needs-more-players",
+            {"current": 3, "minimum": 4},
+        )
+    ]
+    assert make_game(player_count=4).validate_start() == []
 
 
-def test_start_game_hidden_and_disabled_when_too_few_players() -> None:
+def test_start_game_remains_visible_and_attemptable_when_not_ready() -> None:
     from ..game_utils.actions import Visibility
 
     too_few = make_game(player_count=2)
     host = too_few.players[0]
-    assert too_few._is_start_game_hidden(host) == Visibility.HIDDEN
-    assert too_few._is_start_game_enabled(host) == "action-need-more-players"
+    assert too_few._is_start_game_hidden(host) == Visibility.VISIBLE
+    assert too_few._is_start_game_enabled(host) is None
 
     enough = make_game(player_count=4)
     host = enough.players[0]

@@ -33,7 +33,7 @@ class LobbyActionsMixin:
         - self.player_action_sets: dict
         - self.get_user(player) -> User | None
         - self.broadcast_l(), self.broadcast_sound()
-        - self.prestart_validate(), self.on_start()
+        - self.validate_start(), self.on_start()
         - self.attach_user(), self.refresh_menus()
         - self.get_all_enabled_actions()
         - self._get_keybind_for_action()
@@ -46,16 +46,10 @@ class LobbyActionsMixin:
             self._action_confirm_team_arrangement(player, action_id)
             return
 
-        # Validate configuration before starting
-        errors = self.prestart_validate()
+        # Validate framework requirements and game-specific configuration.
+        errors = self.validate_start()
         if errors:
-            for error in errors:
-                # Handle both plain strings and (key, kwargs) tuples
-                if isinstance(error, tuple):
-                    error_key, kwargs = error
-                    self.broadcast_l(error_key, buffer="game", **kwargs)
-                else:
-                    self.broadcast_l(error, buffer="game")
+            self._broadcast_start_errors(errors)
             return
 
         self._prepare_disconnected_lobby_members_for_start()
@@ -72,6 +66,18 @@ class LobbyActionsMixin:
         self.on_start()
         self._clear_team_arrangement_state()
         self._sync_table_status()
+
+    def _broadcast_start_errors(
+        self,
+        errors: list[str | tuple[str, dict]],
+    ) -> None:
+        """Announce every contextual reason the current setup cannot start."""
+        for error in errors:
+            if isinstance(error, tuple):
+                error_key, kwargs = error
+                self.broadcast_l(error_key, buffer="game", **kwargs)
+            else:
+                self.broadcast_l(error, buffer="game")
 
     def _prepare_disconnected_lobby_members_for_start(self) -> bool:
         """Convert offline lobby players to bots before game-specific setup."""
@@ -402,14 +408,9 @@ class LobbyActionsMixin:
         if player.name != self.host or not self.team_arrangement_active:
             return
 
-        errors = self.prestart_validate()
+        errors = self.validate_start()
         if errors:
-            for error in errors:
-                if isinstance(error, tuple):
-                    error_key, kwargs = error
-                    self.broadcast_l(error_key, buffer="game", **kwargs)
-                else:
-                    self.broadcast_l(error, buffer="game")
+            self._broadcast_start_errors(errors)
             return
 
         roster_changed = self._prepare_disconnected_lobby_members_for_start()

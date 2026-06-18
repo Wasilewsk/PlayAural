@@ -245,7 +245,7 @@ class NineGame(Game):
 
         num_players = len(self.get_active_players())
         if num_players == 5:  # Only 5 players is specifically invalid for Nine
-            errors.append(Localization.get("en", "nine-error-invalid-player-count"))
+            errors.append("nine-error-invalid-player-count")
 
         return errors
 

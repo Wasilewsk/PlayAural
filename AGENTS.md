@@ -187,9 +187,12 @@ Use declarative `GameOptions` with `option_field()`.
 - Every option needs a localized `change_msg` in EN and VI.
 - `MenuOption` needs `choice_labels` for every raw value.
 - `TeamModeOption` uses shared team-mode helpers.
-- `prestart_validate()` must block invalid player counts, impossible deals,
-  unsupported option combinations, and team-mode conflicts with clear localized
-  errors.
+- The framework keeps `start_game` visible throughout the waiting lobby.
+  `validate_start()` owns player-count checks and combines them with the game's
+  `prestart_validate()` errors; never hide Start merely because setup is
+  invalid.
+- `prestart_validate()` must block impossible deals, unsupported option
+  combinations, and team-mode conflicts with clear localized errors.
 
 ## Audio and Accessibility
 

@@ -291,6 +291,50 @@ class Game(
         """
         return []
 
+    def validate_start(self) -> list[str | tuple[str, dict]]:
+        """Return complete framework and game-specific start errors.
+
+        Player-count validation is framework-owned so a game cannot bypass it
+        by omitting ``super().prestart_validate()``. ``prestart_validate()``
+        remains the game hook for option, deal, team, and ruleset checks.
+        """
+        active_count = self.get_active_player_count()
+        minimum = self.get_min_players()
+        maximum = self.get_max_players()
+        errors: list[str | tuple[str, dict]] = []
+
+        if minimum == maximum and active_count != minimum:
+            errors.append(
+                (
+                    "action-start-requires-exact-players",
+                    {"current": active_count, "required": minimum},
+                )
+            )
+        elif active_count < minimum:
+            errors.append(
+                (
+                    "action-start-needs-more-players",
+                    {"current": active_count, "minimum": minimum},
+                )
+            )
+        elif active_count > maximum:
+            errors.append(
+                (
+                    "action-start-has-too-many-players",
+                    {"current": active_count, "maximum": maximum},
+                )
+            )
+
+        legacy_count_keys = {"action-need-more-players", "action-table-full"}
+        for error in self.prestart_validate():
+            key = error[0] if isinstance(error, tuple) else error
+            if errors and key in legacy_count_keys:
+                continue
+            if error not in errors:
+                errors.append(error)
+
+        return errors
+
     def _validate_team_mode(self, team_mode: str) -> str | None:
         """Helper to validate team mode for current player count.
 

@@ -34,6 +34,7 @@ class ActionSetCreationMixin:
                 handler="_action_start_game",
                 is_enabled="_is_start_game_enabled",
                 is_hidden="_is_start_game_hidden",
+                get_label="_get_start_game_label",
                 include_spectators=True,
             )
         )
@@ -44,6 +45,7 @@ class ActionSetCreationMixin:
                 handler="_action_confirm_team_arrangement",
                 is_enabled="_is_confirm_team_arrangement_enabled",
                 is_hidden="_is_confirm_team_arrangement_hidden",
+                show_in_actions_menu=False,
                 include_spectators=True,
             )
         )

@@ -1385,7 +1385,7 @@ class HumanityCardsGame(Game):
 
     def on_start(self) -> None:
         """Called when the game starts."""
-        errors = self.prestart_validate()
+        errors = self.validate_start()
         if errors:
             for error in errors:
                 if isinstance(error, tuple):

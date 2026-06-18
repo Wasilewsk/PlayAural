@@ -41,13 +41,25 @@ def status_box_texts(user: MockUser) -> list[str]:
 
 def test_team_game_start_enters_arrangement_before_playing() -> None:
     game = make_game(DominosGame, DominosOptions(team_mode="2v2"))
+    host = game.players[0]
 
-    game.execute_action(game.players[0], "start_game")
+    game.execute_action(host, "start_game")
 
     assert game.status == "waiting"
     assert game.team_arrangement_active is True
     assert game.team_arrangement_team_mode == "2v2"
     assert team_members(game) == [["Player1", "Player3"], ["Player2", "Player4"]]
+
+    visible = {
+        resolved.action.id: resolved
+        for resolved in game.get_all_visible_actions(host)
+    }
+    assert visible["start_game"].label == "Confirm teams and start"
+    assert "confirm_team_arrangement" not in visible
+    assert "confirm_team_arrangement" not in {
+        resolved.action.id
+        for resolved in game.get_all_enabled_actions(host)
+    }
 
 
 def test_host_can_swap_and_confirm_arranged_teams() -> None:

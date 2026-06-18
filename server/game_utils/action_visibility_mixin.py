@@ -43,27 +43,35 @@ class ActionVisibilityMixin:
     # --- Lobby actions ---
 
     def _is_start_game_enabled(self, player: "Player") -> str | None:
-        """Check if start_game action is enabled."""
+        """Allow the host to attempt a start while the game is waiting.
+
+        Readiness belongs to ``validate_start()`` so the persistent Start
+        button can report every contextual setup error when activated.
+        """
         if self.status != "waiting":
             return "action-game-in-progress"
-        if self.team_arrangement_active:
-            if player.name != self.host:
-                return "action-not-host"
-            return None
         if player.name != self.host:
             return "action-not-host"
-        active_count = self.get_active_player_count()
-        if active_count < self.get_min_players():
-            return "action-need-more-players"
         return None
 
     def _is_start_game_hidden(self, player: "Player") -> Visibility:
-        """Check if start_game action is hidden."""
-        if self.status != "waiting" or self.team_arrangement_active:
-            return Visibility.HIDDEN
-        if self.get_active_player_count() < self.get_min_players():
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        """Keep Start visible throughout the pre-game lobby."""
+        return (
+            Visibility.VISIBLE
+            if self.status == "waiting"
+            else Visibility.HIDDEN
+        )
+
+    def _get_start_game_label(self, player: "Player", action_id: str) -> str:
+        """Describe the current start step without changing its stable item id."""
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        key = (
+            "team-arrangement-confirm"
+            if self.team_arrangement_active
+            else "start-game"
+        )
+        return Localization.get(locale, key)
 
     def _is_confirm_team_arrangement_enabled(self, player: "Player") -> str | None:
         """Check if team arrangement can be confirmed."""
@@ -76,9 +84,7 @@ class ActionVisibilityMixin:
         return None
 
     def _is_confirm_team_arrangement_hidden(self, player: "Player") -> Visibility:
-        """Show confirm only during team arrangement."""
-        if self.status == "waiting" and self.team_arrangement_active:
-            return Visibility.VISIBLE
+        """Keep the legacy action executable without duplicating Start in the UI."""
         return Visibility.HIDDEN
 
     def _is_read_team_arrangement_enabled(self, player: "Player") -> str | None:

@@ -291,15 +291,6 @@ class DeadMansPokerGame(Game):
     def revealed_community_cards(self) -> list[Card]:
         return self.community[: self.revealed_community_count]
 
-    def prestart_validate(self) -> list[str]:
-        errors: list[str] = []
-        active_count = self.get_active_player_count()
-        if active_count < self.get_min_players():
-            errors.append("action-need-more-players")
-        if active_count > self.get_max_players():
-            errors.append("action-table-full")
-        return errors
-
     def on_start(self) -> None:
         self.status = "playing"
         self._sync_table_status()

@@ -378,6 +378,21 @@ Rules:
 - team arrangement remains a lobby-only state; do not set `status = "playing"` until the host confirms teams and the game actually starts
 - roster and option changes during arrangement must be blocked, cancelled, or deliberately refreshed through the shared helpers rather than silently changing teams
 
+#### Persistent Start Action
+The `start_game` action remains visible for every user throughout the normal
+`waiting` lobby, including while team arrangement is active. Only the host can
+execute it. During team arrangement the same stable action id is relabeled as
+the localized team-confirmation action; the legacy `confirm_team_arrangement`
+action remains executable for compatibility but is not shown as a duplicate.
+
+Readiness must never be implemented by hiding Start. The framework-owned
+`validate_start()` enforces minimum, maximum, or exact active-player counts and
+then combines those errors with the game's `prestart_validate()` hook. Start
+attempts announce all localized validation errors. They do not request focus:
+the stable `start_game` item remains present and normal same-menu focus
+preservation keeps the cursor in place. Games use `prestart_validate()` only
+for their specific deal, ruleset, option-conflict, and team-mode checks.
+
 #### Server-Side Navigation Stack
 Server menus use the breadcrumb stack in `_user_states[username]["_stack"]`.
 

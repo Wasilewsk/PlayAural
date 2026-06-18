@@ -13,6 +13,15 @@ _locales_dir = Path(__file__).parent.parent / "locales"
 Localization.init(_locales_dir)
 
 
+def test_invalid_player_count_returns_localizable_error_key() -> None:
+    game = NineGame()
+    for index in range(5):
+        name = f"Player{index + 1}"
+        game.add_player(name, MockUser(name, uuid=f"nine-player-{index + 1}"))
+
+    assert "nine-error-invalid-player-count" in game.validate_start()
+
+
 def test_nine_auto_skip_does_not_play_turn_sound_for_skipped_player() -> None:
     game = NineGame()
     game.setup_keybinds()

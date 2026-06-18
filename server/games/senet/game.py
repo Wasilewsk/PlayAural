@@ -97,13 +97,6 @@ class SenetGame(Game):
     def create_player(self, player_id: str, name: str, is_bot: bool = False) -> SenetPlayer:
         return SenetPlayer(id=player_id, name=name, is_bot=is_bot)
 
-    def prestart_validate(self) -> list[str | tuple[str, dict]]:
-        errors: list[str | tuple[str, dict]] = list(super().prestart_validate())
-        active_count = self.get_active_player_count()
-        if active_count != 2:
-            errors.append(("senet-error-exactly-two-players", {"count": active_count}))
-        return errors
-
     def _player_locale(self, player: Player) -> str:
         user = self.get_user(player)
         return user.locale if user else "en"
