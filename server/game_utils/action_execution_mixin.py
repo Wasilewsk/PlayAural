@@ -51,35 +51,35 @@ class ActionExecutionMixin:
             self._speak_action_disabled_reason(player, resolved.disabled_reason)
             return
 
-        # If action requires input and we don't have it yet
-        if action.input_request is not None and input_value is None:
-            # For bots, get input automatically
-            if player.is_bot:
-                # Set pending action so options methods can access action_id
-                self._pending_actions[player.id] = action_id
-                input_value = self._get_bot_input(action, player)
-                # Clean up pending action for bot
-                if player.id in self._pending_actions:
-                    del self._pending_actions[player.id]
-                if input_value is None:
-                    return  # Bot couldn't provide input
-            else:
-                if not self._should_prompt_for_action_input(action, player):
-                    input_value = self._get_default_action_input(action, player)
-                else:
-                    # For humans, request input and store pending action
-                    self._request_action_input(action, player)
-                    return
-
-        # Look up the handler method by name on this game object
-        handler = getattr(self, action.handler, None)
-        if not handler:
-            return
-
         # Store context for handlers that need it (e.g., keybind-triggered actions)
         self._action_context[player.id] = context or ActionContext()
 
         try:
+            # If action requires input and we don't have it yet
+            if action.input_request is not None and input_value is None:
+                # For bots, get input automatically
+                if player.is_bot:
+                    # Set pending action so options methods can access action_id
+                    self._pending_actions[player.id] = action_id
+                    input_value = self._get_bot_input(action, player)
+                    # Clean up pending action for bot
+                    if player.id in self._pending_actions:
+                        del self._pending_actions[player.id]
+                    if input_value is None:
+                        return  # Bot couldn't provide input
+                else:
+                    if not self._should_prompt_for_action_input(action, player):
+                        input_value = self._get_default_action_input(action, player)
+                    else:
+                        # For humans, request input and store pending action
+                        self._request_action_input(action, player)
+                        return
+
+            # Look up the handler method by name on this game object
+            handler = getattr(self, action.handler, None)
+            if not handler:
+                return
+
             # Execute the action handler (always pass action_id for context)
             if action.input_request is not None and input_value is not None:
                 # Handler expects input value: (player, input_value, action_id)
@@ -132,6 +132,13 @@ class ActionExecutionMixin:
     def get_action_context(self, player: "Player") -> "ActionContext":
         """Get the current action context for a player (for use in handlers)."""
         return self._action_context.get(player.id, ActionContext())
+
+    def _get_action_return_focus_id(
+        self, player: "Player", fallback_action_id: str | None
+    ) -> str | None:
+        """Return the menu item that should receive focus after an overlay closes."""
+        context = self.get_action_context(player)
+        return context.menu_item_id or fallback_action_id
 
     def _get_menu_options_for_action(
         self, action: Action, player: "Player"
@@ -198,12 +205,16 @@ class ActionExecutionMixin:
                     self._speak_action_disabled_reason(player, disabled_reason)
                     return
         self._pending_actions[player.id] = action.id
+        return_focus = self._get_action_return_focus_id(player, action.id)
+        if return_focus:
+            self._pending_action_return_focus[player.id] = return_focus
 
         if isinstance(req, MenuInput):
             options = self._get_menu_options_for_action(action, player)
             if not options:
                 # No options available
                 del self._pending_actions[player.id]
+                self._pending_action_return_focus.pop(player.id, None)
                 user.speak_l("no-options-available", buffer="game")
                 return
 

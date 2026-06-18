@@ -663,24 +663,6 @@ class LobbyActionsMixin:
 
         self.refresh_menus()
 
-    def _action_leave_game(self, player: "Player", action_id: str) -> None:
-        """Prompt for confirmation before leaving the game."""
-        user = self.get_user(player)
-        if not user:
-            return
-        self._pending_actions[player.id] = "leave_game_confirm"
-        user.speak_l("confirm-leave-game", buffer="game")
-        items = [
-            MenuItem(text=Localization.get(user.locale, "confirm-no"), id="no"),
-            MenuItem(text=Localization.get(user.locale, "confirm-yes"), id="yes"),
-        ]
-        user.show_menu(
-            "leave_game_confirm",
-            items,
-            multiletter=False,
-            escape_behavior=EscapeBehavior.SELECT_LAST,
-        )
-
     def _perform_leave_game(self, player: "Player") -> None:
         """Leave the game."""
         # Spectators can always leave cleanly (no bot replacement)
@@ -746,6 +728,13 @@ class LobbyActionsMixin:
 
     def _action_show_actions_menu(self, player: "Player", action_id: str) -> None:
         """Show the actions menu."""
+        return_focus = self._get_action_return_focus_id(player, action_id)
+        if return_focus:
+            self._actions_menu_return_focus[player.id] = return_focus
+        self._paint_actions_menu(player, announce=True)
+
+    def _build_actions_menu_items(self, player: "Player", user: "User") -> list[MenuItem]:
+        """Build the current Escape/actions menu for a player."""
         items = []
         for resolved in self.get_all_enabled_actions(player):
             label = resolved.label
@@ -754,22 +743,62 @@ class LobbyActionsMixin:
                 label += f" ({keybind_key.upper()})"
             items.append(MenuItem(text=label, id=resolved.action.id))
 
+        items.append(
+            MenuItem(text=Localization.get(user.locale, "go-back"), id="go_back")
+        )
+        return items
+
+    def _paint_actions_menu(
+        self,
+        player: "Player",
+        *,
+        focus_id: str | None = None,
+        announce: bool = False,
+    ) -> None:
+        """Paint or refresh the actions menu without rebuilding the turn menu."""
         user = self.get_user(player)
-        if user and items:
-            # Add "Go back" option at the end
-            items.append(
-                MenuItem(text=Localization.get(user.locale, "go-back"), id="go_back")
-            )
-            self._actions_menu_open.add(player.id)
+        if not user:
+            return
+
+        items = self._build_actions_menu_items(player, user)
+        action_ids = {item.id for item in items if item.id is not None}
+        if focus_id not in action_ids:
+            focus_id = None
+
+        self._actions_menu_open.add(player.id)
+        if announce:
             user.speak_l("context-menu", buffer="game")
-            user.show_menu(
-                "actions_menu",
-                items,
-                multiletter=True,
-                escape_behavior=EscapeBehavior.SELECT_LAST,
-            )
-        elif user:
-            user.speak_l("no-actions-available", buffer="game")
+            if len(items) == 1:
+                user.speak_l("no-actions-available", buffer="game")
+
+        user.show_menu(
+            "actions_menu",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+            selection_id=focus_id,
+        )
+
+    def _action_leave_game(self, player: "Player", action_id: str) -> None:
+        """Prompt for confirmation before leaving the game."""
+        user = self.get_user(player)
+        if not user:
+            return
+        return_focus = self._get_action_return_focus_id(player, action_id)
+        if return_focus:
+            self._pending_action_return_focus[player.id] = return_focus
+        self._pending_actions[player.id] = "leave_game_confirm"
+        user.speak_l("confirm-leave-game", buffer="game")
+        items = [
+            MenuItem(text=Localization.get(user.locale, "confirm-no"), id="no"),
+            MenuItem(text=Localization.get(user.locale, "confirm-yes"), id="yes"),
+        ]
+        user.show_menu(
+            "leave_game_confirm",
+            items,
+            multiletter=False,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
 
     def _action_host_management(self, player: "Player", action_id: str) -> None:
         """Open the server-level host management menu (host only)."""

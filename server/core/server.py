@@ -3263,6 +3263,7 @@ PlayAural Server
 
         state = self._user_states.get(username, {})
         current_menu = state.get("menu")
+        self._remember_current_menu_focus(user, current_menu, packet)
 
         if state.get("_transient") and selection_id == "back":
             self._cancel_input_state(user, state)
@@ -3310,6 +3311,20 @@ PlayAural Server
                         table.remove_member(username)
                         self._show_main_menu(user)
                 return
+
+        if not self._selection_allowed_for_current_menu(
+            user, current_menu, selection_id, packet
+        ):
+            logging.getLogger("playaural").warning(
+                "Rejected invalid menu selection",
+                extra={
+                    "username": user.username,
+                    "menu": current_menu,
+                    "packet_menu": menu_id,
+                    "selection_id": selection_id,
+                },
+            )
+            return
 
         # Handle menu selections based on current menu
         if current_menu == "main_menu":
@@ -7435,10 +7450,17 @@ PlayAural Server
         the user can still navigate back through the full hierarchy they entered.
         """
         username = user.username
-        saved_stack = list(self._user_states.get(username, {}).get("_stack", []))
+        current = self._user_states.get(username, {})
+        saved_stack = list(current.get("_stack", []))
+        saved_focus = {
+            key: current[key]
+            for key in ("_last_selection_id", "_last_selection_position")
+            if key in current
+        }
         show_fn(user, *args, **kwargs)
         if username in self._user_states:
             self._user_states[username]["_stack"] = saved_stack
+            self._user_states[username].update(saved_focus)
 
     def _enter_input_state(self, user: NetworkUser, input_id: str, **extra) -> None:
         """Transition into an editbox input state, recording the parent frame.
@@ -7585,6 +7607,12 @@ PlayAural Server
         else:
             frame = {k: v for k, v in current.items()
                      if k not in ("_stack", "_transient", "_parent_frame")}
+        focus_id = frame.get("_last_selection_id")
+        focus_position = frame.get("_last_selection_position")
+        if focus_id:
+            frame["_restore_focus_id"] = focus_id
+        elif focus_position:
+            frame["_restore_focus_position"] = focus_position
         stack.append(frame)
         show_fn(user, *args, **kwargs)
         if username in self._user_states:
@@ -7635,6 +7663,9 @@ PlayAural Server
                 self._show_host_restart_confirm_menu(user, table)
             else:
                 self._return_to_game(user, table)
+            if username in self._user_states:
+                self._user_states[username]["_stack"] = stack
+                self._restore_menu_focus(user, frame)
             return  # IN_GAME_OVERLAY_MENUS manage their own state
         # For all other menus: call show function then re-inject stack
         if menu == "main_menu":
@@ -7851,6 +7882,166 @@ PlayAural Server
         # Re-inject stack (show functions overwrite _user_states[username])
         if username in self._user_states:
             self._user_states[username]["_stack"] = stack
+            self._restore_menu_focus(user, frame)
+
+    def _remember_current_menu_focus(
+        self,
+        user: NetworkUser,
+        current_menu: str | None,
+        packet: dict,
+    ) -> None:
+        """Remember the selected item in a server-owned menu before navigation."""
+        if not current_menu or current_menu not in self.GLOBAL_SYSTEM_MENUS:
+            return
+        packet_menu = packet.get("menu_id")
+        if packet_menu and packet_menu != current_menu:
+            return
+
+        state = self._user_states.get(user.username)
+        if not state:
+            return
+
+        selection_id = packet.get("selection_id")
+        if selection_id and selection_id != "back":
+            if self._menu_contains_item(user, current_menu, selection_id):
+                state["_last_selection_id"] = selection_id
+                state.pop("_last_selection_position", None)
+            return
+
+        selection = packet.get("selection")
+        if isinstance(selection, int) and selection > 0:
+            state["_last_selection_position"] = selection
+            state.pop("_last_selection_id", None)
+
+    def _menu_contains_item(
+        self,
+        user: NetworkUser,
+        menu_id: str,
+        selection_id: str,
+    ) -> bool:
+        """Return whether the currently stored menu contains an item id."""
+        menu_state = self._current_menu_state(user, menu_id)
+        if not menu_state:
+            return True
+        item_ids = self._menu_item_ids(menu_state)
+        return not item_ids or selection_id in item_ids
+
+    def _selection_allowed_for_current_menu(
+        self,
+        user: NetworkUser,
+        current_menu: str | None,
+        selection_id: str,
+        packet: dict,
+    ) -> bool:
+        """Return whether a packet selection belongs to the active server menu."""
+        if not current_menu or current_menu not in self.GLOBAL_SYSTEM_MENUS:
+            return True
+        packet_menu = packet.get("menu_id")
+        if packet_menu and packet_menu != current_menu:
+            return False
+        if not selection_id or selection_id == "back":
+            return True
+
+        menu_state = self._current_menu_state(user, current_menu)
+        if not menu_state:
+            return True
+        item_ids = self._menu_item_ids(menu_state)
+        return not item_ids or selection_id in item_ids
+
+    def _restore_menu_focus(self, user: NetworkUser, frame: dict) -> None:
+        """Apply stored focus to a restored server menu as a one-shot directive."""
+        username = user.username
+        state = self._user_states.get(username, {})
+        menu_id = state.get("menu")
+        if not menu_id:
+            return
+
+        focus_id = frame.get("_restore_focus_id") or frame.get("_last_selection_id")
+        position = frame.get("_restore_focus_position") or frame.get("_last_selection_position")
+        if not focus_id and not position:
+            return
+
+        menu_state = self._current_menu_state(user, menu_id)
+        if not menu_state:
+            return
+
+        if focus_id and not self._menu_contains_item(user, menu_id, focus_id):
+            focus_id = None
+        if not focus_id and not position:
+            return
+
+        escape_behavior = menu_state.get("escape_behavior", EscapeBehavior.KEYBIND)
+        if isinstance(escape_behavior, str):
+            try:
+                escape_behavior = EscapeBehavior(escape_behavior)
+            except ValueError:
+                escape_behavior = EscapeBehavior.KEYBIND
+
+        user.show_menu(
+            menu_id,
+            self._restoreable_menu_items(menu_state.get("items", [])),
+            multiletter=menu_state.get(
+                "multiletter_enabled",
+                menu_state.get("multiletter", True),
+            ),
+            escape_behavior=escape_behavior,
+            position=None if focus_id else position,
+            selection_id=focus_id,
+            grid_enabled=menu_state.get("grid_enabled", False),
+            grid_height=menu_state.get("grid_height", 0),
+            grid_width=menu_state.get("grid_width", 1),
+        )
+        if focus_id:
+            state["_last_selection_id"] = focus_id
+            state.pop("_last_selection_position", None)
+        elif position:
+            state["_last_selection_position"] = position
+            state.pop("_last_selection_id", None)
+
+    @staticmethod
+    def _menu_item_ids(menu_state: dict) -> set[str]:
+        """Return non-empty item ids from stored menu state."""
+        item_ids: set[str] = set()
+        for item in menu_state.get("items", []):
+            if isinstance(item, dict):
+                item_id = item.get("id")
+            elif isinstance(item, MenuItem):
+                item_id = item.id
+            else:
+                item_id = None
+            if isinstance(item_id, str) and item_id:
+                item_ids.add(item_id)
+        return item_ids
+
+    @staticmethod
+    def _restoreable_menu_items(items: list) -> list[str | MenuItem]:
+        """Convert stored network menu rows back into the public menu item shape."""
+        restored: list[str | MenuItem] = []
+        for item in items:
+            if isinstance(item, (MenuItem, str)):
+                restored.append(item)
+            elif isinstance(item, dict):
+                restored.append(
+                    MenuItem(
+                        text=str(item.get("text", "")),
+                        id=item.get("id"),
+                        sound=item.get("sound"),
+                    )
+                )
+            else:
+                restored.append(str(item))
+        return restored
+
+    @staticmethod
+    def _current_menu_state(user: NetworkUser, menu_id: str) -> dict | None:
+        """Return stored menu content for NetworkUser or MockUser-like objects."""
+        current_menus = getattr(user, "_current_menus", None)
+        if isinstance(current_menus, dict) and menu_id in current_menus:
+            return current_menus.get(menu_id)
+        menus = getattr(user, "menus", None)
+        if isinstance(menus, dict):
+            return menus.get(menu_id)
+        return None
 
     async def _handle_list_online(self, client: ClientConnection) -> None:
         """Handle request for online users list."""

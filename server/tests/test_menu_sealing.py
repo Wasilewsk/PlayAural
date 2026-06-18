@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from ..game_utils.menu_management_mixin import SEALED_MENU_ORCHESTRATORS
+from ..game_utils.action_context import ActionContext
 from ..users.base import MenuItem
 from ..games.pig.game import PigGame
 from ..messages.localization import Localization
@@ -48,6 +49,14 @@ def status_box_messages(user: MockUser) -> list:
         m
         for m in user.messages
         if m.type == "show_menu" and m.data.get("menu_id") == "status_box"
+    ]
+
+
+def actions_menu_messages(user: MockUser) -> list:
+    return [
+        m
+        for m in user.messages
+        if m.type == "show_menu" and m.data.get("menu_id") == "actions_menu"
     ]
 
 
@@ -276,3 +285,117 @@ class TestStatusBoxes:
         assert p1.id not in game._live_status_boxes
         assert "status_box" not in user1.menus
         assert turn_menu_messages(user1)
+
+
+class TestActionMenuFocus:
+    def test_actions_menu_refreshes_in_place_when_marked_dirty(self) -> None:
+        game = make_game()
+        p1 = game.players[0]
+        user1 = game.get_user(p1)
+
+        game.execute_action(
+            p1,
+            "show_actions",
+            context=ActionContext(menu_item_id="show_actions"),
+        )
+        assert p1.id in game._actions_menu_open
+        assert actions_menu_messages(user1)
+
+        user1.clear_messages()
+        game.refresh_menus(p1)
+        game.flush_menus()
+
+        assert actions_menu_messages(user1)
+        assert not turn_menu_messages(user1)
+        assert p1.id in game._actions_menu_open
+
+    def test_actions_menu_back_returns_focus_to_touch_anchor(self) -> None:
+        game = make_game()
+        p1 = game.players[0]
+        user1 = game.get_user(p1)
+        user1.client_type = "web"
+
+        game.refresh_menus(p1)
+        game.flush_menus()
+        game.handle_event(
+            p1,
+            {
+                "type": "menu",
+                "menu_id": "turn_menu",
+                "selection_id": "web_actions_menu",
+            },
+        )
+        assert p1.id in game._actions_menu_open
+
+        game.handle_event(
+            p1,
+            {
+                "type": "menu",
+                "menu_id": "actions_menu",
+                "selection_id": "go_back",
+            },
+        )
+
+        assert p1.id not in game._actions_menu_open
+        assert turn_menu_messages(user1)[-1].data["selection_id"] == "web_actions_menu"
+
+    def test_action_input_cancel_returns_focus_to_opener(self) -> None:
+        game = make_game()
+        p1 = game.players[0]
+        user1 = game.get_user(p1)
+        user1.preferences.allow_custom_bot_names = True
+
+        game.refresh_menus(p1)
+        game.flush_menus()
+        game.handle_event(
+            p1,
+            {
+                "type": "menu",
+                "menu_id": "turn_menu",
+                "selection_id": "add_bot",
+            },
+        )
+        assert p1.id in game._pending_actions
+
+        game.handle_event(
+            p1,
+            {
+                "type": "editbox",
+                "input_id": "action_input_editbox",
+                "text": "",
+                "cancelled": True,
+            },
+        )
+
+        assert p1.id not in game._pending_actions
+        assert turn_menu_messages(user1)[-1].data["selection_id"] == "add_bot"
+
+    def test_leave_confirmation_no_returns_focus_to_touch_anchor(self) -> None:
+        game = make_game()
+        p1 = game.players[0]
+        user1 = game.get_user(p1)
+        user1.client_type = "mobile"
+
+        game.refresh_menus(p1)
+        game.flush_menus()
+        game.handle_event(
+            p1,
+            {
+                "type": "menu",
+                "menu_id": "turn_menu",
+                "selection_id": "web_leave_table",
+            },
+        )
+        assert p1.id in game._pending_actions
+
+        game.handle_event(
+            p1,
+            {
+                "type": "menu",
+                "menu_id": "leave_game_confirm",
+                "selection_id": "no",
+            },
+        )
+
+        assert p1.id not in game._pending_actions
+        assert turn_menu_messages(user1)[-1].data["selection_id"] == "web_leave_table"

@@ -95,16 +95,23 @@ class EventHandlingMixin:
         if menu_id == "turn_menu":
             # WEB-SPECIFIC: Intercept specific button IDs
             if selection_id == "web_actions_menu":
-                # Directly call the show actions menu handler
-                self._action_show_actions_menu(player, "show_actions_menu")
+                self.execute_action(
+                    player,
+                    "show_actions",
+                    context=ActionContext(menu_item_id="web_actions_menu"),
+                )
                 return
             elif selection_id == "web_leave_table":
-                # Directly call the leave game handler
-                self._action_leave_game(player, "leave_game")
+                self.execute_action(
+                    player,
+                    "leave_game",
+                    context=ActionContext(menu_item_id="web_leave_table"),
+                )
                 return
 
             # If interacting with turn_menu, actions menu is no longer open
             self._actions_menu_open.discard(player.id)
+            self._actions_menu_return_focus.pop(player.id, None)
             # Try by ID first, then by index
             action = (
                 self.find_action(player, selection_id) if selection_id else None
@@ -112,7 +119,11 @@ class EventHandlingMixin:
             if action:
                 resolved = self.resolve_action(player, action)
                 if resolved.enabled:
-                    self.execute_action(player, selection_id)
+                    self.execute_action(
+                        player,
+                        selection_id,
+                        context=ActionContext(menu_item_id=selection_id),
+                    )
                     if player.id not in self._pending_actions:
                         self.refresh_menus()
                 elif resolved.disabled_reason:
@@ -123,7 +134,11 @@ class EventHandlingMixin:
                 visible = self.get_all_visible_actions(player)
                 if 0 <= selection < len(visible):
                     resolved = visible[selection]
-                    self.execute_action(player, resolved.action.id)
+                    self.execute_action(
+                        player,
+                        resolved.action.id,
+                        context=ActionContext(menu_item_id=resolved.action.id),
+                    )
                     if player.id not in self._pending_actions:
                         self.refresh_menus()
 
@@ -139,7 +154,11 @@ class EventHandlingMixin:
                 user.speak_l("status-box-closed", buffer="game")
                 self._status_box_open.discard(player.id)
                 self._live_status_boxes.pop(player.id, None)
-                self.refresh_menus(player)
+                focus = self._status_box_return_focus.pop(player.id, None)
+                if focus:
+                    self.request_menu_focus(player, focus)
+                else:
+                    self.refresh_menus(player)
 
         elif menu_id == "game_over":
             # Handle game over menu - Return to lobby or Leave game
@@ -154,21 +173,42 @@ class EventHandlingMixin:
 
         elif menu_id == "action_input_menu":
             # Handle action input menu selection
+            cancelled = selection_id in ("_cancel", "back")
+            return_focus = None
             if player.id in self._pending_actions:
                 action_id = self._pending_actions.pop(player.id)
-                if selection_id not in ("_cancel", "back"):
+                return_focus = self._pending_action_return_focus.pop(player.id, None)
+                if not cancelled:
                     # Execute the action with the selected input
-                    self.execute_action(player, action_id, selection_id)
-            self.refresh_menus(player)
+                    context = (
+                        ActionContext(menu_item_id=return_focus)
+                        if return_focus
+                        else None
+                    )
+                    self.execute_action(
+                        player,
+                        action_id,
+                        selection_id,
+                        context=context,
+                    )
+            if cancelled and return_focus:
+                self.request_menu_focus(player, return_focus)
+            else:
+                self.refresh_menus(player)
         elif menu_id == "action_input_editbox":
             self._pending_actions.pop(player.id, None)
-            self.refresh_menus(player)
+            focus = self._pending_action_return_focus.pop(player.id, None)
+            if focus:
+                self.request_menu_focus(player, focus)
+            else:
+                self.refresh_menus(player)
         elif menu_id == "leave_game_confirm":
             user = self.get_user(player)
             if user:
                 user.remove_menu("leave_game_confirm")
             if player.id in self._pending_actions:
                 self._pending_actions.pop(player.id, None)
+            return_focus = self._pending_action_return_focus.pop(player.id, None)
             choice = selection_id
             if not choice:
                 selection = event.get("selection", 1) - 1
@@ -177,7 +217,10 @@ class EventHandlingMixin:
                 handler = getattr(self, "_perform_leave_game", None)
                 if handler:
                     handler(player)
-            self.refresh_menus(player)
+            elif return_focus:
+                self.request_menu_focus(player, return_focus)
+            else:
+                self.refresh_menus(player)
 
     def _handle_editbox_event(self, player: "Player", event: dict) -> None:
         """Handle an editbox submission event."""
@@ -188,8 +231,17 @@ class EventHandlingMixin:
             # Handle action input editbox submission
             if player.id in self._pending_actions:
                 action_id = self._pending_actions.pop(player.id)
+                return_focus = self._pending_action_return_focus.pop(player.id, None)
                 if text and not event.get("cancelled") and not event.get("cancel"):
-                    self.execute_action(player, action_id, text)
+                    context = (
+                        ActionContext(menu_item_id=return_focus)
+                        if return_focus
+                        else None
+                    )
+                    self.execute_action(player, action_id, text, context=context)
+                elif return_focus:
+                    self.request_menu_focus(player, return_focus)
+                    return
             self.refresh_menus(player)
 
     def _handle_keybind_event(self, player: "Player", event: dict) -> None:
@@ -251,6 +303,7 @@ class EventHandlingMixin:
                     resolved = self.resolve_action(player, action)
                     if resolved.enabled:
                         self._actions_menu_open.discard(player.id)
+                        self._actions_menu_return_focus.pop(player.id, None)
                         self.execute_action(player, action_id, context=context)
                         executed_any = True
                     elif resolved.disabled_reason:
@@ -269,15 +322,23 @@ class EventHandlingMixin:
         """Handle selection from the actions menu."""
         # Actions menu is no longer open
         self._actions_menu_open.discard(player.id)
+        return_focus = self._actions_menu_return_focus.pop(player.id, None)
         # Handle "go back" - just return to turn menu
         if action_id == "go_back":
-            self.refresh_menus(player)
+            if return_focus:
+                self.request_menu_focus(player, return_focus)
+            else:
+                self.refresh_menus(player)
             return
         action = self.find_action(player, action_id)
         if action:
             resolved = self.resolve_action(player, action)
             if resolved.enabled:
-                self.execute_action(player, action_id)
+                self.execute_action(
+                    player,
+                    action_id,
+                    context=ActionContext(menu_item_id=action_id),
+                )
             elif resolved.disabled_reason:
                 self._speak_action_disabled_reason(player, resolved.disabled_reason)
         self.refresh_menus(player)

@@ -257,10 +257,10 @@ The flush orchestrators — `refresh_menus`, `flush_menus`,
 `_paint_player_menu`, `_is_menu_refresh_blocked` — are **sealed**: a game
 class that overrides one fails at import time with a `TypeError` (so the
 server will not start and pytest will not collect). The flush owns the
-focus-steal guards (status boxes, actions menus, global system menus,
-pending inputs), bot skipping, finished-state end screens, and focus
-delivery; per-game copies of that logic were the root cause of a long line
-of focus-stealing bugs.
+focus-steal guards (status boxes, global system menus, pending inputs),
+in-place actions-menu refresh, bot skipping, finished-state end screens, and
+focus delivery; per-game copies of that logic were the root cause of a long
+line of focus-stealing bugs.
 
 Games customize what gets painted through the hooks:
 - `before_menu_build(player)` — sync dynamic action sets (per-card play
@@ -306,6 +306,13 @@ Consequences that still matter when designing a menu:
   no focus directive sends no packet at all, and the per-flush coalescer
   collapses same-tick duplicates. Bandwidth is not a reason to avoid
   `refresh_menus()`.
+- The Escape/actions menu is refreshed in place by the sealed flush while it
+  is open. Do not block state changes just because a player is reading that
+  menu, and do not manually rebuild it from a game.
+- Framework-owned Back/Cancel exits restore focus to the opener when possible:
+  actions-menu Back, action-input Cancel, leave-confirmation No, and
+  status-box close all use the recorded action context. Games should pass
+  stable action ids and avoid ad-hoc focus jumps for these standard exits.
 
 #### Static vs. Live Status Boxes
 Use the right status-box helper for the job:
@@ -379,6 +386,15 @@ Core primitives:
 - `_nav_back(user)` — go back
 - `_nav_refresh(user, show_fn, *args)` — redraw same level without losing history
 - `_restore_frame(user, frame, stack)` — centralized state restore
+
+The stack records the item that opened a child menu and restores focus to that
+semantic item id when the child exits with Back or an equivalent cancel flow.
+Use the navigation helpers rather than direct `_show_*()` calls so focus
+memory works consistently across main menus, options, documentation,
+leaderboards, statistics, and in-game overlays.
+Server-owned menu selections are validated against the currently displayed
+menu before dispatch, so stale client packets and forged item ids are ignored
+rather than routed into the wrong handler.
 
 Do not call `_show_*()` directly from action handlers. Use `_nav_refresh(...)` so stack history survives.
 

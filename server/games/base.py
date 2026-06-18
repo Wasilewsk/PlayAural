@@ -139,6 +139,9 @@ class Game(
         self._status_box_open: set[str] = set()  # player_ids with status box open
         self._live_status_boxes: dict[str, Any] = {}  # player_id -> live status state
         self._actions_menu_open: set[str] = set()  # player_ids with actions menu open
+        self._actions_menu_return_focus: dict[str, str] = {}
+        self._pending_action_return_focus: dict[str, str] = {}
+        self._status_box_return_focus: dict[str, str] = {}
         # Menu refresh recording (runtime-only). refresh_menus() and
         # request_menu_focus() mark intent here; the framework-driven
         # flush_menus() consumes it (end of handle_event + once per tick).

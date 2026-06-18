@@ -200,6 +200,72 @@ async def test_options_hub_back_returns_to_main_menu(tmp_path) -> None:
         server._db.close()
 
 
+@pytest.mark.asyncio
+async def test_global_back_restores_focus_to_parent_item(tmp_path) -> None:
+    server, user = _make_server(tmp_path)
+    try:
+        await server._handle_menu(
+            SimpleNamespace(username=user.username),
+            {
+                "type": "menu",
+                "menu_id": "main_menu",
+                "selection_id": "leaderboards",
+            },
+        )
+        assert _current_menu(server, user.username) == "leaderboards_menu"
+
+        await server._handle_menu(
+            SimpleNamespace(username=user.username),
+            {
+                "type": "menu",
+                "menu_id": "leaderboards_menu",
+                "selection_id": "back",
+            },
+        )
+
+        assert _current_menu(server, user.username) == "main_menu"
+        assert user.menus["main_menu"]["selection_id"] == "leaderboards"
+    finally:
+        server._db.close()
+
+
+@pytest.mark.asyncio
+async def test_stale_server_menu_packets_are_ignored(tmp_path) -> None:
+    server, user = _make_server(tmp_path)
+    try:
+        await server._handle_menu(
+            SimpleNamespace(username=user.username),
+            {
+                "type": "menu",
+                "menu_id": "main_menu",
+                "selection_id": "leaderboards",
+            },
+        )
+        assert _current_menu(server, user.username) == "leaderboards_menu"
+
+        await server._handle_menu(
+            SimpleNamespace(username=user.username),
+            {
+                "type": "menu",
+                "menu_id": "main_menu",
+                "selection_id": "play",
+            },
+        )
+        assert _current_menu(server, user.username) == "leaderboards_menu"
+
+        await server._handle_menu(
+            SimpleNamespace(username=user.username),
+            {
+                "type": "menu",
+                "menu_id": "leaderboards_menu",
+                "selection_id": "play",
+            },
+        )
+        assert _current_menu(server, user.username) == "leaderboards_menu"
+    finally:
+        server._db.close()
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Game Options (declarative preferences)
 # ─────────────────────────────────────────────────────────────────────────────

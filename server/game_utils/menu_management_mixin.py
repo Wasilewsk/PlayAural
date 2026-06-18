@@ -13,7 +13,7 @@ end of every ``handle_event()`` and once per server tick — builds and sends
 the menus for dirty players. A plain refresh therefore can never move a
 cursor, double-paint, or clobber an overlay: the flush owns the focus-steal
 guards (status boxes, actions menus, global system menus, pending inputs),
-bot skipping, finished-state end screens, and focus delivery. Per-game
+bot skipping, finished-state end screens, action-menu refreshes, and focus delivery. Per-game
 copies of that logic were the root cause of a long line of focus-stealing
 bugs, so the orchestrators are **sealed**: a game class that overrides one
 fails at import time.
@@ -250,8 +250,9 @@ class MenuManagementMixin:
 
         FOCUS-STEAL PREVENTION — three guards, in order:
 
-        1. Action Menu or Status Box (from LobbyActionsMixin and
-           MenuManagementMixin).
+        1. Status Box (from MenuManagementMixin). Actions menus are not
+           blocked here because the sealed paint path can refresh them in
+           place without rebuilding the turn menu.
         2. Server-level system overlay (online_users, friends_hub, options,
            etc.). If _user_states says the user is viewing ANY global system
            menu, never overwrite it with a game turn_menu. Also guard
@@ -260,7 +261,7 @@ class MenuManagementMixin:
         3. Pending action input (action_input_menu, action_input_editbox,
            leave_game_confirm): any pending action implies an open input UI.
         """
-        if player.id in self._actions_menu_open or player.id in self._status_box_open:
+        if player.id in self._status_box_open:
             return True
 
         server = getattr(getattr(self, "_table", None), "_server", None)
@@ -313,6 +314,12 @@ class MenuManagementMixin:
             return
 
         if self._is_menu_refresh_blocked(player, user):
+            return
+
+        if player.id in self._actions_menu_open:
+            painter = getattr(self, "_paint_actions_menu", None)
+            if painter:
+                painter(player, focus_id=focus)
             return
 
         build = self.build_menu_items(player, user)
@@ -377,6 +384,7 @@ class MenuManagementMixin:
         if user:
             self._actions_menu_open.discard(player.id)
             self._live_status_boxes.pop(player.id, None)
+            self._remember_status_box_return_focus(player)
             items, grid_kwargs = self._normalize_status_box_content(
                 lines,
                 fallback_id_prefix="status_box",
@@ -411,6 +419,7 @@ class MenuManagementMixin:
             return
 
         self._actions_menu_open.discard(player.id)
+        self._remember_status_box_return_focus(player)
         self._live_status_boxes[player.id] = LiveStatusBoxState(
             box_id=box_id,
             builder=builder,
@@ -443,3 +452,12 @@ class MenuManagementMixin:
             selection_id=focus_id,
             **grid_kwargs,
         )
+
+    def _remember_status_box_return_focus(self, player: "Player") -> None:
+        """Remember the action item that opened a status box, if any."""
+        focus_getter = getattr(self, "_get_action_return_focus_id", None)
+        focus = focus_getter(player, None) if focus_getter else None
+        if focus:
+            self._status_box_return_focus[player.id] = focus
+        else:
+            self._status_box_return_focus.pop(player.id, None)
