@@ -603,7 +603,7 @@ class NinetyNineGame(Game):
     def _is_check_count_hidden(self, player: Player) -> Visibility:
         """Check count is always hidden (keybind only), unless Web."""
         user = self.get_user(player)
-        if self.is_touch_client(user):
+        if self.status == "playing" and self.is_touch_client(user):
             return Visibility.VISIBLE
         return Visibility.HIDDEN
 

@@ -681,7 +681,7 @@ class CoupGame(Game):
 
     def _is_info_hidden(self, player: Player) -> Visibility:
         user = self.get_user(player)
-        if self.is_touch_client(user):
+        if self.status == "playing" and self.is_touch_client(user):
             return Visibility.VISIBLE
         return Visibility.HIDDEN
 

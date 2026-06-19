@@ -337,8 +337,20 @@ class EventHandlingMixin:
                 self.execute_action(
                     player,
                     action_id,
-                    context=ActionContext(menu_item_id=action_id),
+                    context=ActionContext(menu_item_id=return_focus or action_id),
                 )
             elif resolved.disabled_reason:
                 self._speak_action_disabled_reason(player, resolved.disabled_reason)
-        self.refresh_menus(player)
+        user = self.get_user(player)
+        if (
+            return_focus
+            and user is not None
+            and not self._destroyed
+            and player.id not in self._pending_actions
+            and player.id not in self._status_box_open
+            and player.id not in self._pending_menu_focus
+            and not self._is_menu_refresh_blocked(player, user)
+        ):
+            self.request_menu_focus(player, return_focus)
+        else:
+            self.refresh_menus(player)

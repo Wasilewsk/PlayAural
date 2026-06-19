@@ -309,10 +309,12 @@ Consequences that still matter when designing a menu:
 - The Escape/actions menu is refreshed in place by the sealed flush while it
   is open. Do not block state changes just because a player is reading that
   menu, and do not manually rebuild it from a game.
-- Framework-owned Back/Cancel exits restore focus to the opener when possible:
-  actions-menu Back, action-input Cancel, leave-confirmation No, and
-  status-box close all use the recorded action context. Games should pass
-  stable action ids and avoid ad-hoc focus jumps for these standard exits.
+- Framework-owned exits restore focus to the opener when possible:
+  actions-menu Back, actions selected from the actions menu, action-input
+  Cancel/submit, leave-confirmation No, status-box close, and server menus
+  that close after a selection all use the recorded action context. Games
+  should pass stable action ids and avoid ad-hoc focus jumps for these
+  standard exits.
 
 #### Static vs. Live Status Boxes
 Use the right status-box helper for the job:

@@ -230,6 +230,107 @@ async def test_global_back_restores_focus_to_parent_item(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_action_close_restores_focus_to_parent_opener(tmp_path) -> None:
+    server, user = _make_server(tmp_path)
+    try:
+        server._nav_push(user, server._show_profile_menu)
+        await server._handle_menu(
+            SimpleNamespace(username=user.username),
+            {
+                "type": "menu",
+                "menu_id": "profile_menu",
+                "selection": 4,
+                "selection_id": "edit_gender",
+            },
+        )
+        assert _current_menu(server, user.username) == "gender_menu"
+
+        await server._handle_menu(
+            SimpleNamespace(username=user.username),
+            {
+                "type": "menu",
+                "menu_id": "gender_menu",
+                "selection": 1,
+                "selection_id": "gender_Male",
+            },
+        )
+
+        assert _current_menu(server, user.username) == "profile_menu"
+        assert user.menus["profile_menu"]["selection_id"] == "edit_gender"
+    finally:
+        server._db.close()
+
+
+@pytest.mark.asyncio
+async def test_action_close_uses_position_when_parent_item_disappears(tmp_path) -> None:
+    server, user = _make_server(tmp_path)
+    try:
+        requester = server._db.create_user("Requester", "hash", trust_level=1)
+        viewer = server._db.get_user(user.username)
+        assert viewer is not None
+        assert server._db.send_friend_request(requester.uuid, viewer.uuid) == "sent"
+
+        server._show_friend_requests_menu(user)
+        await server._handle_menu(
+            SimpleNamespace(username=user.username),
+            {
+                "type": "menu",
+                "menu_id": "friend_requests_menu",
+                "selection": 1,
+                "selection_id": "req_Requester",
+            },
+        )
+        await server._handle_menu(
+            SimpleNamespace(username=user.username),
+            {
+                "type": "menu",
+                "menu_id": "friend_request_actions_menu",
+                "selection": 1,
+                "selection_id": "accept",
+            },
+        )
+
+        assert _current_menu(server, user.username) == "friend_requests_menu"
+        restored = user.menus["friend_requests_menu"]
+        assert restored["selection_id"] is None
+        assert restored["position"] == 1
+    finally:
+        server._db.close()
+
+
+@pytest.mark.asyncio
+async def test_completed_editbox_action_restores_parent_focus(tmp_path) -> None:
+    server, user = _make_server(tmp_path)
+    try:
+        user.client_type = "web"
+        server._show_speech_settings_menu(user)
+        await server._handle_menu(
+            SimpleNamespace(username=user.username),
+            {
+                "type": "menu",
+                "menu_id": "speech_settings_menu",
+                "selection": 2,
+                "selection_id": "speech_rate",
+            },
+        )
+        assert _current_menu(server, user.username) == "speech_rate_input"
+
+        await server._handle_editbox(
+            SimpleNamespace(username=user.username),
+            {
+                "type": "editbox",
+                "input_id": "speech_rate_input",
+                "text": "125",
+            },
+        )
+
+        assert _current_menu(server, user.username) == "speech_settings_menu"
+        assert user.menus["speech_settings_menu"]["selection_id"] == "speech_rate"
+    finally:
+        server._db.close()
+
+
+@pytest.mark.asyncio
 async def test_stale_server_menu_packets_are_ignored(tmp_path) -> None:
     server, user = _make_server(tmp_path)
     try:
@@ -258,10 +359,14 @@ async def test_stale_server_menu_packets_are_ignored(tmp_path) -> None:
             {
                 "type": "menu",
                 "menu_id": "leaderboards_menu",
+                "selection": 1,
                 "selection_id": "play",
             },
         )
         assert _current_menu(server, user.username) == "leaderboards_menu"
+        state = _user_state(server, user.username)
+        assert state.get("_last_selection_id") != "play"
+        assert "_last_selection_position" not in state
     finally:
         server._db.close()
 

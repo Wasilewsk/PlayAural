@@ -428,6 +428,66 @@ class TestActionMenuFocus:
         assert p1.id not in game._actions_menu_open
         assert turn_menu_messages(user1)[-1].data["selection_id"] == "web_actions_menu"
 
+    def test_actions_menu_action_completion_returns_to_touch_anchor(self) -> None:
+        game = make_game()
+        p1 = game.players[0]
+        user1 = game.get_user(p1)
+        user1.client_type = "web"
+
+        game.handle_event(
+            p1,
+            {
+                "type": "menu",
+                "menu_id": "turn_menu",
+                "selection_id": "web_actions_menu",
+            },
+        )
+        game.handle_event(
+            p1,
+            {
+                "type": "menu",
+                "menu_id": "actions_menu",
+                "selection_id": "whos_at_table",
+            },
+        )
+
+        assert turn_menu_messages(user1)[-1].data["selection_id"] == "web_actions_menu"
+
+    def test_actions_menu_status_box_close_returns_to_touch_anchor(self) -> None:
+        game = make_game()
+        p1 = game.players[0]
+        user1 = game.get_user(p1)
+        user1.client_type = "web"
+
+        game.handle_event(
+            p1,
+            {
+                "type": "menu",
+                "menu_id": "turn_menu",
+                "selection_id": "web_actions_menu",
+            },
+        )
+        game.handle_event(
+            p1,
+            {
+                "type": "menu",
+                "menu_id": "actions_menu",
+                "selection_id": "game_info",
+            },
+        )
+        assert p1.id in game._status_box_open
+
+        game.handle_event(
+            p1,
+            {
+                "type": "menu",
+                "menu_id": "status_box",
+                "selection_id": "status_box:line:0",
+            },
+        )
+
+        assert turn_menu_messages(user1)[-1].data["selection_id"] == "web_actions_menu"
+
     def test_action_input_cancel_returns_focus_to_opener(self) -> None:
         game = make_game()
         p1 = game.players[0]

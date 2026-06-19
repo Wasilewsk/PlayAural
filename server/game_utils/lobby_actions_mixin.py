@@ -810,7 +810,11 @@ class LobbyActionsMixin:
             return
         server = self._table._server
         if server and hasattr(server, "_open_host_management_from_game"):
-            server._open_host_management_from_game(user, self._table)
+            server._open_host_management_from_game(
+                user,
+                self._table,
+                return_focus_id=self._get_action_return_focus_id(player, action_id),
+            )
 
     def _action_save_table(self, player: "Player", action_id: str) -> None:
         """Save the current table state (host only). This destroys the table."""

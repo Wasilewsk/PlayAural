@@ -2673,7 +2673,6 @@ PlayAural Server
                 50,
                 300,
                 "invalid-rate",
-                self._show_speech_settings_menu,
             ),
             "mobile_tts_rate_input": (
                 "mobile_tts_rate",
@@ -2681,7 +2680,6 @@ PlayAural Server
                 50,
                 200,
                 "mobile-tts-invalid-rate",
-                self._show_mobile_speech_settings_menu,
             ),
         }
 
@@ -2692,7 +2690,6 @@ PlayAural Server
                 minimum,
                 maximum,
                 invalid_key,
-                restore_menu,
             ) = numeric_inputs[menu_id]
             if value is None or str(value).strip() == "":
                 self._cancel_input_state(user, state)
@@ -2707,10 +2704,10 @@ PlayAural Server
                 setattr(prefs, preference_name, parsed_value)
                 self._save_user_preferences(user)
                 self._sync_pref_to_client(user, sync_key, parsed_value)
-                self._nav_refresh(user, restore_menu)
+                self._restore_input_parent(user, state)
             except ValueError:
                 user.speak_l(invalid_key, buffer="system")
-                self._nav_refresh(user, restore_menu)
+                self._restore_input_parent(user, state)
             return True
 
         return False
@@ -4137,9 +4134,9 @@ PlayAural Server
             new_email = state.get("pending_email", "")
             self._db.update_user_email(user.username, new_email)
             user.speak_l("email-updated", buffer="system")
-            self._nav_refresh(user, self._show_profile_menu)
+            self._nav_back(user)
         elif selection_id == "no":
-            self._nav_refresh(user, self._show_profile_menu)
+            self._nav_back(user)
 
     def _show_logout_confirm_menu(self, user: NetworkUser) -> None:
         """Show logout confirmation menu."""
@@ -4989,7 +4986,13 @@ PlayAural Server
     # Host Table Management
     # ==========================================================================
 
-    def _return_to_game(self, user: NetworkUser, table: "Table | None") -> None:
+    def _return_to_game(
+        self,
+        user: NetworkUser,
+        table: "Table | None",
+        *,
+        focus_id: str | None = None,
+    ) -> None:
         """Return a user to their in-game state after leaving a host management menu."""
         if table and table.game:
             self._set_in_game_state(user, table.table_id)
@@ -4998,7 +5001,11 @@ PlayAural Server
                 # Clear any actions-menu-open guard before refreshing, so the
                 # turn menu is actually pushed after returning from overlays.
                 table.game._actions_menu_open.discard(player.id)
-                table.game.refresh_menus(player)
+                table.game._actions_menu_return_focus.pop(player.id, None)
+                if focus_id:
+                    table.game.request_menu_focus(player, focus_id)
+                else:
+                    table.game.refresh_menus(player)
         else:
             self._show_main_menu(user)
 
@@ -5070,9 +5077,20 @@ PlayAural Server
             "table_id": table.table_id,
         }
 
-    def _open_host_management_from_game(self, user: NetworkUser, table: "Table") -> None:
+    def _open_host_management_from_game(
+        self,
+        user: NetworkUser,
+        table: "Table",
+        *,
+        return_focus_id: str | None = None,
+    ) -> None:
         """Open host management through the modal-safe navigation stack."""
-        self._nav_push(user, self._show_host_management_menu, table)
+        self._nav_push(
+            user,
+            self._show_host_management_menu,
+            table,
+            game_return_focus_id=return_focus_id,
+        )
 
     async def _handle_host_management_selection(
         self, user: NetworkUser, selection_id: str, state: dict
@@ -5094,26 +5112,26 @@ PlayAural Server
             self._nav_refresh(user, self._show_host_management_menu, table)
 
         elif selection_id == "invite_friend":
-            self._show_host_invite_menu(user, table)
+            self._nav_push(user, self._show_host_invite_menu, table)
 
         elif selection_id == "pass_host":
-            self._show_host_pass_menu(user, table)
+            self._nav_push(user, self._show_host_pass_menu, table)
 
         elif selection_id == "kick_player":
-            self._show_host_kick_menu(user, table, ban=False)
+            self._nav_push(user, self._show_host_kick_menu, table, ban=False)
 
         elif selection_id == "kick_ban_player":
-            self._show_host_kick_menu(user, table, ban=True)
+            self._nav_push(user, self._show_host_kick_menu, table, ban=True)
 
         elif selection_id == "restart_game":
             if not table.game or table.game.status != "playing":
                 user.speak_l("host-restart-not-playing", buffer="system")
                 self._nav_refresh(user, self._show_host_management_menu, table)
                 return
-            self._show_host_restart_confirm_menu(user, table)
+            self._nav_push(user, self._show_host_restart_confirm_menu, table)
 
         elif selection_id == "back":
-            self._return_to_game(user, table)
+            self._nav_back(user)
 
     def _show_host_restart_confirm_menu(self, user: NetworkUser, table: "Table") -> None:
         """Confirm a host-requested table restart."""
@@ -5148,7 +5166,7 @@ PlayAural Server
             return
 
         if selection_id != "yes":
-            self._nav_refresh(user, self._show_host_management_menu, table)
+            self._nav_back(user)
             return
 
         if not table.game or table.game.status != "playing":
@@ -5244,7 +5262,7 @@ PlayAural Server
             return
 
         if selection_id == "back":
-            self._nav_refresh(user, self._show_host_management_menu, table)
+            self._nav_back(user)
             return
 
         if not selection_id.startswith("invite_"):
@@ -5269,7 +5287,7 @@ PlayAural Server
         sent = await self._send_table_invite(user, table, invitee_user)
         if sent:
             user.speak_l("host-invite-sent", buffer="system", player=invitee_name)
-            self._nav_refresh(user, self._show_host_management_menu, table)
+            self._nav_back(user)
 
     async def _send_table_invite(
         self, host_user: NetworkUser, table: "Table", invitee_user: NetworkUser
@@ -5484,7 +5502,7 @@ PlayAural Server
             return
 
         if selection_id == "back":
-            self._nav_refresh(user, self._show_host_management_menu, table)
+            self._nav_back(user)
             return
 
         if selection_id.startswith("pass_"):
@@ -5552,7 +5570,7 @@ PlayAural Server
             return
 
         if selection_id == "back":
-            self._nav_refresh(user, self._show_host_management_menu, table)
+            self._nav_back(user)
             return
 
         if not selection_id.startswith("kick_"):
@@ -6793,13 +6811,22 @@ PlayAural Server
                 user_record = self._db.get_user(user.username)
                 current_email = user_record.email if user_record else ""
                 from_mandatory = user_state.get("from_mandatory", False)
+                profile_parent = {
+                    "menu": "profile_menu",
+                    "_last_selection_id": "edit_email",
+                    "_last_selection_position": 3,
+                }
 
                 if not value:
                     user.speak_l("error-email-empty", buffer="system")
                     if from_mandatory:
                         self._show_mandatory_email_menu(user)
                     else:
-                        self._nav_refresh(user, self._show_profile_menu)
+                        self._restore_input_parent(
+                            user,
+                            user_state,
+                            fallback_parent=profile_parent,
+                        )
                     return
 
                 if not is_valid_email(value):
@@ -6807,16 +6834,24 @@ PlayAural Server
                     if from_mandatory:
                         self._show_mandatory_email_menu(user)
                     else:
-                        self._nav_refresh(user, self._show_profile_menu)
+                        self._restore_input_parent(
+                            user,
+                            user_state,
+                            fallback_parent=profile_parent,
+                        )
                     return
 
                 if value == current_email:
                     user.speak_l("no-changes-made", buffer="system")
                     if from_mandatory:
-                         # Should not hit this since mandatory means current was empty and value is empty, which is caught above
-                         self._show_mandatory_email_menu(user)
+                        # Should not hit because mandatory means current email was empty.
+                        self._show_mandatory_email_menu(user)
                     else:
-                         self._nav_refresh(user, self._show_profile_menu)
+                        self._restore_input_parent(
+                            user,
+                            user_state,
+                            fallback_parent=profile_parent,
+                        )
                     return
 
                 if self._db.email_exists(value, exclude_username=user.username):
@@ -6824,7 +6859,11 @@ PlayAural Server
                     if from_mandatory:
                         self._show_mandatory_email_menu(user)
                     else:
-                        self._nav_refresh(user, self._show_profile_menu)
+                        self._restore_input_parent(
+                            user,
+                            user_state,
+                            fallback_parent=profile_parent,
+                        )
                     return
 
                 if not current_email:
@@ -6833,14 +6872,23 @@ PlayAural Server
                     if from_mandatory:
                         self._restore_user_state(user, user.username)
                     else:
-                        self._nav_refresh(user, self._show_profile_menu)
+                        self._restore_input_parent(
+                            user,
+                            user_state,
+                            fallback_parent=profile_parent,
+                        )
                 else:
-                    self._nav_refresh(user, self._show_email_confirm_menu, value)
+                    self._nav_push_from_input(
+                        user,
+                        self._show_email_confirm_menu,
+                        value,
+                        fallback_parent=profile_parent,
+                    )
                 return
             elif menu_id == "bio_input":
                 if len(value) > 250:
                     user.speak_l("error-bio-length", buffer="system")
-                    self._nav_refresh(user, self._show_bio_actions_menu)
+                    self._restore_input_parent(user, user_state)
                     return
 
                 user_record = self._db.get_user(user.username)
@@ -6857,18 +6905,18 @@ PlayAural Server
             elif menu_id == "send_friend_request_input":
                 value = value.strip()
                 if not value:
-                     self._nav_refresh(user, self._show_friends_hub_menu)
+                     self._restore_input_parent(user, user_state)
                      return
 
                 if value.lower() == user.username.lower():
                      user.speak_l("friend-error-self", buffer="system")
-                     self._nav_refresh(user, self._show_friends_hub_menu)
+                     self._restore_input_parent(user, user_state)
                      return
 
                 target_record = self._db.get_user(value)
                 if not target_record:
                      user.speak_l("unknown-player", buffer="system")
-                     self._nav_refresh(user, self._show_friends_hub_menu)
+                     self._restore_input_parent(user, user_state)
                      return
 
                 # Send request
@@ -6901,7 +6949,7 @@ PlayAural Server
                          self._db.add_notification(target_record.uuid, user.username, "friend_request_received")
                      self.on_friend_requests_changed(target_record.uuid)
 
-                self._nav_refresh(user, self._show_friends_hub_menu)
+                self._restore_input_parent(user, user_state)
                 return
 
             elif menu_id == "send_pm_input":
@@ -6910,11 +6958,7 @@ PlayAural Server
                 if value and target_username:
                     await self._deliver_private_message(user, target_username, value)
 
-                # Return to friend actions menu regardless
-                if target_username:
-                    self._nav_refresh(user, self._show_friend_actions_menu, target_username)
-                else:
-                    self._nav_refresh(user, self._show_friends_list_menu)
+                self._restore_input_parent(user, user_state)
                 return
 
     async def _deliver_private_message(self, sender: NetworkUser, target_username: str, message: str) -> None:
@@ -7491,18 +7535,61 @@ PlayAural Server
 
     def _cancel_input_state(self, user: NetworkUser, state: dict | None = None) -> None:
         """Cancel a transient server-side editbox and restore its stable parent."""
+        self._restore_input_parent(user, state)
+
+    def _restore_input_parent(
+        self,
+        user: NetworkUser,
+        state: dict | None = None,
+        *,
+        fallback_parent: dict | None = None,
+    ) -> None:
+        """Restore the stable menu that owns a transient server input."""
         username = user.username
         current = state or self._user_states.get(username, {})
         parent_frame = {
             k: v for k, v in (current.get("_parent_frame") or {}).items()
             if k not in ("_stack", "_transient", "_parent_frame")
         }
+        if not parent_frame and fallback_parent:
+            parent_frame = {
+                key: value
+                for key, value in fallback_parent.items()
+                if key not in ("_stack", "_transient", "_parent_frame")
+            }
         if not parent_frame:
             self._nav_back(user)
             return
         stack = list(current.get("_stack", []))
         self._user_states[username] = {**parent_frame, "_stack": stack}
         self._restore_frame(user, parent_frame, stack)
+
+    def _nav_push_from_input(
+        self,
+        user: NetworkUser,
+        show_fn,
+        *args,
+        fallback_parent: dict | None = None,
+        **kwargs,
+    ) -> None:
+        """Replace a transient input with a child menu of its stable parent."""
+        username = user.username
+        current = self._user_states.get(username, {})
+        parent_frame = {
+            key: value
+            for key, value in (
+                current.get("_parent_frame") or fallback_parent or {}
+            ).items()
+            if key not in ("_stack", "_transient", "_parent_frame")
+        }
+        stack = list(current.get("_stack", []))
+        if not parent_frame:
+            show_fn(user, *args, **kwargs)
+            if username in self._user_states:
+                self._user_states[username]["_stack"] = stack
+            return
+        self._user_states[username] = {**parent_frame, "_stack": stack}
+        self._nav_push(user, show_fn, *args, **kwargs)
 
     def _blocking_modal_reason(self, username: str) -> str | None:
         """Return the current modal blocker for forward navigation, if any.
@@ -7573,7 +7660,14 @@ PlayAural Server
         self._nav_push(user, show_fn, *args, **kwargs)
         return True
 
-    def _nav_push(self, user: NetworkUser, show_fn, *args, **kwargs) -> None:
+    def _nav_push(
+        self,
+        user: NetworkUser,
+        show_fn,
+        *args,
+        game_return_focus_id: str | None = None,
+        **kwargs,
+    ) -> None:
         """Push current state onto the return stack and navigate to a new menu.
 
         Modal-focus guard: if the user currently has a blocking modal UI open
@@ -7595,7 +7689,13 @@ PlayAural Server
         blocker = self._blocking_modal_reason(username)
         if blocker is not None:
             if blocker == "game_status_box":
-                self._defer_navigation(user, show_fn, *args, **kwargs)
+                self._defer_navigation(
+                    user,
+                    show_fn,
+                    *args,
+                    game_return_focus_id=game_return_focus_id,
+                    **kwargs,
+                )
             return
         current = self._user_states.get(username, {})
         stack = list(current.get("_stack", []))
@@ -7611,8 +7711,10 @@ PlayAural Server
         focus_position = frame.get("_last_selection_position")
         if focus_id:
             frame["_restore_focus_id"] = focus_id
-        elif focus_position:
+        if focus_position:
             frame["_restore_focus_position"] = focus_position
+        if game_return_focus_id:
+            frame["_game_return_focus_id"] = game_return_focus_id
         stack.append(frame)
         show_fn(user, *args, **kwargs)
         if username in self._user_states:
@@ -7643,7 +7745,11 @@ PlayAural Server
             table_id = frame.get("table_id")
             table = (self._tables.get_table(table_id) if table_id
                      else self._tables.find_user_table(username))
-            self._return_to_game(user, table)
+            self._return_to_game(
+                user,
+                table,
+                focus_id=frame.get("_game_return_focus_id"),
+            )
             return
         if menu in self.IN_GAME_OVERLAY_MENUS:
             table_id = frame.get("table_id")
@@ -7901,17 +8007,28 @@ PlayAural Server
         if not state:
             return
 
-        selection_id = packet.get("selection_id")
-        if selection_id and selection_id != "back":
-            if self._menu_contains_item(user, current_menu, selection_id):
-                state["_last_selection_id"] = selection_id
-                state.pop("_last_selection_position", None)
+        selection = packet.get("selection")
+        raw_selection_id = packet.get("selection_id")
+        selection_id = raw_selection_id if isinstance(raw_selection_id, str) else None
+        if selection_id == "back":
             return
 
-        selection = packet.get("selection")
+        valid_focus_id = (
+            bool(selection_id)
+            and self._menu_contains_item(user, current_menu, selection_id)
+        )
+        if selection_id and not valid_focus_id:
+            return
+
+        if valid_focus_id:
+            state["_last_selection_id"] = selection_id
+            if not isinstance(selection, int) or selection <= 0:
+                selection = self._menu_item_position(user, current_menu, selection_id)
+
         if isinstance(selection, int) and selection > 0:
             state["_last_selection_position"] = selection
-            state.pop("_last_selection_id", None)
+            if not valid_focus_id:
+                state.pop("_last_selection_id", None)
 
     def _menu_contains_item(
         self,
@@ -7925,6 +8042,24 @@ PlayAural Server
             return True
         item_ids = self._menu_item_ids(menu_state)
         return not item_ids or selection_id in item_ids
+
+    def _menu_item_position(
+        self,
+        user: NetworkUser,
+        menu_id: str,
+        selection_id: str,
+    ) -> int | None:
+        """Return the one-based position of an item in the stored menu."""
+        menu_state = self._current_menu_state(user, menu_id)
+        if not menu_state:
+            return None
+        for position, item in enumerate(menu_state.get("items", []), start=1):
+            item_id = (
+                item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
+            )
+            if item_id == selection_id:
+                return position
+        return None
 
     def _selection_allowed_for_current_menu(
         self,
@@ -7967,6 +8102,11 @@ PlayAural Server
 
         if focus_id and not self._menu_contains_item(user, menu_id, focus_id):
             focus_id = None
+        item_count = len(menu_state.get("items", []))
+        if position and item_count:
+            position = min(max(position, 1), item_count)
+        elif not item_count:
+            position = None
         if not focus_id and not position:
             return
 

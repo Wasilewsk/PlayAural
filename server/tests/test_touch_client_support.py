@@ -13,6 +13,7 @@ from ..games.ageofheroes.game import AgeOfHeroesGame
 from ..games.backgammon.game import BackgammonGame, BackgammonOptions
 from ..games.battleship.game import BattleshipGame, BattleshipOptions
 from ..games.chess.game import ChessGame, ChessOptions
+from ..games.coup.game import CoupGame
 from ..games.bunko.game import BunkoGame
 from ..games.farkle.game import FarkleGame
 from ..games.humanitycards.game import HumanityCardsGame
@@ -23,8 +24,10 @@ from ..games.midnight.game import MidnightGame
 from ..games.milebymile.game import MileByMileGame
 from ..games.metalpipe.game import MetalPipeGame
 from ..games.nine.game import NineGame
+from ..games.ninetynine.game import NinetyNineGame
 from ..games.pig.game import PigGame
 from ..games.pusoydos.game import PusoyDosGame
+from ..games.registry import GameRegistry
 from ..games.rollingballs.game import RollingBallsGame
 from ..games.senet.game import SenetGame
 from ..games.snakesandladders.game import SnakesAndLaddersGame
@@ -39,6 +42,18 @@ from ..users.test_user import MockUser
 
 _locales_dir = Path(__file__).parent.parent / "locales"
 Localization.init(_locales_dir)
+
+_BASE_TOUCH_WAITING_STANDARD_ACTIONS = {
+    "show_actions",
+    "save_table",
+    "whose_turn",
+    "whos_at_table",
+    "check_scores",
+    "check_scores_detailed",
+    "predict_outcomes",
+    "game_info",
+    "game_rules",
+}
 
 
 def test_touch_client_type_helper_recognizes_mobile() -> None:
@@ -129,6 +144,57 @@ def _new_game_with_players(game_cls, player_count: int, client_type: str = "mobi
         players.append(game.add_player(name, user))
     game.host = "Player1"
     return game, players[0]
+
+
+def _touch_waiting_gameplay_action_ids(game, player) -> list[str]:
+    action_ids: list[str] = []
+    for action_set in game.get_action_sets(player):
+        visible_ids = {
+            resolved.action.id for resolved in action_set.get_visible_actions(game, player)
+        }
+        if action_set.name in {"lobby", "options"}:
+            continue
+        if action_set.name == "standard":
+            action_ids.extend(sorted(visible_ids - _BASE_TOUCH_WAITING_STANDARD_ACTIONS))
+        else:
+            action_ids.extend(sorted(visible_ids))
+    return action_ids
+
+
+@pytest.mark.parametrize(
+    "game_cls",
+    sorted(GameRegistry.get_all(), key=lambda cls: cls.get_type()),
+)
+def test_touch_waiting_lobby_hides_gameplay_actions_for_all_games(game_cls) -> None:
+    game, player = _new_game_with_players(game_cls, 1)
+
+    assert game.status != "playing"
+    assert _touch_waiting_gameplay_action_ids(game, player) == []
+
+
+@pytest.mark.parametrize(
+    ("game_cls", "action_ids"),
+    [
+        (CoupGame, {"check_wealth", "check_hand", "check_table"}),
+        (MileByMileGame, {"check_status"}),
+        (NinetyNineGame, {"check_count"}),
+    ],
+)
+def test_touch_gameplay_info_actions_only_appear_after_start(
+    game_cls, action_ids: set[str]
+) -> None:
+    game, player = _new_game_with_players(game_cls, 2)
+
+    waiting_ids = {
+        resolved.action.id for resolved in game.get_all_visible_actions(player)
+    }
+    assert action_ids.isdisjoint(waiting_ids)
+
+    game.on_start()
+    playing_ids = {
+        resolved.action.id for resolved in game.get_all_visible_actions(player)
+    }
+    assert action_ids <= playing_ids
 
 
 @pytest.mark.parametrize(

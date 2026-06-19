@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from ..core.server import HOST_RESTART_CONFIRM_MENU, Server
@@ -127,6 +129,8 @@ async def test_host_restart_requires_confirmation_and_resets_to_clean_lobby() ->
 async def test_host_restart_cancel_keeps_current_game() -> None:
     server, table, old_game, alice, _bob = _make_playing_table()
 
+    server._open_host_management_from_game(alice, table)
+
     await server._handle_host_management_selection(
         alice,
         "restart_game",
@@ -141,6 +145,36 @@ async def test_host_restart_cancel_keeps_current_game() -> None:
     assert table.game is old_game
     assert table.status == "playing"
     assert server._user_states[alice.username]["menu"] == "host_management_menu"
+
+
+@pytest.mark.asyncio
+async def test_host_submenu_back_restores_focus_to_its_opener() -> None:
+    server, table, _game, alice, _bob = _make_playing_table()
+    server._open_host_management_from_game(alice, table)
+
+    await server._handle_menu(
+        SimpleNamespace(username=alice.username),
+        {
+            "type": "menu",
+            "menu_id": "host_management_menu",
+            "selection": 3,
+            "selection_id": "pass_host",
+        },
+    )
+    assert server._user_states[alice.username]["menu"] == "host_pass_menu"
+
+    await server._handle_menu(
+        SimpleNamespace(username=alice.username),
+        {
+            "type": "menu",
+            "menu_id": "host_pass_menu",
+            "selection": 2,
+            "selection_id": "back",
+        },
+    )
+
+    assert server._user_states[alice.username]["menu"] == "host_management_menu"
+    assert alice.menus["host_management_menu"]["selection_id"] == "pass_host"
 
 
 @pytest.mark.asyncio

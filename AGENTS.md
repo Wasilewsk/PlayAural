@@ -139,9 +139,10 @@ Client focus doctrine:
   reader focus. Use `request_menu_focus` only for deliberate action-driven jumps.
 - The Escape/actions menu auto-refreshes in place through sealed
   `flush_menus()`. Games must not repaint or block it manually.
-- Framework Back/Cancel exits restore focus to the opener when possible:
-  actions-menu Back, action-input Cancel, leave-confirmation No, and status-box
-  close. Use stable action ids so this works.
+- Framework-owned exits restore focus to the opener when possible: actions-menu
+  Back, actions selected from the actions menu, action-input Cancel/submit,
+  leave-confirmation No, status-box close, and server menus that close after a
+  selection. Use stable action ids so this works.
 - Use `status_box(player, lines)` for static snapshots/help/limited reveals.
   Use `live_status_box(player, box_id, builder, focus_id=None)` for dynamic
   state panels such as boards, standings, clocks, rosters, and detailed scores.
@@ -253,7 +254,8 @@ tokens, invites, moderation records, or similar data without this lifecycle.
 
 - Server navigation uses `_nav_push`, `_nav_back`, `_nav_refresh`, and
   `_restore_frame`; action handlers should not call `_show_*()` directly.
-  The stack remembers the opener item and restores focus on Back/cancel.
+  The stack remembers the opener item and restores focus on Back/cancel and
+  action completion.
   Server-owned menu selections are validated against the active menu before
   dispatch; stale client packets and forged item ids are ignored.
 - Use `_enter_input_state(...)` / `server.enter_input_state(...)` for editbox

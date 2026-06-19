@@ -191,7 +191,11 @@ async def test_host_management_keybind_defers_while_status_box_open() -> None:
 
         await server._handle_keybind(
             SimpleNamespace(username=host.username),
-            {"type": "keybind", "key": "ctrl+m"},
+            {
+                "type": "keybind",
+                "key": "ctrl+m",
+                "menu_item_id": "roll",
+            },
         )
 
         assert server._user_states[host.username]["menu"] == "in_game"
@@ -211,6 +215,70 @@ async def test_host_management_keybind_defers_while_status_box_open() -> None:
         assert "status_box" not in host.menus
         assert server._user_states[host.username]["menu"] == "host_management_menu"
         assert "host_management_menu" in host.menus
+
+        await server._handle_menu(
+            SimpleNamespace(username=host.username),
+            {
+                "type": "menu",
+                "menu_id": "host_management_menu",
+                "selection_id": "back",
+            },
+        )
+        game.flush_menus()
+        turn_updates = [
+            message
+            for message in host.messages
+            if message.type == "show_menu"
+            and message.data.get("menu_id") == "turn_menu"
+        ]
+        assert turn_updates[-1].data["selection_id"] == "roll"
+    finally:
+        server._db.close()
+
+
+@pytest.mark.asyncio
+async def test_host_management_back_restores_touch_actions_anchor() -> None:
+    server, host, _guest, _table, game, host_player = _make_playing_game_server()
+    try:
+        host.client_type = "web"
+        game.refresh_menus(host_player)
+        game.flush_menus()
+        game.handle_event(
+            host_player,
+            {
+                "type": "menu",
+                "menu_id": "turn_menu",
+                "selection_id": "web_actions_menu",
+            },
+        )
+
+        await server._handle_menu(
+            SimpleNamespace(username=host.username),
+            {
+                "type": "menu",
+                "menu_id": "actions_menu",
+                "selection_id": "host_management",
+            },
+        )
+        assert server._user_states[host.username]["menu"] == "host_management_menu"
+
+        await server._handle_menu(
+            SimpleNamespace(username=host.username),
+            {
+                "type": "menu",
+                "menu_id": "host_management_menu",
+                "selection_id": "back",
+            },
+        )
+        game.flush_menus()
+
+        turn_updates = [
+            message
+            for message in host.messages
+            if message.type == "show_menu"
+            and message.data.get("menu_id") == "turn_menu"
+        ]
+        assert turn_updates[-1].data["selection_id"] == "web_actions_menu"
     finally:
         server._db.close()
 

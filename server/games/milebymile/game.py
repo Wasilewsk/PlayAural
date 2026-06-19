@@ -535,7 +535,7 @@ class MileByMileGame(Game):
     def _is_check_status_hidden(self, player: Player) -> Visibility:
         """Check status is always hidden (triggered by keybind only), unless Web."""
         user = self.get_user(player)
-        if self.is_touch_client(user):
+        if self.status == "playing" and self.is_touch_client(user):
             return Visibility.VISIBLE
         return Visibility.HIDDEN
 
