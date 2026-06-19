@@ -25,5 +25,6 @@ class NineState(DataClassJSONMixin):
     # Dictionary mapping suit (int) to its SequenceState
     sequences: dict[int, SequenceState] = field(default_factory=dict)
 
-    # Flag to indicate if the nine of clubs has been played to start the game
+    # Legacy field name retained for save compatibility; this tracks whether
+    # the required opening nine has been played.
     nine_of_clubs_played: bool = False

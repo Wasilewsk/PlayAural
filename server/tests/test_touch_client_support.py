@@ -226,7 +226,7 @@ def test_touch_gameplay_info_actions_only_appear_after_start(
         ),
         (
             NineGame,
-            2,
+            3,
             ["check_sequences_status", "check_hand_counts_status", "whose_turn", "whos_at_table"],
         ),
         (
@@ -312,7 +312,7 @@ def test_new_games_touch_standard_actions_follow_touch_order(
                 "check_dice",
             ],
         ),
-        (NineGame, 2, ["check_sequences_status", "check_hand_counts_status"]),
+        (NineGame, 3, ["check_sequences_status", "check_hand_counts_status"]),
         (PusoyDosGame, 3, ["check_trick", "read_hand", "read_card_counts", "check_turn_timer"]),
         (RollingBallsGame, 2, ["view_pipe", "reshuffle"]),
         (SenetGame, 2, ["check_status", "check_sticks"]),
@@ -508,7 +508,7 @@ def test_disabled_turn_menu_action_click_speaks_same_reason_as_keybind() -> None
         (HumanityCardsGame, 3),
         (LightTurretGame, 2),
         (MetalPipeGame, 2),
-        (NineGame, 2),
+        (NineGame, 3),
         (PusoyDosGame, 3),
         (RollingBallsGame, 2),
         (SenetGame, 2),

@@ -2,46 +2,57 @@
 
 # Tên và mô tả trò chơi
 game-name-nine = Nine
-nine-description = Một trò chơi bài Nga phổ biến, trong đó người chơi xếp các dãy bài cùng chất.
+nine-description = Một trò chơi bài Nga phổ biến, nơi người chơi xây các dãy bài theo chất.
 
 # Kiểm tra số người chơi
-nine-error-invalid-player-count = Nine chỉ chơi được với 2, 3, 4 hoặc 6 người chơi.
-nine-error-nine-of-clubs-missing = Không tìm thấy 9 tép trong tay người chơi nào. Ván chơi không thể tiếp tục.
+nine-error-invalid-player-count = Nine dùng bộ 36 lá và chỉ xếp bàn đúng 3, 4 hoặc 6 người chơi.
+nine-error-starting-nine-missing = Không tìm thấy 9 rô trên tay bất kỳ người chơi nào. Ván chơi không thể tiếp tục.
 
 # Thông báo chia bài
-nine-player-nine-deal = Chia { $cards } lá bài cho mỗi người chơi.
+nine-player-nine-deal = Chia { $cards } lá cho mỗi người chơi.
 
 # Bắt đầu trò chơi
-nine-you-start-player-announcement = Bạn có 9 tép và sẽ bắt đầu ván chơi.
-nine-player-start-player-announcement = { $player } có 9 tép và bắt đầu ván chơi.
+nine-you-start-player-announcement = Bạn có 9 rô và bắt đầu ván chơi.
+nine-player-start-player-announcement = { $player } có 9 rô và bắt đầu ván chơi.
+nine-you-start-player-announcement-brief = Bạn bắt đầu với 9 rô.
+nine-player-start-player-announcement-brief = { $player } bắt đầu với 9 rô.
 
 # Lượt đi
-nine-you-play-card = Bạn đánh { $card }.
-nine-player-plays-card = { $player } đánh { $card }.
-
-nine-you-plays-nine-clubs = Bạn đánh 9 tép.
-nine-player-plays-nine-clubs = { $player } đánh 9 tép.
+nine-you-plays-starting-nine = Bạn đánh { $card } để mở bàn.
+nine-player-plays-starting-nine = { $player } đánh { $card } để mở bàn.
+nine-you-plays-starting-nine-brief = Bạn đánh { $card }.
+nine-player-plays-starting-nine-brief = { $player }: { $card }.
 
 nine-you-plays-nine-suit = Bạn đánh { $card } để mở dãy { $suit }.
 nine-player-plays-nine-suit = { $player } đánh { $card } để mở dãy { $suit }.
+nine-you-plays-nine-suit-brief = Bạn mở dãy { $suit } bằng { $card }.
+nine-player-plays-nine-suit-brief = { $player } mở dãy { $suit } bằng { $card }.
 
-nine-you-extend-sequence = Bạn nối dài dãy { $suit } bằng { $card }.
-nine-player-extend-sequence = { $player } nối dài dãy { $suit } bằng { $card }.
+nine-you-extend-sequence = Bạn nối dãy { $suit } bằng { $card }.
+nine-player-extend-sequence = { $player } nối dãy { $suit } bằng { $card }.
+nine-you-extend-sequence-brief = Bạn đánh { $card } vào dãy { $suit }.
+nine-player-extend-sequence-brief = { $player }: { $card } vào dãy { $suit }.
 
-nine-you-skips-turn = Bạn không có nước đi hợp lệ nên phải bỏ lượt.
-nine-player-skips-turn = { $player } không có nước đi hợp lệ nên bỏ lượt.
+nine-you-skips-turn = Bạn không có lá hợp lệ để đánh, nên lượt của bạn bị bỏ qua.
+nine-player-skips-turn = { $player } không có lá hợp lệ để đánh và bỏ lượt.
+nine-you-skips-turn-brief = Bạn bỏ lượt; không có lá hợp lệ.
+nine-player-skips-turn-brief = { $player } bỏ lượt; không có lá hợp lệ.
 
 # Lý do không thể đánh bài
 nine-reason-not-your-turn = Chưa đến lượt bạn.
-nine-reason-must-play-nine-clubs = Bạn phải đánh 9 tép để bắt đầu ván chơi.
-nine-reason-no-nine = Bạn không có quân chín nào để mở dãy mới.
-nine-reason-cannot-extend = Lá bài đó không nối được vào dãy { $suit }.
-nine-reason-must-skip = Bạn không có nước đi hợp lệ nên phải bỏ lượt.
+nine-reason-card-slot-gone = Lá bài đó không còn trên tay bạn. Menu bài trên tay đã được làm mới.
+nine-reason-must-play-starting-nine = Nước đầu tiên phải là { $starting_card }. Chưa thể đánh { $card } trước khi bàn được mở.
+nine-reason-nine-already-started = Không thể đánh { $card } vì dãy { $suit } đã được mở rồi.
+nine-reason-cannot-extend = { $card } không nối được vào dãy { $suit }. Hãy đánh lá liền dưới hoặc liền trên một đầu của dãy đó.
+nine-reason-unopened-suit = Không thể đánh { $card } vì dãy { $suit } chưa được mở. Hãy mở chất đó bằng lá 9 trước.
+nine-reason-must-skip = Bạn không có lá hợp lệ để đánh; lượt của bạn sẽ được tự động bỏ qua.
 nine-reason-generic = Lá bài đó hiện không đánh được.
 
 # Chiến thắng
 nine-you-wins-game = Bạn đã hết bài và thắng ván chơi!
 nine-player-wins-game = { $player } đã hết bài và thắng ván chơi!
+nine-you-wins-game-brief = Bạn thắng!
+nine-player-wins-game-brief = { $player } thắng!
 nine-player-game-ended = Ván Nine đã kết thúc.
 nine-you-game-ended = Ván Nine đã kết thúc.
 
@@ -53,8 +64,8 @@ nine-final-score = Số bài còn lại: { $score }
 nine-status = { $name }: còn { $cards_left } lá bài.
 nine-status-sequence = Dãy { $suit }: { $sequence }.
 nine-status-no-sequence = Chưa có dãy { $suit } nào được mở.
+nine-sequence-range = từ { $low } đến { $high }
 nine-none = không có
 nine-action-check-sequences = Xem các dãy bài
 nine-action-check-hand-counts = Xem số bài trên tay
-
 nine-status-player-hand-count = { $player }: { $count } lá bài
