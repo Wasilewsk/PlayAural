@@ -1,8 +1,9 @@
 trivia game (and trivia battle game, with spells to cast at your enemies)
 raise farkle default score to 1000
-raise uno default score to 300
 keystroke to contact the admins
 chat rooms / free table
 add the squares game like duck racing
 add mexican train
 add rummy game
+add ability to rename (tbd?)
+add per-game option to make turn options disappear when it isn't your turn, like the previous behaviour
