@@ -688,6 +688,9 @@ class MileByMileGame(Game):
         )
         user.speak(reason_text, buffer="game")
         self._pending_actions[player.id] = action.id
+        return_focus = self._get_action_return_focus_id(player, action.id)
+        if return_focus:
+            self._pending_action_return_focus[player.id] = return_focus
         user.show_menu(
             "action_input_menu",
             [
@@ -700,7 +703,7 @@ class MileByMileGame(Game):
             ],
             multiletter=True,
             escape_behavior=EscapeBehavior.SELECT_LAST,
-            position=2,
+            selection_id=UNPLAYABLE_DISCARD_OPTION,
         )
 
     def _handle_menu_event(self, player: Player, event: dict) -> None:
@@ -807,14 +810,19 @@ class MileByMileGame(Game):
                 if race_state.has_problem(HazardType.STOP):
                     return Localization.get(locale, "milebymile-reason-stopped")
                 return Localization.get(locale, "milebymile-reason-has-problem")
-            if race_state.has_problem(HazardType.SPEED_LIMIT) and distance > 50:
+            if self._speed_limit_restricts_distance(race_state) and distance > 50:
                 return Localization.get(locale, "milebymile-reason-speed-limit")
             if self.options.only_allow_perfect_crossing:
                 if race_state.miles + distance > self.options.round_distance:
+                    total = race_state.miles + distance
                     return Localization.get(
                         locale,
                         "milebymile-reason-exceeds-distance",
                         miles=max(0, self.options.round_distance - race_state.miles),
+                        current=race_state.miles,
+                        distance=distance,
+                        total=total,
+                        target=self.options.round_distance,
                     )
             if distance == 200 and race_state.used_200_mile_count >= 2:
                 return Localization.get(locale, "milebymile-reason-too-many-200s")
@@ -1021,7 +1029,7 @@ class MileByMileGame(Game):
         distance = card.distance
 
         # Check speed limit
-        if race_state.has_problem(HazardType.SPEED_LIMIT) and distance > 50:
+        if self._speed_limit_restricts_distance(race_state) and distance > 50:
             return False
 
         # Check perfect crossing
@@ -1033,6 +1041,14 @@ class MileByMileGame(Game):
             return False
 
         return True
+
+    @staticmethod
+    def _speed_limit_restricts_distance(race_state: RaceState) -> bool:
+        """Return whether an active Speed Limit currently limits distance cards."""
+        return (
+            race_state.has_problem(HazardType.SPEED_LIMIT)
+            and not race_state.has_safety(SafetyType.RIGHT_OF_WAY)
+        )
 
     def _can_play_hazard(self, player: MileByMilePlayer, card: Card) -> bool:
         """Check if hazard can be played on any opponent."""

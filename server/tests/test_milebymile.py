@@ -10,6 +10,7 @@ from ..games.milebymile.game import (
     MileByMilePlayer,
     MileByMileOptions,
     RaceState,
+    UNPLAYABLE_DISCARD_OPTION,
 )
 from ..games.milebymile.cards import Card, CardType, HazardType, SafetyType
 from ..users.test_user import MockUser
@@ -18,6 +19,15 @@ from ..users.bot import Bot
 
 def speech_texts(user: MockUser) -> list[str]:
     return [message.data["text"] for message in user.messages if message.type == "speak"]
+
+
+def turn_menu_messages(user: MockUser) -> list:
+    return [
+        message
+        for message in user.messages
+        if message.type == "show_menu"
+        and message.data.get("menu_id") == "turn_menu"
+    ]
 
 
 class TestMileByMileGameUnit:
@@ -309,7 +319,11 @@ class TestMileByMileUnplayableCardMenu:
         assert alice.id in game._pending_actions
         items = alice_user.get_current_menu_items("action_input_menu")
         assert items is not None
-        assert alice_user.menus["action_input_menu"]["position"] == 2
+        assert alice_user.menus["action_input_menu"]["position"] is None
+        assert (
+            alice_user.menus["action_input_menu"]["selection_id"]
+            == UNPLAYABLE_DISCARD_OPTION
+        )
         assert [getattr(item, "id", "") for item in items] == [
             "",
             "discard_unplayable_card",
@@ -347,6 +361,56 @@ class TestMileByMileUnplayableCardMenu:
         assert blocked_card in game.discard_pile
         assert game.current_player != alice
 
+    def test_cancel_unplayable_discard_prompt_restores_card_focus(self):
+        game = MileByMileGame()
+        alice_user = MockUser("Alice", uuid="p1")
+        bob_user = MockUser("Bob", uuid="p2")
+        alice = game.add_player("Alice", alice_user)
+        game.add_player("Bob", bob_user)
+        game.on_start()
+
+        blocked_card = Card(id=2002, card_type=CardType.DISTANCE, value="100")
+        alice.hand = [blocked_card]
+        alice_state = game.get_player_race_state(alice)
+        assert alice_state is not None
+        alice_state.problems = [HazardType.STOP]
+        game.current_player = alice
+        game._update_turn_actions(alice)
+        game.refresh_menus(alice)
+        game.flush_menus()
+        alice_user.clear_messages()
+
+        game.handle_event(
+            alice,
+            {
+                "type": "menu",
+                "menu_id": "turn_menu",
+                "selection_id": "card_slot_1",
+            },
+        )
+
+        assert alice.id in game._pending_actions
+        assert alice_user.menus["action_input_menu"]["selection_id"] == (
+            UNPLAYABLE_DISCARD_OPTION
+        )
+
+        game.handle_event(
+            alice,
+            {
+                "type": "menu",
+                "menu_id": "action_input_menu",
+                "selection_id": "_cancel",
+            },
+        )
+
+        assert alice.id not in game._pending_actions
+        assert alice.hand == [blocked_card]
+        assert blocked_card not in game.discard_pile
+        assert (
+            turn_menu_messages(alice_user)[-1].data["selection_id"]
+            == "card_slot_1"
+        )
+
     def test_unplayable_reasons_are_specific_to_current_problem(self):
         game = MileByMileGame()
         alice_user = MockUser("Alice", uuid="p1")
@@ -368,6 +432,173 @@ class TestMileByMileUnplayableCardMenu:
         alice_state.used_200_mile_count = 2
         card_200 = Card(id=2102, card_type=CardType.DISTANCE, value="200")
         assert "two 200-mile cards" in game._get_unplayable_reason(alice, card_200, "en")
+
+    def test_exact_finish_distance_rejection_explains_current_target_and_needed_miles(self):
+        game = MileByMileGame(options=MileByMileOptions(round_distance=700))
+        alice_user = MockUser("Alice", uuid="p1")
+        bob_user = MockUser("Bob", uuid="p2")
+        alice = game.add_player("Alice", alice_user)
+        game.add_player("Bob", bob_user)
+        game.on_start()
+
+        blocked_card = Card(id=2201, card_type=CardType.DISTANCE, value="100")
+        alice.hand = [blocked_card]
+        alice_state = game.get_player_race_state(alice)
+        assert alice_state is not None
+        alice_state.problems = []
+        alice_state.miles = 625
+        game.current_player = alice
+        game._update_turn_actions(alice)
+        alice_user.clear_messages()
+
+        game.execute_action(alice, "card_slot_1")
+
+        assert alice.hand == [blocked_card]
+        assert blocked_card not in game.discard_pile
+        assert "generic" not in alice_user.get_last_spoken().lower()
+        assert "You cannot play 100 miles" in alice_user.get_last_spoken()
+        assert "you are at 625 miles" in alice_user.get_last_spoken()
+        assert (
+            "100-mile card would put you at 725 miles"
+            in alice_user.get_last_spoken()
+        )
+        assert "past the 700-mile finish" in alice_user.get_last_spoken()
+        assert "need exactly 75 more miles" in alice_user.get_last_spoken()
+
+    def test_exact_finish_allows_100_and_200_when_total_stays_under_1000(self):
+        game = MileByMileGame(options=MileByMileOptions(round_distance=1000))
+        alice = game.add_player("Alice", MockUser("Alice", uuid="p1"))
+        game.add_player("Bob", MockUser("Bob", uuid="p2"))
+        game.on_start()
+
+        alice_state = game.get_player_race_state(alice)
+        assert alice_state is not None
+        alice_state.problems = []
+        alice_state.miles = 625
+
+        card_100 = Card(id=2204, card_type=CardType.DISTANCE, value="100")
+        card_200 = Card(id=2205, card_type=CardType.DISTANCE, value="200")
+
+        assert game._can_play_card(alice, card_100) is True
+        assert game._can_play_card(alice, card_200) is True
+
+    def test_exact_finish_playing_100_from_625_to_725_updates_distance(self):
+        game = MileByMileGame(options=MileByMileOptions(round_distance=1000))
+        alice = game.add_player("Alice", MockUser("Alice", uuid="p1"))
+        game.add_player("Bob", MockUser("Bob", uuid="p2"))
+        game.on_start()
+
+        card = Card(id=2206, card_type=CardType.DISTANCE, value="100")
+        alice.hand = [card]
+        alice_state = game.get_player_race_state(alice)
+        assert alice_state is not None
+        alice_state.problems = []
+        alice_state.miles = 625
+        game.current_player = alice
+        game._update_turn_actions(alice)
+
+        game.execute_action(alice, "card_slot_1")
+
+        assert card not in alice.hand
+        assert card in game.discard_pile
+        assert alice_state.miles == 725
+        assert game.race_winner_team_index is None
+
+    def test_relaxed_finish_allows_distance_card_to_pass_target(self):
+        game = MileByMileGame(
+            options=MileByMileOptions(
+                round_distance=700,
+                winning_score=5000,
+                only_allow_perfect_crossing=False,
+            )
+        )
+        alice_user = MockUser("Alice", uuid="p1")
+        bob_user = MockUser("Bob", uuid="p2")
+        alice = game.add_player("Alice", alice_user)
+        game.add_player("Bob", bob_user)
+        game.on_start()
+
+        card = Card(id=2202, card_type=CardType.DISTANCE, value="100")
+        alice.hand = [card]
+        alice_state = game.get_player_race_state(alice)
+        assert alice_state is not None
+        alice_state.problems = []
+        alice_state.miles = 625
+        game.current_player = alice
+        game._update_turn_actions(alice)
+
+        game.execute_action(alice, "card_slot_1")
+
+        assert card not in alice.hand
+        assert card in game.discard_pile
+        assert alice_state.miles == 725
+        assert game.race_winner_team_index == alice.team_index
+
+    def test_relaxed_finish_still_obeys_speed_limit_before_target(self):
+        game = MileByMileGame(
+            options=MileByMileOptions(
+                round_distance=1000,
+                only_allow_perfect_crossing=False,
+            )
+        )
+        alice = game.add_player("Alice", MockUser("Alice", uuid="p1"))
+        game.add_player("Bob", MockUser("Bob", uuid="p2"))
+        game.on_start()
+
+        alice_state = game.get_player_race_state(alice)
+        assert alice_state is not None
+        alice_state.problems = [HazardType.SPEED_LIMIT]
+        alice_state.miles = 625
+
+        card_50 = Card(id=2207, card_type=CardType.DISTANCE, value="50")
+        card_100 = Card(id=2208, card_type=CardType.DISTANCE, value="100")
+        card_200 = Card(id=2209, card_type=CardType.DISTANCE, value="200")
+
+        assert game._can_play_card(alice, card_50) is True
+        assert game._can_play_card(alice, card_100) is False
+        assert game._can_play_card(alice, card_200) is False
+        assert "Speed Limit" in game._get_unplayable_reason(alice, card_100, "en")
+
+    def test_relaxed_finish_allows_speed_limit_legal_card_to_pass_target(self):
+        game = MileByMileGame(
+            options=MileByMileOptions(
+                round_distance=700,
+                winning_score=5000,
+                only_allow_perfect_crossing=False,
+            )
+        )
+        alice = game.add_player("Alice", MockUser("Alice", uuid="p1"))
+        game.add_player("Bob", MockUser("Bob", uuid="p2"))
+        game.on_start()
+
+        card = Card(id=2210, card_type=CardType.DISTANCE, value="50")
+        alice.hand = [card]
+        alice_state = game.get_player_race_state(alice)
+        assert alice_state is not None
+        alice_state.problems = [HazardType.SPEED_LIMIT]
+        alice_state.miles = 675
+        game.current_player = alice
+        game._update_turn_actions(alice)
+
+        game.execute_action(alice, "card_slot_1")
+
+        assert card not in alice.hand
+        assert alice_state.miles == 725
+        assert game.race_winner_team_index == alice.team_index
+
+    def test_right_of_way_ignores_stale_speed_limit_when_playing_distance(self):
+        game = MileByMileGame()
+        alice = game.add_player("Alice", MockUser("Alice", uuid="p1"))
+        game.add_player("Bob", MockUser("Bob", uuid="p2"))
+        game.on_start()
+
+        card = Card(id=2203, card_type=CardType.DISTANCE, value="100")
+        alice_state = game.get_player_race_state(alice)
+        assert alice_state is not None
+        alice_state.problems = [HazardType.SPEED_LIMIT]
+        alice_state.safeties = [SafetyType.RIGHT_OF_WAY]
+
+        assert game._can_play_card(alice, card) is True
 
 
 class TestMileByMileTouchOrdering:
