@@ -1,0 +1,23 @@
+mobile client:
+comprehensive testing and polish
+self-voicing: read edit box values outside the server (login, register, pre-game chat, etc.)
+history: add buffer categories like the desktop client
+history: ability to toggle specific buffers on/off like the desktop client
+optimize voice chat
+optimize background execution
+playlist system parity with the desktop client
+
+web client:
+complete optimization of the web client
+add full keyboard support
+feature parity with the desktop client as closely as possible
+further optimization for iOS users
+
+server:
+chat: allow users to toggle default chat channel between local and global (so you don't need to type /g)
+keystroke to open admin menu (low priority)
+unban menu: display detailed info for banned users (reason, duration, banned by, etc.)
+add a quick search box to large menus (e.g. ban user list)
+better performance optimization for menus with 1000+ items
+admin table management: actions to cancel/join tables strictly for debugging and admin oversight
+global turn announcement: announce "your turn" instead of the player's name when it's your turn
