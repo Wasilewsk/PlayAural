@@ -2018,14 +2018,24 @@ class UnoGame(Game):
     def _score_elimination(self, winner: UnoPlayer, losers: list[tuple[UnoPlayer, int]]) -> None:
         for lp, pts in losers:
             lp.score += pts
-            self.broadcast_l("uno-round-points", buffer="game", player=lp.name, points=pts)
+            self._broadcast_actor(
+                lp,
+                "uno-you-add-penalty-points",
+                "uno-player-adds-penalty-points",
+                points=pts,
+            )
 
         eliminated = [p for p in self.alive_players if p.score >= self.options.winning_score]
         if eliminated:
             self.play_sound("game_uno/loseround.ogg")
         for p in eliminated:
             p.hand = []
-            self.broadcast_l("uno-eliminated", buffer="game", player=p.name)
+            self._broadcast_actor(
+                p,
+                "uno-you-are-eliminated",
+                "uno-player-is-eliminated",
+                limit=self.options.winning_score,
+            )
             self.turn_player_ids = [pid for pid in self.turn_player_ids if pid != p.id]
 
         survivors = self.alive_players
@@ -2035,8 +2045,12 @@ class UnoGame(Game):
     def _end_game(self, winner: UnoPlayer | None) -> None:
         self.play_sound("game_uno/wingame.ogg")
         if winner:
-            self.broadcast_l(
-                "uno-game-winner", buffer="game", player=winner.name, score=winner.score
+            self._broadcast_actor(
+                winner,
+                "uno-you-win-game",
+                "uno-player-wins-game",
+                score=winner.score,
+                mode=self.options.scoring_mode,
             )
         else:
             self.broadcast_l("uno-game-tie", buffer="game")

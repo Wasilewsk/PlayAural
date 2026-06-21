@@ -150,9 +150,20 @@ uno-round-points-from = { $points } từ { $player }
 uno-round-details-none = Không lấy được điểm nào từ đối thủ.
 uno-round-summary = { $details }. { $player } nhận được { $total }.
 uno-round-summary-you = { $details }. Bạn nhận được { $total }.
-uno-round-points = { $player } còn { $points } điểm trên tay.
-uno-eliminated = { $player } đã bị loại!
-uno-game-winner = { $player } thắng cả ván với { $score } điểm!
+uno-you-add-penalty-points = Bạn bị cộng { $points } điểm phạt vào tổng điểm sau vòng này.
+uno-player-adds-penalty-points = { $player } bị cộng { $points } điểm phạt vào tổng điểm sau vòng này.
+uno-you-are-eliminated = Bạn đã chạm mức loại { $limit } điểm và phải rời ván.
+uno-player-is-eliminated = { $player } đã chạm mức loại { $limit } điểm và phải rời ván.
+uno-you-win-game =
+    { $mode ->
+        [elimination] Bạn là người cuối cùng còn lại và thắng với { $score } điểm phạt.
+       *[first_to_limit] Bạn thắng cả ván với { $score } điểm!
+    }
+uno-player-wins-game =
+    { $mode ->
+        [elimination] { $player } là người cuối cùng còn lại và thắng với { $score } điểm phạt.
+       *[first_to_limit] { $player } thắng cả ván với { $score } điểm!
+    }
 uno-game-tie = Tất cả đều bị loại. Ván đấu hòa!
 uno-line-format = { $rank }. { $player }: { $score }
 

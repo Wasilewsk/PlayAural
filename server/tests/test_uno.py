@@ -191,6 +191,41 @@ def _two_player_game():
     return game, first, second
 
 
+def test_elimination_scoring_uses_personal_and_public_context() -> None:
+    game, winner, eliminated = _two_player_game()
+    winner_user = game.get_user(winner)
+    eliminated_user = game.get_user(eliminated)
+    game.options.scoring_mode = "elimination"
+    game.options.winning_score = 10
+    winner.score = 3
+    game.set_turn_players([winner, eliminated])
+    winner_user.clear_messages()
+    eliminated_user.clear_messages()
+
+    game._score_elimination(winner, [(eliminated, 12)])
+
+    assert eliminated.score == 12
+    assert game.status == "finished"
+    assert "You add 12 penalty points to your total for this round." in (
+        eliminated_user.get_spoken_messages()
+    )
+    assert "Bob adds 12 penalty points to their total for this round." in (
+        winner_user.get_spoken_messages()
+    )
+    assert "You have reached the 10-point elimination limit and are out of the game." in (
+        eliminated_user.get_spoken_messages()
+    )
+    assert "Bob has reached the 10-point elimination limit and is out of the game." in (
+        winner_user.get_spoken_messages()
+    )
+    assert winner_user.get_last_spoken() == (
+        "You are the last player remaining and win with 3 penalty points."
+    )
+    assert eliminated_user.get_last_spoken() == (
+        "Alice is the last player remaining and wins with 3 penalty points."
+    )
+
+
 def test_playing_wild_locks_until_color_then_advances():
     game, first, second = _two_player_game()
     game.discard_pile = [_card(100, cards.RED, cards.NUMBER, 5)]

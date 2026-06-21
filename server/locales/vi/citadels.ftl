@@ -49,6 +49,7 @@ citadels-district-thieves_den = Hang trộm
 citadels-district-wishing_well = Giếng ước nguyện
 
 citadels-game-start = Ván Thành Phố Trung Cổ đã bắt đầu.
+citadels-selection-start-you = Vòng { $round }. Bạn chọn nhân vật đầu tiên.
 citadels-selection-start = Vòng { $round }. { $player } chọn nhân vật đầu tiên.
 citadels-selection-prompt = Hãy chọn một nhân vật ngay bây giờ.
 citadels-you-chose-character = Bạn đã chọn một nhân vật.

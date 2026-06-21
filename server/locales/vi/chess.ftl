@@ -90,8 +90,10 @@ chess-draw-fivefold = Cờ hòa bắt buộc do thế cờ lặp lại năm lầ
 chess-draw-insufficient-material = Cờ hòa vì không đủ quân để chiếu hết.
 chess-draw-agreement = Cờ hòa do hai bên thỏa thuận.
 chess-draw-timeout-insufficient = Cờ hòa. Đối phương hết giờ nhưng không đủ quân để chiếu hết.
-chess-check = Chiếu tướng { $player }.
-chess-timeout-loss = { $player } hết giờ. { $winner } thắng do hơn giờ.
+chess-you-are-in-check = Vua của bạn đang bị chiếu.
+chess-player-is-in-check = Vua của { $player } đang bị chiếu.
+chess-you-lose-on-time = Bạn hết giờ. { $winner } thắng ván cờ.
+chess-player-loses-on-time = { $player } hết giờ. { $winner } thắng ván cờ.
 
 chess-you-en-passant = Bạn đi { $piece } từ { $from_square } đến { $to_square } và bắt tốt qua đường.
 chess-player-en-passant = { $player } đi { $piece } từ { $from_square } đến { $to_square } và bắt tốt qua đường.
@@ -134,7 +136,9 @@ chess-player-declines-undo = { $player } từ chối đi lại.
 chess-draw-offer-too-early = Chỉ có thể đề nghị cờ hòa sau khi cả hai bên đều đã đi ít nhất một nước.
 chess-claim-available-fifty-move = Hiện giờ có thể yêu cầu cờ hòa theo Luật 50 nước.
 chess-claim-available-threefold = Hiện giờ có thể yêu cầu cờ hòa do thế cờ lặp lại ba lần.
+chess-you-claim-draw-fifty-move = Bạn yêu cầu cờ hòa theo Luật 50 nước.
 chess-draw-claimed-fifty-move = { $player } yêu cầu cờ hòa theo Luật 50 nước.
+chess-you-claim-draw-threefold = Bạn yêu cầu cờ hòa do thế cờ lặp lại ba lần.
 chess-draw-claimed-threefold = { $player } yêu cầu cờ hòa do thế cờ lặp lại ba lần.
 
 chess-status-white = Trắng: { $player }

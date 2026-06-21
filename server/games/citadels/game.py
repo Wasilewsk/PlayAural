@@ -1231,11 +1231,12 @@ class CitadelsGame(Game):
         self, player: CitadelsPlayer, *, round_number: int | None = None
     ) -> None:
         if round_number is not None:
-            self.broadcast_l(
+            self._broadcast_actor_l(
+                player,
+                "citadels-selection-start-you",
                 "citadels-selection-start",
                 buffer="game",
                 round=round_number,
-                player=player.name,
             )
         user = self.get_user(player)
         if user and user.preferences.play_turn_sound:
@@ -2455,7 +2456,12 @@ class CitadelsGame(Game):
         if callback_id == "announce_winner":
             winner = self.get_player_by_id(payload.get("winner_id", ""))
             if isinstance(winner, CitadelsPlayer):
-                self.broadcast_l("game-winner", buffer="game", player=winner.name)
+                self.broadcast_personal_l(
+                    winner,
+                    "game-winner-you",
+                    "game-winner",
+                    buffer="game",
+                )
             return
         if callback_id == "finish_game":
             self.finish_game()

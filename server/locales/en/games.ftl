@@ -40,6 +40,7 @@ game-score-unit-light = light
 game-final-scores-header = Final Scores:
 
 game-winner = { $player } wins!
+game-winner-you = You win!
 game-winner-score = { $player } wins with { $score } points!
 game-tiebreaker = It's a tie! Tiebreaker round!
 game-tiebreaker-players = It's a tie between { $players }! Tiebreaker round!

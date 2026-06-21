@@ -40,6 +40,7 @@ game-score-unit-light = quang năng
 game-final-scores-header = Điểm tổng kết:
 
 game-winner = { $player } thắng!
+game-winner-you = Bạn thắng!
 game-winner-score = { $player } thắng với { $score } điểm!
 game-tiebreaker = Hòa! Vào vòng phân định thắng thua!
 game-tiebreaker-players = Hòa giữa { $players }! Vào vòng phân định thắng thua!

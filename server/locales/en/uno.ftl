@@ -162,9 +162,20 @@ uno-round-points-from = { $points } from { $player }
 uno-round-details-none = No points were taken from opponents.
 uno-round-summary = { $details }. { $player } gains { $total }.
 uno-round-summary-you = { $details }. You gain { $total }.
-uno-round-points = { $player } had { $points } points left in hand.
-uno-eliminated = { $player } has been eliminated!
-uno-game-winner = { $player } wins the game with { $score } points!
+uno-you-add-penalty-points = You add { $points } penalty points to your total for this round.
+uno-player-adds-penalty-points = { $player } adds { $points } penalty points to their total for this round.
+uno-you-are-eliminated = You have reached the { $limit }-point elimination limit and are out of the game.
+uno-player-is-eliminated = { $player } has reached the { $limit }-point elimination limit and is out of the game.
+uno-you-win-game =
+    { $mode ->
+        [elimination] You are the last player remaining and win with { $score } penalty points.
+       *[first_to_limit] You win the game with { $score } points!
+    }
+uno-player-wins-game =
+    { $mode ->
+        [elimination] { $player } is the last player remaining and wins with { $score } penalty points.
+       *[first_to_limit] { $player } wins the game with { $score } points!
+    }
 uno-game-tie = Everyone has been eliminated. The game is a tie!
 uno-line-format = { $rank }. { $player }: { $score }
 

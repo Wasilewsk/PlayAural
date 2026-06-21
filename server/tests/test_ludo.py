@@ -581,8 +581,9 @@ class TestLudoActions:
 
     def test_check_board_shows_player_info(self):
         self.game.execute_action(self.p1, "check_board")
-        spoken = self.u1.get_spoken_messages()
-        assert any("Alice" in msg for msg in spoken)
+        items = self.u1.menus["status_box"]["items"]
+
+        assert any("Alice" in item.text for item in items)
 
     def test_brief_move_announcement_uses_each_listener_preference(self):
         self.p1.tokens[0].state = "track"
@@ -783,8 +784,9 @@ class TestLudoActions:
 
         assert self.game.is_sequence_gameplay_locked() is True
         self.game.execute_action(self.p1, "check_board")
-        spoken = self.u1.get_spoken_messages()
-        assert any("Alice" in msg for msg in spoken)
+        items = self.u1.menus["status_box"]["items"]
+
+        assert any("Alice" in item.text for item in items)
 
     def test_web_standard_actions_follow_project_order(self):
         self.u1.client_type = "web"

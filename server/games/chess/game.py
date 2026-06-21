@@ -718,10 +718,11 @@ class ChessGame(GridGameMixin, Game):
         opponent = self._get_player_by_color(opponent_color)
         if self._has_mating_material(opponent_color):
             self.winner_color = opponent_color
-            self.broadcast_l(
-                "chess-timeout-loss",
+            self.broadcast_personal_l(
+                player,
+                "chess-you-lose-on-time",
+                "chess-player-loses-on-time",
                 buffer="game",
-                player=player.name,
                 winner=opponent.name if opponent else "?",
             )
         else:
@@ -1887,7 +1888,12 @@ class ChessGame(GridGameMixin, Game):
             return
 
         if opponent and self.is_in_check(opponent_color):
-            self.broadcast_l("chess-check", buffer="game", player=opponent.name)
+            self.broadcast_personal_l(
+                opponent,
+                "chess-you-are-in-check",
+                "chess-player-is-in-check",
+                buffer="game",
+            )
 
         self._advance_to_next_turn()
 
@@ -2377,9 +2383,16 @@ class ChessGame(GridGameMixin, Game):
             return
         self.draw_reason = reason
         key = "chess-draw-claimed-fifty-move"
+        personal_key = "chess-you-claim-draw-fifty-move"
         if reason == "threefold_repetition":
             key = "chess-draw-claimed-threefold"
-        self.broadcast_l(key, buffer="game", player=chess_player.name)
+            personal_key = "chess-you-claim-draw-threefold"
+        self.broadcast_personal_l(
+            chess_player,
+            personal_key,
+            key,
+            buffer="game",
+        )
         self.finish_game()
 
     def _action_offer_draw(self, player: Player, action_id: str) -> None:

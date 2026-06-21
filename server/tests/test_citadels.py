@@ -201,6 +201,8 @@ def test_selection_phase_plays_turn_sound_and_prompts_the_current_picker() -> No
     assert second_user is not None
 
     assert "turn.ogg" in first_user.get_sounds_played()
+    assert "Round 1. You choose a character first." in first_user.get_spoken_messages()
+    assert "Round 1. Player1 chooses a character first." in second_user.get_spoken_messages()
     assert "Choose a character now." in first_user.get_spoken_messages()
     first_selection_updates = [
         message for message in first_user.messages
@@ -834,15 +836,19 @@ def test_city_completion_sound_only_triggers_on_threshold_and_final_win_waits_fo
 
     player.city = [make_card(580 + index, f"Built{index}", 1, DISTRICT_TRADE) for index in range(7)]
     user = game.get_user(player)
+    observer = game.get_user(game.players[1])
     assert user is not None
+    assert observer is not None
     user.clear_messages()
+    observer.clear_messages()
 
     game._complete_round_cleanup()
     assert game.has_active_sequence() is True
     assert user.get_sounds_played() == [SOUND_WIN]
     assert game.status != "finished"
     assert advance_until(game, lambda: game.status == "finished", max_ticks=200)
-    assert user.get_last_spoken() == "Player1 wins!"
+    assert user.get_last_spoken() == "You win!"
+    assert observer.get_last_spoken() == "Player1 wins!"
 
 
 def test_touch_standard_actions_follow_the_shared_touch_order() -> None:

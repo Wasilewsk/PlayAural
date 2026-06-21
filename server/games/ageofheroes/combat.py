@@ -183,7 +183,12 @@ def use_olympics(game: AgeOfHeroesGame, player: AgeOfHeroesPlayer) -> bool:
             game.war_state.cancelled_by_olympics = True
             game.play_sound("game_ageofheroes/olympics.ogg")
 
-            game.broadcast_l("ageofheroes-olympics-cancel", player=player.name, buffer="game")
+            game.broadcast_personal_l(
+                player,
+                "ageofheroes-you-cancel-war-with-olympics",
+                "ageofheroes-player-cancels-war-with-olympics",
+                buffer="game",
+            )
             return True
 
     return False
@@ -767,7 +772,12 @@ def use_fortune_reroll(game: AgeOfHeroesGame, player: AgeOfHeroesPlayer) -> bool
         if card.card_type == CardType.EVENT and card.subtype == EventType.FORTUNE:
             removed = player.hand.pop(i)
             game.discard_pile.append(removed)
-            game.broadcast_l("ageofheroes-fortune-reroll", player=player.name, buffer="game")
+            game.broadcast_personal_l(
+                player,
+                "ageofheroes-you-use-fortune",
+                "ageofheroes-player-uses-fortune",
+                buffer="game",
+            )
             game.play_sound("game_ageofheroes/fortune.ogg")
             return True
     return False
@@ -892,13 +902,14 @@ def finish_war_battle(game: AgeOfHeroesGame) -> None:
     winner = get_battle_winner(game)
     had_rounds = war.battle_in_progress
 
-    attacker_name = None
-    defender_name = None
-    if war.attacker_index < len(active_players) and war.defender_index < len(active_players):
+    attacker = None
+    defender = None
+    if (
+        0 <= war.attacker_index < len(active_players)
+        and 0 <= war.defender_index < len(active_players)
+    ):
         attacker = active_players[war.attacker_index]
         defender = active_players[war.defender_index]
-        attacker_name = attacker.name
-        defender_name = defender.name
 
     # Apply war outcome (this may reset war state)
     apply_war_outcome(game)
@@ -906,42 +917,90 @@ def finish_war_battle(game: AgeOfHeroesGame) -> None:
     # Announce battle end summary only when no rounds were fought
     # (immediate end due to 0 armies). When rounds were fought, the
     # per-round messages already announce the outcome.
-    if not had_rounds and attacker_name and defender_name:
-        if winner == "attacker":
-            game.broadcast_l(
-                "ageofheroes-battle-victory-attacker",
-                attacker=attacker_name,
-                defender=defender_name,
-                buffer="game",
-            )
-        elif winner == "defender":
-            game.broadcast_l(
-                "ageofheroes-battle-victory-defender",
-                attacker=attacker_name,
-                defender=defender_name,
-                buffer="game",
-            )
-        else:
-            game.broadcast_l(
-                "ageofheroes-battle-mutual-defeat",
-                attacker=attacker_name,
-                defender=defender_name,
-                buffer="game",
-            )
+    if not had_rounds and attacker is not None and defender is not None:
+        _announce_immediate_battle_result(game, attacker, defender, winner)
 
     # Check for elimination of both players
-    if war.attacker_index < len(active_players):
-        attacker = active_players[war.attacker_index]
+    if attacker is not None:
         game._check_elimination(attacker)
 
-    if war.defender_index < len(active_players):
-        defender = active_players[war.defender_index]
+    if defender is not None:
         game._check_elimination(defender)
 
     # Reset war state and end action
-    attacker_idx = war.attacker_index
     war.reset()
 
-    if attacker_idx < len(active_players):
-        attacker = active_players[attacker_idx]
+    if attacker is not None:
         game._end_action(attacker)
+
+
+def _announce_immediate_battle_result(
+    game: AgeOfHeroesGame,
+    attacker: AgeOfHeroesPlayer,
+    defender: AgeOfHeroesPlayer,
+    winner: str | None,
+) -> None:
+    """Announce an immediate battle result to both combatants and observers."""
+    for listener in game.players:
+        user = game.get_user(listener)
+        if not user:
+            continue
+        if winner == "attacker":
+            if listener.id == attacker.id:
+                user.speak_l(
+                    "ageofheroes-you-win-battle-as-attacker",
+                    buffer="game",
+                    defender=defender.name,
+                )
+            elif listener.id == defender.id:
+                user.speak_l(
+                    "ageofheroes-you-lose-battle-as-defender",
+                    buffer="game",
+                    attacker=attacker.name,
+                )
+            else:
+                user.speak_l(
+                    "ageofheroes-battle-victory-attacker",
+                    buffer="game",
+                    attacker=attacker.name,
+                    defender=defender.name,
+                )
+            continue
+        if winner == "defender":
+            if listener.id == attacker.id:
+                user.speak_l(
+                    "ageofheroes-you-lose-battle-as-attacker",
+                    buffer="game",
+                    defender=defender.name,
+                )
+            elif listener.id == defender.id:
+                user.speak_l(
+                    "ageofheroes-you-win-battle-as-defender",
+                    buffer="game",
+                    attacker=attacker.name,
+                )
+            else:
+                user.speak_l(
+                    "ageofheroes-battle-victory-defender",
+                    buffer="game",
+                    attacker=attacker.name,
+                    defender=defender.name,
+                )
+            continue
+        if listener.id == attacker.id:
+            opponent = defender.name
+        elif listener.id == defender.id:
+            opponent = attacker.name
+        else:
+            user.speak_l(
+                "ageofheroes-battle-mutual-defeat",
+                buffer="game",
+                attacker=attacker.name,
+                defender=defender.name,
+            )
+            continue
+        user.speak_l(
+            "ageofheroes-you-draw-battle",
+            buffer="game",
+            opponent=opponent,
+        )

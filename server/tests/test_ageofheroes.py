@@ -7,8 +7,10 @@ from ..games.ageofheroes.cards import Card, CardType, EventType, ResourceType
 from ..games.ageofheroes.bot import bot_execute_discard_excess
 from ..games.ageofheroes.combat import (
     execute_war_battle,
+    finish_war_battle,
     resolve_battle_round,
     return_surviving_forces,
+    use_fortune_reroll,
 )
 from ..games.ageofheroes.construction import can_build, spend_resources
 from ..games.ageofheroes import game as ageofheroes_game_module
@@ -264,6 +266,62 @@ def test_war_survivors_do_not_duplicate_when_returning_by_road() -> None:
     assert attacker.tribe_state.returning_armies == 0
     assert attacker.tribe_state.returning_generals == 0
     assert defender.tribe_state.armies == 2
+
+
+def test_immediate_attacker_victory_uses_each_battle_perspective(monkeypatch) -> None:
+    game = make_started_game(player_count=3)
+    attacker, defender, observer = game.get_active_players()
+    attacker_user = game.get_user(attacker)
+    defender_user = game.get_user(defender)
+    observer_user = game.get_user(observer)
+    game.war_state.attacker_index = 0
+    game.war_state.defender_index = 1
+    game.war_state.attacker_armies = 1
+    game.war_state.defender_armies = 0
+    game.war_state.battle_in_progress = False
+    checked_players = []
+    ended_players = []
+    monkeypatch.setattr(game, "_check_elimination", lambda player: checked_players.append(player.id))
+    monkeypatch.setattr(game, "_end_action", lambda player: ended_players.append(player.id))
+    attacker_user.clear_messages()
+    defender_user.clear_messages()
+    observer_user.clear_messages()
+
+    finish_war_battle(game)
+
+    assert attacker_user.get_last_spoken() == "You defeat Player2."
+    assert defender_user.get_last_spoken() == "Player1 defeats you."
+    assert observer_user.get_last_spoken() == "Player1 defeats Player2."
+    assert checked_players == [attacker.id, defender.id]
+    assert ended_players == [attacker.id]
+    assert game.war_state.attacker_index == -1
+    assert game.war_state.defender_index == -1
+
+
+def test_immediate_defender_victory_uses_each_battle_perspective(monkeypatch) -> None:
+    game = make_started_game(player_count=3)
+    attacker, defender, observer = game.get_active_players()
+    attacker_user = game.get_user(attacker)
+    defender_user = game.get_user(defender)
+    observer_user = game.get_user(observer)
+    game.war_state.attacker_index = 0
+    game.war_state.defender_index = 1
+    game.war_state.attacker_armies = 0
+    game.war_state.defender_armies = 1
+    game.war_state.battle_in_progress = False
+    monkeypatch.setattr(game, "_check_elimination", lambda _player: None)
+    monkeypatch.setattr(game, "_end_action", lambda _player: None)
+    attacker_user.clear_messages()
+    defender_user.clear_messages()
+    observer_user.clear_messages()
+
+    finish_war_battle(game)
+
+    assert attacker_user.get_last_spoken() == "Player2 defends successfully against you."
+    assert defender_user.get_last_spoken() == "You defend successfully against Player1."
+    assert observer_user.get_last_spoken() == (
+        "Player2 defends successfully against Player1."
+    )
 
 
 def test_bot_discard_excess_preserves_discard_pile(monkeypatch) -> None:
@@ -608,7 +666,7 @@ def test_cancel_war_target_returns_focus_to_main_actions() -> None:
     assert user.menus["turn_menu"]["selection_id"] == f"action_{ActionType.TAX_COLLECTION.value}"
 
 
-def test_olympics_prompts_human_defender_before_war_forces() -> None:
+def test_olympics_prompts_human_defender_before_war_forces(monkeypatch) -> None:
     """A human defender with Olympic Games gets a real cancel decision window."""
     game = make_started_game(player_count=2)
     attacker, defender = game.get_active_players()
@@ -623,14 +681,44 @@ def test_olympics_prompts_human_defender_before_war_forces() -> None:
     ]
     attacker.pending_war_target_index = 1
     attacker.pending_war_goals = [WarGoal.PLUNDER.value]
+    attacker_user = game.get_user(attacker)
+    defender_user = game.get_user(defender)
+    ended_players = []
+    monkeypatch.setattr(game, "_end_action", lambda player: ended_players.append(player.id))
 
     game._action_select_war_goal(attacker, f"war_goal_{WarGoal.PLUNDER.value}")
 
     assert game.sub_phase == PlaySubPhase.WAR_OLYMPICS
     assert game.war_state.defender_index == 1
+    attacker_user.clear_messages()
+    defender_user.clear_messages()
 
     game._action_use_olympics(defender, "use_olympics")
 
     assert game.war_state.defender_index == -1
     assert all(card.subtype != EventType.OLYMPICS for card in defender.hand)
     assert any(card.subtype == EventType.OLYMPICS for card in game.discard_pile)
+    assert ended_players == [attacker.id]
+    assert defender_user.get_last_spoken() == (
+        "You play Olympic Games, cancelling the declared war."
+    )
+    assert attacker_user.get_last_spoken() == (
+        "Player2 plays Olympic Games, cancelling the declared war."
+    )
+
+
+def test_fortune_reroll_uses_actor_and_observer_perspectives() -> None:
+    game = make_started_game(player_count=2)
+    actor, observer = game.get_active_players()
+    actor_user = game.get_user(actor)
+    observer_user = game.get_user(observer)
+    actor.hand = [Card(id=450, card_type=CardType.EVENT, subtype=EventType.FORTUNE)]
+    actor_user.clear_messages()
+    observer_user.clear_messages()
+
+    assert use_fortune_reroll(game, actor) is True
+
+    assert actor_user.get_last_spoken() == "You use Fortune to reroll the battle die."
+    assert observer_user.get_last_spoken() == (
+        "Player1 uses Fortune to reroll the battle die."
+    )

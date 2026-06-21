@@ -4,7 +4,12 @@ from pathlib import Path
 
 from ..games.registry import GameRegistry
 from ..games.sorry.game import SorryGame, SorryOptions
-from ..games.sorry.moves import apply_move, generate_legal_moves, generate_split_options_for_pair
+from ..games.sorry.moves import (
+    SorryMove,
+    apply_move,
+    generate_legal_moves,
+    generate_split_options_for_pair,
+)
 from ..games.sorry.rules import RULES_PROFILES
 from ..games.sorry.state import build_default_draw_pile, build_initial_game_state
 from ..messages.localization import Localization
@@ -96,6 +101,29 @@ def test_on_start_initializes_state_and_music() -> None:
         message.type == "play_music" and message.data["name"] == "game_pig/mus.ogg"
         for message in user.messages
     )
+
+
+def test_final_winner_announcement_uses_winner_perspective() -> None:
+    game = make_game(start=True)
+    winner, observer = game.get_active_players()
+    winner_user = game.get_user(winner)
+    observer_user = game.get_user(observer)
+    winner_state = game.game_state.player_states[winner.id]
+    for pawn in winner_state.pawns:
+        pawn.zone = "home"
+    winner_user.clear_messages()
+    observer_user.clear_messages()
+
+    game._resolve_selected_move(
+        winner,
+        SorryMove(action_id="test_win", move_type="test"),
+        "1",
+        [],
+    )
+
+    assert game.status == "finished"
+    assert winner_user.get_last_spoken() == "You win!"
+    assert observer_user.get_last_spoken() == "Player1 wins!"
 
 
 def test_default_deck_matches_standard_45_card_composition() -> None:

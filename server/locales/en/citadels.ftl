@@ -49,6 +49,7 @@ citadels-district-thieves_den = Thieves' Den
 citadels-district-wishing_well = Wishing Well
 
 citadels-game-start = Citadels has begun.
+citadels-selection-start-you = Round { $round }. You choose a character first.
 citadels-selection-start = Round { $round }. { $player } chooses a character first.
 citadels-selection-prompt = Choose a character now.
 citadels-you-chose-character = You chose a character.

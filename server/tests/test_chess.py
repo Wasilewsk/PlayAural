@@ -688,14 +688,45 @@ def test_check_clock_speaks_directly_without_opening_state_box() -> None:
 
 def test_timeout_ends_game_with_opponent_win() -> None:
     game = make_game_with_options(start=True, time_control="bullet_1_0")
+    white = game.players[0]
+    black = game.players[1]
+    white_user = game.get_user(white)
+    black_user = game.get_user(black)
     game.white_clock_ticks = 1
     game.black_clock_ticks = 100
+    white_user.clear_messages()
+    black_user.clear_messages()
 
     game.on_tick()
     game.flush_menus()
 
     assert game.status == "finished"
     assert game.winner_color == COLOR_BLACK
+    assert "You run out of time. Bob wins on time." in white_user.get_spoken_messages()
+    assert "Alice runs out of time. Bob wins on time." in black_user.get_spoken_messages()
+
+
+def test_check_announcement_uses_checked_player_perspective() -> None:
+    game = make_game(start=True)
+    white = game.players[0]
+    black = game.players[1]
+    white_user = game.get_user(white)
+    black_user = game.get_user(black)
+    clear_board(game)
+    place_piece(game, "a1", "king", COLOR_WHITE)
+    place_piece(game, "e8", "king", COLOR_BLACK)
+    place_piece(game, "a2", "rook", COLOR_WHITE)
+    game.current_player = white
+    game.current_color = COLOR_WHITE
+    game.position_history = [game._get_position_hash()]
+    white_user.clear_messages()
+    black_user.clear_messages()
+
+    game.execute_action(white, "type_move", "a2e2")
+    game.flush_menus()
+
+    assert "Bob's king is in check." in white_user.get_spoken_messages()
+    assert "Your king is in check." in black_user.get_spoken_messages()
 
 
 def test_timeout_with_insufficient_material_is_draw() -> None:
@@ -719,6 +750,9 @@ def test_timeout_with_insufficient_material_is_draw() -> None:
 def test_claim_required_draw_can_be_claimed() -> None:
     game = make_game_with_options(start=True, draw_handling="claim_required")
     white = game.players[0]
+    black = game.players[1]
+    white_user = game.get_user(white)
+    black_user = game.get_user(black)
     clear_board(game)
     place_piece(game, "e1", "king", COLOR_WHITE)
     place_piece(game, "e8", "king", COLOR_BLACK)
@@ -726,6 +760,8 @@ def test_claim_required_draw_can_be_claimed() -> None:
     game.current_color = COLOR_WHITE
     game.halfmove_clock = 100
     game.position_history = [game._get_position_hash()]
+    white_user.clear_messages()
+    black_user.clear_messages()
 
     assert game._is_claim_draw_enabled(white) is None
 
@@ -733,6 +769,8 @@ def test_claim_required_draw_can_be_claimed() -> None:
 
     assert game.status == "finished"
     assert game.draw_reason == "fifty_move_rule"
+    assert "You claim a draw by the fifty-move rule." in white_user.get_spoken_messages()
+    assert "Alice claims a draw by the fifty-move rule." in black_user.get_spoken_messages()
 
 
 def test_claim_required_threefold_can_be_claimed() -> None:

@@ -1090,7 +1090,12 @@ class SorryGame(Game):
         if self._has_player_won(player):
             self.winner_name = player.name
             self.play_sound("game_pig/wingame.ogg")
-            self.broadcast_l("game-winner", buffer="game", player=player.name)
+            self.broadcast_personal_l(
+                player,
+                "game-winner-you",
+                "game-winner",
+                buffer="game",
+            )
             self.finish_game()
             return
         discard_current_card(self.game_state)

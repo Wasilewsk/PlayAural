@@ -332,9 +332,14 @@ ageofheroes-round-draw = Both sides tie at { $total }. No armies lost.
 ageofheroes-round-attacker-wins-brief = { $attacker } { $att_total } beats { $defender } { $def_total }. { $defender } -1 army.
 ageofheroes-round-defender-wins-brief = { $defender } { $def_total } beats { $attacker } { $att_total }. { $attacker } -1 army.
 ageofheroes-round-draw-brief = Tie { $total }. No loss.
+ageofheroes-you-win-battle-as-attacker = You defeat { $defender }.
+ageofheroes-you-lose-battle-as-defender = { $attacker } defeats you.
 ageofheroes-battle-victory-attacker = { $attacker } defeats { $defender }.
+ageofheroes-you-lose-battle-as-attacker = { $defender } defends successfully against you.
+ageofheroes-you-win-battle-as-defender = You defend successfully against { $attacker }.
 ageofheroes-battle-victory-defender = { $defender } defends successfully against { $attacker }.
-ageofheroes-battle-mutual-defeat = Both { $attacker } and { $defender } lose all armies.
+ageofheroes-you-draw-battle = You and { $opponent } both lose all forces committed to the battle.
+ageofheroes-battle-mutual-defeat = Both { $attacker } and { $defender } lose all forces committed to the battle.
 ageofheroes-general-bonus = +{ $count } from { $count ->
     [one] general
     *[other] generals
@@ -391,7 +396,8 @@ ageofheroes-army-recover = { $player }'s armies recover from the earthquake.
 ageofheroes-army-recover-you = Your armies recover from the earthquake.
 
 # Olympics
-ageofheroes-olympics-cancel = { $player } plays Olympic Games. War cancelled.
+ageofheroes-you-cancel-war-with-olympics = You play Olympic Games, cancelling the declared war.
+ageofheroes-player-cancels-war-with-olympics = { $player } plays Olympic Games, cancelling the declared war.
 ageofheroes-olympics-prompt = { $attacker } has declared war. You have Olympic Games - use it to cancel?
 ageofheroes-yes = Yes
 ageofheroes-no = No
@@ -503,7 +509,8 @@ ageofheroes-hero-army = Army
 ageofheroes-hero-general = General
 
 # Fortune card
-ageofheroes-fortune-reroll = { $player } uses Fortune to reroll.
+ageofheroes-you-use-fortune = You use Fortune to reroll the battle die.
+ageofheroes-player-uses-fortune = { $player } uses Fortune to reroll the battle die.
 ageofheroes-fortune-prompt = You lost the roll. Use Fortune to reroll?
 
 # Disabled action reasons

@@ -90,8 +90,10 @@ chess-draw-fivefold = Draw by mandatory fivefold repetition.
 chess-draw-insufficient-material = Draw by insufficient material.
 chess-draw-agreement = Draw by agreement.
 chess-draw-timeout-insufficient = Draw. The opponent flagged, but there was not enough mating material.
-chess-check = Check against { $player }.
-chess-timeout-loss = { $player } runs out of time. { $winner } wins on time.
+chess-you-are-in-check = Your king is in check.
+chess-player-is-in-check = { $player }'s king is in check.
+chess-you-lose-on-time = You run out of time. { $winner } wins on time.
+chess-player-loses-on-time = { $player } runs out of time. { $winner } wins on time.
 
 chess-you-en-passant = You move your { $piece } from { $from_square } to { $to_square } and capture en passant.
 chess-player-en-passant = { $player } moves their { $piece } from { $from_square } to { $to_square } and captures en passant.
@@ -134,7 +136,9 @@ chess-player-declines-undo = { $player } declines the undo request.
 chess-draw-offer-too-early = Draw offers are available only after both players have made at least one move.
 chess-claim-available-fifty-move = The fifty-move draw can be claimed now.
 chess-claim-available-threefold = A draw by threefold repetition can be claimed now.
+chess-you-claim-draw-fifty-move = You claim a draw by the fifty-move rule.
 chess-draw-claimed-fifty-move = { $player } claims a draw by the fifty-move rule.
+chess-you-claim-draw-threefold = You claim a draw by threefold repetition.
 chess-draw-claimed-threefold = { $player } claims a draw by threefold repetition.
 
 chess-status-white = White: { $player }
