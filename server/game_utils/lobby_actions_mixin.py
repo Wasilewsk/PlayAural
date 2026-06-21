@@ -62,6 +62,8 @@ class LobbyActionsMixin:
 
     def _start_game_from_lobby(self) -> None:
         """Start gameplay after all lobby-only preparation has completed."""
+        if hasattr(self, "_dismiss_all_end_screens"):
+            self._dismiss_all_end_screens()
         self.broadcast_l("game-starting", buffer="system")
         self.on_start()
         self._clear_team_arrangement_state()

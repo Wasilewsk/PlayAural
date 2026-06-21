@@ -292,6 +292,14 @@ class MenuManagementMixin:
             # it — a large per-tick cost in bot-heavy games and on the live server.
             return
 
+        user = self.get_user(player)
+        if not user:
+            return
+
+        end_screen_restorer = getattr(self, "_restore_end_screen_if_open", None)
+        if end_screen_restorer and end_screen_restorer(player):
+            return
+
         if self.status == "finished":
             # A dirty flush on a finished game restores the end screen instead
             # of doing nothing (which would leave the user with no menu).
@@ -302,11 +310,16 @@ class MenuManagementMixin:
                 self._last_game_result = self.build_game_result()
 
             if self._last_game_result and hasattr(self, "_show_end_screen_to_player"):
-                self._show_end_screen_to_player(player, self._last_game_result)
-            return
-
-        user = self.get_user(player)
-        if not user:
+                is_open = True
+                checker = getattr(self, "_is_end_screen_open_for_player", None)
+                if checker:
+                    is_open = checker(player)
+                if is_open:
+                    self._show_end_screen_to_player(
+                        player,
+                        self._last_game_result,
+                        mark_open=False,
+                    )
             return
 
         if player.id in self._status_box_open and player.id in self._live_status_boxes:

@@ -161,15 +161,19 @@ class EventHandlingMixin:
                     self.refresh_menus(player)
 
         elif menu_id == "game_over":
-            # Handle game over menu - Return to lobby or Leave game
-            # When the game is over, `self` here is the NEW lobby game instance
-            if selection_id == "return_to_lobby":
+            # Handle the local post-game overlay. After a normal finish, `self`
+            # is the fresh lobby game, so end-screen state is tracked per player.
+            dismiss = getattr(self, "_dismiss_end_screen_for_player", None)
+            if selection_id in ("return_to_table", "return_to_lobby"):
+                if dismiss:
+                    dismiss(player)
                 self.refresh_menus(player)
             elif selection_id == "leave_game":
+                if dismiss:
+                    dismiss(player)
                 self.execute_action(player, "leave_game")
             else:
-                # By default, assume they hit enter on a score line, which goes to lobby
-                self.refresh_menus(player)
+                return
 
         elif menu_id == "action_input_menu":
             # Handle action input menu selection

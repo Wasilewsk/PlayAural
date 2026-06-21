@@ -3596,24 +3596,7 @@ PlayAural Server
                 if not is_online:
                     status = Localization.get(user.locale, "friend-status-offline")
                 else:
-                    table = self._tables.find_user_table(f_name)
-                    if table:
-                        game_class = get_game_class(table.game_type)
-                        game_name = Localization.get(user.locale, game_class.get_name_key()) if game_class else table.game_type
-
-                        # Determine if spectating
-                        is_spectator = False
-                        for m in table.members:
-                            if m.username == f_name:
-                                is_spectator = m.is_spectator
-                                break
-
-                        if is_spectator:
-                            status = Localization.get(user.locale, "friend-status-spectating", game=game_name)
-                        else:
-                            status = Localization.get(user.locale, "friend-status-playing", game=game_name)
-                    else:
-                        status = Localization.get(user.locale, "friend-status-lobby")
+                    status = self._format_presence_status(user.locale, f_name)
 
                 display_text = Localization.get(user.locale, "friend-list-entry", username=f_name, status=status)
                 items.append(MenuItem(text=display_text, id=f"friend_{f_name}"))
@@ -5066,6 +5049,9 @@ PlayAural Server
         if active_table is not table:
             self._return_to_game(user, active_table)
             return
+        if table.host != user.username:
+            self._return_to_game(user, table)
+            return
         items = self._get_host_management_menu_items(user, table)
         user.show_menu(
             "host_management_menu",
@@ -5239,6 +5225,9 @@ PlayAural Server
 
     def _show_host_invite_menu(self, user: NetworkUser, table: "Table") -> None:
         """Show the invite friends menu."""
+        if table.host != user.username:
+            self._return_to_game(user, table)
+            return
         items = self._get_host_invite_menu_items(user, table)
         user.show_menu(
             "host_invite_menu",
@@ -5288,7 +5277,7 @@ PlayAural Server
         sent = await self._send_table_invite(user, table, invitee_user)
         if sent:
             user.speak_l("host-invite-sent", buffer="system", player=invitee_name)
-            self._nav_back(user)
+        self._nav_refresh(user, self._show_host_invite_menu, table)
 
     async def _send_table_invite(
         self, host_user: NetworkUser, table: "Table", invitee_user: NetworkUser
@@ -5464,6 +5453,14 @@ PlayAural Server
         """Build items for the pass-host menu."""
         locale = user.locale
         items: list[MenuItem] = []
+        if table.host != user.username:
+            return [
+                MenuItem(
+                    text=Localization.get(locale, "host-pass-no-longer-host"),
+                    id="",
+                ),
+                MenuItem(text=Localization.get(locale, "back"), id="back"),
+            ]
         candidates = []
         if table.game:
             for p in table.game.players:
@@ -5498,7 +5495,11 @@ PlayAural Server
         table_id = state.get("table_id")
         table = self._tables.get_table(table_id)
 
-        if not table or table.host != user.username:
+        if not table:
+            self._return_to_game(user, table)
+            return
+
+        if table.host != user.username:
             self._return_to_game(user, table)
             return
 
@@ -5516,7 +5517,7 @@ PlayAural Server
                     table.game.broadcast_l("host-passed", buffer="system", player=new_host_name)
                     table.game.refresh_menus()
                     self.on_tables_changed()
-                    self._return_to_game(user, table)
+                    self._nav_refresh(user, self._show_host_pass_menu, table)
                     return
             user.speak_l("host-pass-failed", buffer="system")
             self._nav_refresh(user, self._show_host_pass_menu, table)
@@ -5544,6 +5545,9 @@ PlayAural Server
 
     def _show_host_kick_menu(self, user: NetworkUser, table: "Table", ban: bool) -> None:
         """Show the kick (or kick-and-ban) player menu."""
+        if table.host != user.username:
+            self._return_to_game(user, table)
+            return
         items = self._get_host_kick_menu_items(user, table)
         menu_id = "host_kick_ban_menu" if ban else "host_kick_menu"
         user.show_menu(
@@ -7323,6 +7327,61 @@ PlayAural Server
                 online_users.append(username)
         return sorted(online_users, key=str.lower)
 
+    def _format_presence_status(self, locale: str, username: str) -> str:
+        """Return a localized, table-aware presence status for an online user."""
+        table = self._tables.find_user_table(username)
+        if not table:
+            return Localization.get(locale, "presence-status-main-menu")
+
+        game_class = get_game_class(table.game_type)
+        game_name = (
+            Localization.get(locale, game_class.get_name_key())
+            if game_class
+            else table.game_type
+        )
+
+        member = next(
+            (
+                table_member
+                for table_member in table.members
+                if table_member.username == username
+            ),
+            None,
+        )
+        status = table.effective_status()
+        if member and member.is_spectator:
+            if status == "playing":
+                return Localization.get(
+                    locale,
+                    "presence-status-spectating",
+                    game=game_name,
+                )
+            if status == "finished":
+                return Localization.get(
+                    locale,
+                    "presence-status-spectating-results",
+                    game=game_name,
+                )
+            return Localization.get(
+                locale,
+                "presence-status-watching-table",
+                game=game_name,
+            )
+
+        if status == "playing":
+            return Localization.get(locale, "presence-status-playing", game=game_name)
+        if status == "finished":
+            return Localization.get(
+                locale,
+                "presence-status-reviewing-results",
+                game=game_name,
+            )
+        return Localization.get(
+            locale,
+            "presence-status-waiting-table",
+            game=game_name,
+        )
+
     def _format_online_users_lines(self, user: NetworkUser) -> list[tuple[str, str]]:
         """Format online users with game names for menu display. Returns tuples of (username, display_text)."""
         lines: list[tuple[str, str]] = []
@@ -7344,16 +7403,7 @@ PlayAural Server
             if not online_user.approved:
                 status = Localization.get(user.locale, "online-user-waiting-approval")
             else:
-                table = self._tables.find_user_table(username)
-                if table:
-                    game_class = get_game_class(table.game_type)
-                    status = (
-                        Localization.get(user.locale, game_class.get_name_key())
-                        if game_class
-                        else table.game_type
-                    )
-                else:
-                    status = Localization.get(user.locale, "online-user-not-in-game")
+                status = self._format_presence_status(user.locale, username)
             
             # Use the full entry format: {username} ({role}, {client}, {language}): {status}
             line = Localization.get(

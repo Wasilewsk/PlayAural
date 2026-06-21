@@ -155,6 +155,7 @@ class Game(
         self._options_path: dict[str, list[str]] = {}
         self._destroyed: bool = False  # Whether game has been destroyed
         self._last_game_result = None  # Stored for end-screen restoration
+        self._end_screen_open_player_ids: set[str] = set()
         # Per-player transcript of table events (runtime-only). Games that want a
         # reviewable history call record_transcript_event(); see get_transcript().
         self._transcripts: dict[str, list[dict[str, str]]] = {}
@@ -448,6 +449,9 @@ class Game(
         # Clean up game-specific state
         self.player_action_sets.pop(player_id, None)
         self._users.pop(player_id, None)
+        discard_end_screen = getattr(self, "_discard_end_screen_player_id", None)
+        if discard_end_screen:
+            discard_end_screen(player_id)
         
         # Notify others
         self.broadcast_l("spectator-left", buffer="system", player=player.name)
@@ -471,6 +475,9 @@ class Game(
         # Clean up game-specific state
         self.player_action_sets.pop(player_id, None)
         self._users.pop(player_id, None)
+        discard_end_screen = getattr(self, "_discard_end_screen_player_id", None)
+        if discard_end_screen:
+            discard_end_screen(player_id)
         
         # Notify others
         self.broadcast_l("table-left", buffer="system", player=player.name)

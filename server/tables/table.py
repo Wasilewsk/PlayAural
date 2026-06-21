@@ -194,6 +194,13 @@ class Table(DataClassJSONMixin):
         voice_reason: str = "voice-status-left-table",
     ) -> None:
         """Remove a member from the table."""
+        if self._game and hasattr(self._game, "_discard_end_screen_player_id"):
+            for player in list(self._game.players):
+                replaced_name = getattr(player, "replaced_human_name", "")
+                if player.name == username or replaced_name == username:
+                    self._game._discard_end_screen_player_id(player.id)
+                    break
+
         self.members = [m for m in self.members if m.username != username]
         self._users.pop(username, None)
         if self._manager and hasattr(self._manager, "_username_to_table"):
@@ -452,6 +459,9 @@ class Table(DataClassJSONMixin):
         old_options = None
         if hasattr(old_game, "options"):
             old_options = old_game.options
+        end_screen_state = None
+        if hasattr(old_game, "_export_end_screen_state"):
+            end_screen_state = old_game._export_end_screen_state()
 
         # 2. Clean up stale members
         # If a player disconnected during the end-game sequence, they might still be in self.members
@@ -577,10 +587,14 @@ class Table(DataClassJSONMixin):
             new_game.scheduled_sounds = list(old_game.scheduled_sounds)
             new_game.sound_scheduler_tick = old_game.sound_scheduler_tick
 
-        # 12. Play waiting lobby music
+        # 12. Preserve per-player post-game overlays across the fresh lobby game.
+        if hasattr(new_game, "_import_end_screen_state"):
+            new_game._import_end_screen_state(end_screen_state)
+
+        # 13. Play waiting lobby music
         new_game.play_music("findgamemus.ogg")
 
-        # 13. Mark and detach old runtime state so ticks or stale callbacks cannot affect the table.
+        # 14. Mark and detach old runtime state so ticks or stale callbacks cannot affect the table.
         old_game._destroyed = True
         if hasattr(old_game, "clear_scheduled_sounds"):
             old_game.clear_scheduled_sounds()
@@ -596,7 +610,7 @@ class Table(DataClassJSONMixin):
             old_game._users.clear()
         old_game._table = None
 
-        # 14. Sync status
+        # 15. Sync status
         self.status = "waiting"
         self.game_json = new_game.to_json()
         self._last_menu_state_hash = None

@@ -188,7 +188,22 @@ class TestFriendsSystem:
         bob_user = NetworkUser("Bob", "en", bob_client, uuid=bob_record.uuid, approved=True)
         items = self.server._get_friends_list_menu_items(bob_user)
 
-        assert any(item.id == "friend_Alice" and "In Lobby" in item.text for item in items)
+        assert any(item.id == "friend_Alice" and "Main menu" in item.text for item in items)
+
+        table = self.server._tables.create_table(
+            "crazyeights",
+            "Alice",
+            self.server._users["Alice"],
+        )
+        try:
+            items = self.server._get_friends_list_menu_items(bob_user)
+            assert any(
+                item.id == "friend_Alice"
+                and "Waiting at Crazy Eights table" in item.text
+                for item in items
+            )
+        finally:
+            table.destroy()
 
     @pytest.mark.asyncio
     async def test_remove_friend_prompts_before_deleting(self):

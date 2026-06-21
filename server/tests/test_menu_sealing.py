@@ -61,6 +61,14 @@ def actions_menu_messages(user: MockUser) -> list:
     ]
 
 
+def game_over_messages(user: MockUser) -> list:
+    return [
+        m
+        for m in user.messages
+        if m.type == "show_menu" and m.data.get("menu_id") == "game_over"
+    ]
+
+
 class TestSealedOrchestrators:
     @pytest.mark.parametrize("name", SEALED_MENU_ORCHESTRATORS)
     def test_override_raises_at_class_creation(self, name: str) -> None:
@@ -171,6 +179,191 @@ class TestRecordAndFlush:
             {"type": "menu", "menu_id": "turn_menu", "selection_id": "whos_at_table"},
         )
         assert len(turn_menu_messages(user1)) >= 1
+
+
+class TestPostGameMenuState:
+    def test_end_screen_actions_are_ordered_leave_then_return(self) -> None:
+        game = make_game()
+        player = game.players[0]
+        user = game.get_user(player)
+        result = game.build_game_result()
+
+        game._show_end_screen_to_player(player, result)
+
+        items = user.get_current_menu_items("game_over")
+        assert items is not None
+        assert [item.id for item in items[-2:]] == ["leave_game", "return_to_table"]
+        assert game._is_end_screen_open_for_player(player)
+
+    def test_score_line_selection_does_not_dismiss_end_screen(self) -> None:
+        game = make_game()
+        player = game.players[0]
+        user = game.get_user(player)
+        result = game.build_game_result()
+        game._last_game_result = result
+        game._show_end_screen_to_player(player, result)
+        user.clear_messages()
+
+        game.handle_event(
+            player,
+            {
+                "type": "menu",
+                "menu_id": "game_over",
+                "selection_id": "score_line_0",
+            },
+        )
+
+        assert "game_over" in user.menus
+        assert game._is_end_screen_open_for_player(player)
+        assert turn_menu_messages(user) == []
+
+    def test_return_to_table_dismisses_only_that_players_end_screen(self) -> None:
+        game = make_game()
+        p1, p2 = game.players
+        user1 = game.get_user(p1)
+        user2 = game.get_user(p2)
+        result = game.build_game_result()
+        game._last_game_result = result
+        game._show_end_screen_to_player(p1, result)
+        game._show_end_screen_to_player(p2, result)
+        user1.clear_messages()
+        user2.clear_messages()
+
+        game.handle_event(
+            p1,
+            {
+                "type": "menu",
+                "menu_id": "game_over",
+                "selection_id": "return_to_table",
+            },
+        )
+
+        assert "game_over" not in user1.menus
+        assert "turn_menu" in user1.menus
+        assert "game_over" in user2.menus
+        assert not game._is_end_screen_open_for_player(p1)
+        assert game._is_end_screen_open_for_player(p2)
+
+    def test_table_refresh_keeps_each_open_end_screen_visible(self) -> None:
+        game = make_game()
+        p1, p2 = game.players
+        user1 = game.get_user(p1)
+        user2 = game.get_user(p2)
+        result = game.build_game_result()
+        game._last_game_result = result
+        game._show_end_screen_to_player(p1, result)
+        game._show_end_screen_to_player(p2, result)
+        user1.clear_messages()
+        user2.clear_messages()
+
+        game.refresh_menus()
+        game.flush_menus()
+
+        assert "game_over" in user1.menus
+        assert "game_over" in user2.menus
+        assert game_over_messages(user1)
+        assert game_over_messages(user2)
+        assert "turn_menu" not in user1.menus
+        assert "turn_menu" not in user2.menus
+
+    def test_end_screen_restores_after_disconnect_and_reconnect(self) -> None:
+        game = make_game()
+        player = game.players[0]
+        user = game.get_user(player)
+        result = game.build_game_result()
+        game._last_game_result = result
+        game._show_end_screen_to_player(player, result)
+
+        game._users.pop(player.id)
+        game.refresh_menus(player)
+        game.flush_menus()
+        assert game._is_end_screen_open_for_player(player)
+
+        user.clear_messages()
+        game.attach_user(player.id, user)
+        game.refresh_menus(player)
+        game.flush_menus()
+
+        assert "game_over" in user.menus
+        assert game_over_messages(user)
+
+    def test_dismissing_final_end_screen_releases_stored_result(self) -> None:
+        game = make_game(player_count=1)
+        player = game.players[0]
+        result = game.build_game_result()
+        game._last_game_result = result
+        game._show_end_screen_to_player(player, result)
+
+        game._dismiss_end_screen_for_player(player)
+
+        assert not game._end_screen_open_player_ids
+        assert game._last_game_result is None
+
+    def test_removed_players_are_pruned_from_end_screen_state(self) -> None:
+        game = make_game()
+        p1, p2 = game.players
+        result = game.build_game_result()
+        game._last_game_result = result
+        game._show_end_screen_to_player(p1, result)
+        game._show_end_screen_to_player(p2, result)
+
+        game.remove_player(p2.id)
+
+        assert game._end_screen_open_player_ids == {p1.id}
+        assert game._last_game_result is result
+
+        game.remove_player(p1.id)
+
+        assert not game._end_screen_open_player_ids
+        assert game._last_game_result is None
+
+    def test_imported_end_screen_state_blocks_fresh_lobby_refresh(self) -> None:
+        old_game = make_game()
+        result = old_game.build_game_result()
+        old_game._last_game_result = result
+        old_game._show_end_screen(old_game._last_game_result)
+        state = old_game._export_end_screen_state()
+
+        new_game = make_game()
+        player = new_game.players[0]
+        user = new_game.get_user(player)
+        new_game._import_end_screen_state(state)
+
+        new_game.refresh_menus()
+        new_game.flush_menus()
+
+        assert "game_over" in user.menus
+        assert "turn_menu" not in user.menus
+
+    def test_imported_end_screen_state_prunes_players_not_in_fresh_lobby(self) -> None:
+        old_game = make_game()
+        result = old_game.build_game_result()
+        old_game._last_game_result = result
+        old_game._show_end_screen(old_game._last_game_result)
+        state = old_game._export_end_screen_state()
+
+        new_game = make_game(player_count=1)
+        new_game._import_end_screen_state(state)
+
+        assert new_game._end_screen_open_player_ids == {new_game.players[0].id}
+        assert new_game._last_game_result is result
+
+    def test_starting_new_game_dismisses_all_open_end_screens(self) -> None:
+        game = make_game()
+        p1, p2 = game.players
+        user1 = game.get_user(p1)
+        user2 = game.get_user(p2)
+        result = game.build_game_result()
+        game._last_game_result = result
+        game._show_end_screen_to_player(p1, result)
+        game._show_end_screen_to_player(p2, result)
+
+        game._start_game_from_lobby()
+
+        assert "game_over" not in user1.menus
+        assert "game_over" not in user2.menus
+        assert not game._end_screen_open_player_ids
+        assert game._last_game_result is None
 
 
 class TestPersistentStartAction:

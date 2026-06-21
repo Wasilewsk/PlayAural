@@ -125,6 +125,32 @@ class TestTableInviteReclaim:
         )
 
     @pytest.mark.asyncio
+    async def test_host_invite_success_refreshes_invite_menu(self):
+        host = self._create_online_user("Host")
+        guest = self._create_online_user("Guest")
+        friend = self._create_online_user("Friend")
+        self.db.send_friend_request(host.uuid, friend.uuid)
+        self.db.accept_friend_request(host.uuid, friend.uuid)
+        table, _ = self._create_waiting_table(
+            host,
+            guest,
+            PigGame(options=PigOptions(target_score=25)),
+        )
+
+        self.server._show_host_invite_menu(host, table)
+        await self.server._handle_host_invite_selection(
+            host,
+            f"invite_{friend.username}",
+            {"table_id": table.table_id},
+        )
+
+        assert self.server._user_states[host.username]["menu"] == "host_invite_menu"
+        assert friend.username in self.server._pending_invites
+        item_ids = self._get_menu_action_ids(host, "host_invite_menu")
+        assert f"invite_{friend.username}" not in item_ids
+        assert "back" in item_ids
+
+    @pytest.mark.asyncio
     async def test_table_invite_info_line_does_not_dismiss_prompt(self):
         host = self._create_online_user("Host")
         guest = self._create_online_user("Guest")
@@ -611,6 +637,52 @@ class TestTableInviteReclaim:
 
         assert "leave.ogg" in self._sound_names(host)
         assert all(member.username != guest.username for member in table.members)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("is_ban", [False, True])
+    async def test_host_kick_success_refreshes_menu_when_candidates_run_out(self, is_ban):
+        host = self._create_online_user("Host")
+        guest = self._create_online_user("Guest")
+        table, _ = self._create_waiting_table(
+            host,
+            guest,
+            PigGame(options=PigOptions(target_score=25)),
+        )
+        self.server._show_host_kick_menu(host, table, ban=is_ban)
+
+        await self.server._handle_host_kick_selection(
+            host,
+            f"kick_{guest.username}",
+            {"table_id": table.table_id, "ban": is_ban},
+        )
+
+        expected_menu = "host_kick_ban_menu" if is_ban else "host_kick_menu"
+        assert self.server._user_states[host.username]["menu"] == expected_menu
+        item_ids = self._get_menu_action_ids(host, expected_menu)
+        assert item_ids == ["", "back"]
+
+    @pytest.mark.asyncio
+    async def test_host_pass_success_refreshes_with_no_longer_host_state(self):
+        host = self._create_online_user("Host")
+        guest = self._create_online_user("Guest")
+        table, _ = self._create_waiting_table(
+            host,
+            guest,
+            PigGame(options=PigOptions(target_score=25)),
+        )
+        self.server._show_host_pass_menu(host, table)
+
+        await self.server._handle_host_pass_selection(
+            host,
+            f"pass_{guest.username}",
+            {"table_id": table.table_id},
+        )
+
+        assert table.host == guest.username
+        assert self.server._user_states[host.username]["menu"] == "host_pass_menu"
+        items = host.get_current_menu_items("host_pass_menu") or []
+        assert [item.id for item in items] == ["", "back"]
+        assert any("You passed host to another player" in item.text for item in items)
 
     @pytest.mark.asyncio
     async def test_host_kick_uses_crazyeights_custom_table_leave_sound(self):

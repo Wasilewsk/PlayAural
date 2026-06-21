@@ -31,6 +31,13 @@ class GameResultMixin:
     def clear_last_game_result(self) -> None:
         """Clear the stored last game result."""
         self._last_game_result = None
+        self._ensure_end_screen_state()
+        self._end_screen_open_player_ids.clear()
+
+    def _ensure_end_screen_state(self) -> None:
+        """Initialize runtime-only end-screen state for old restored instances."""
+        if not hasattr(self, "_end_screen_open_player_ids"):
+            self._end_screen_open_player_ids = set()
 
     def finish_game(self, show_end_screen: bool = True) -> None:
         """Mark the game as finished, persist result, and optionally show end screen.
@@ -49,6 +56,8 @@ class GameResultMixin:
         # Build and persist the game result
         result = self.build_game_result()
         self._last_game_result = result  # Store for menu restoration
+        self._ensure_end_screen_state()
+        self._end_screen_open_player_ids.clear()
         self._persist_result(result)
 
         # Stop ambience — clients handle outro playback automatically
@@ -145,23 +154,44 @@ class GameResultMixin:
         for player in self.players:
             self._show_end_screen_to_player(player, result)
 
-    def _show_end_screen_to_player(self, player: "Player", result: GameResult) -> None:
+    def _show_end_screen_to_player(
+        self,
+        player: "Player",
+        result: GameResult,
+        *,
+        mark_open: bool = True,
+    ) -> None:
         """Show the end screen to a specific player."""
         user = self.get_user(player)
         if user:
+            if mark_open:
+                self._ensure_end_screen_state()
+                self._end_screen_open_player_ids.add(player.id)
             lines = self.format_end_screen(result, user.locale)
-            items = [MenuItem(text=line, id="score_line") for line in lines]
-            # Add Return to Lobby and Leave buttons at the end
-            items.append(MenuItem(
-                text=Localization.get(user.locale, "return-to-lobby"),
-                id="return_to_lobby"
-            ))
-            items.append(MenuItem(
-                text=Localization.get(user.locale, "game-leave"),
-                id="leave_game"
-            ))
+            items = [
+                MenuItem(text=line, id=f"score_line_{index}")
+                for index, line in enumerate(lines)
+            ]
+            # Leave first, return second: Escape selects the safer return action.
+            items.append(
+                MenuItem(
+                    text=Localization.get(user.locale, "game-leave"),
+                    id="leave_game",
+                )
+            )
+            items.append(
+                MenuItem(
+                    text=Localization.get(user.locale, "return-to-table"),
+                    id="return_to_table",
+                )
+            )
             # game_over menu will be handled by the NEW game instance's EventHandlingMixin
-            user.show_menu("game_over", items, multiletter=False, escape_behavior=EscapeBehavior.SELECT_LAST)
+            user.show_menu(
+                "game_over",
+                items,
+                multiletter=False,
+                escape_behavior=EscapeBehavior.SELECT_LAST,
+            )
 
             # Bug 2 fix: If the player had a global overlay open (e.g. friends_hub_menu,
             # online_users, options_menu) when the game ended, _user_states still points
@@ -179,4 +209,80 @@ class GameResultMixin:
                     }
                     # Also clear any actions-menu-open flag so rebuild guards don't block
                     self._actions_menu_open.discard(player.id)
+
+    def _is_end_screen_open_for_player(self, player: "Player") -> bool:
+        """Return whether this player's post-game screen is still active."""
+        self._ensure_end_screen_state()
+        return player.id in self._end_screen_open_player_ids
+
+    def _clear_result_if_no_end_screens_remain(self) -> None:
+        """Release the stored result once no player can still view it."""
+        self._ensure_end_screen_state()
+        if not self._end_screen_open_player_ids:
+            self._last_game_result = None
+
+    def _discard_end_screen_player_id(self, player_id: str) -> None:
+        """Remove one player id from the post-game overlay state."""
+        self._ensure_end_screen_state()
+        self._end_screen_open_player_ids.discard(player_id)
+        self._clear_result_if_no_end_screens_remain()
+
+    def _prune_end_screen_state(self) -> None:
+        """Drop post-game overlay ids that no longer belong to this game."""
+        self._ensure_end_screen_state()
+        valid_player_ids = {player.id for player in self.players}
+        self._end_screen_open_player_ids.intersection_update(valid_player_ids)
+        self._clear_result_if_no_end_screens_remain()
+
+    def _restore_end_screen_if_open(self, player: "Player") -> bool:
+        """Repaint the player's own end screen and block unrelated menu refreshes."""
+        if not self._is_end_screen_open_for_player(player):
+            return False
+        result = self._last_game_result
+        if result is None:
+            self._discard_end_screen_player_id(player.id)
+            return False
+        self._show_end_screen_to_player(player, result, mark_open=False)
+        return True
+
+    def _dismiss_end_screen_for_player(self, player: "Player") -> None:
+        """Dismiss only one player's post-game screen."""
+        self._discard_end_screen_player_id(player.id)
+        user = self.get_user(player)
+        if user:
+            user.remove_menu("game_over")
+
+    def _dismiss_all_end_screens(self) -> None:
+        """Dismiss every active post-game screen, used when a new game starts."""
+        self._ensure_end_screen_state()
+        open_player_ids = list(self._end_screen_open_player_ids)
+        self._end_screen_open_player_ids.clear()
+        self._last_game_result = None
+        for player_id in open_player_ids:
+            player = self.get_player_by_id(player_id)
+            user = self.get_user(player) if player else None
+            if user:
+                user.remove_menu("game_over")
+
+    def _export_end_screen_state(self) -> dict[str, Any]:
+        """Return runtime end-screen state for transfer to a fresh lobby game."""
+        self._prune_end_screen_state()
+        return {
+            "result": self._last_game_result,
+            "open_player_ids": set(self._end_screen_open_player_ids),
+        }
+
+    def _import_end_screen_state(self, state: dict[str, Any] | None) -> None:
+        """Import runtime end-screen state after the table creates a fresh game."""
+        self._ensure_end_screen_state()
+        if not state:
+            self._last_game_result = None
+            self._end_screen_open_player_ids.clear()
+            return
+        self._last_game_result = state.get("result")
+        if self._last_game_result is None:
+            self._end_screen_open_player_ids.clear()
+            return
+        self._end_screen_open_player_ids = set(state.get("open_player_ids", set()))
+        self._prune_end_screen_state()
 

@@ -51,13 +51,34 @@ def test_online_users_menu_formats_game_names() -> None:
     viewer = MockUser("Viewer")
     bob = MockUser("Bob")
     alice = MockUser("Alice")
-    server._users = {"Viewer": viewer, "Bob": bob, "Alice": alice}
+    carol = MockUser("Carol")
+    server._users = {"Viewer": viewer, "Bob": bob, "Alice": alice, "Carol": carol}
 
-    server._tables.create_table("crazyeights", "Bob", bob)
+    table = server._tables.create_table("crazyeights", "Bob", bob)
+    table.add_member("Carol", carol, as_spectator=True)
 
     server._show_online_users_menu(viewer)
 
     texts = _menu_texts(viewer, "online_users")
-    assert "Bob (User, Desktop, English): Crazy Eights" in texts
-    assert "Alice (User, Desktop, English): Not in game" in texts
+    assert "Bob (User, Desktop, English): Waiting at Crazy Eights table" in texts
+    assert "Carol (User, Desktop, English): Watching Crazy Eights table" in texts
+    assert "Alice (User, Desktop, English): Main menu" in texts
+
+
+def test_online_users_menu_distinguishes_playing_and_spectating() -> None:
+    server = _make_server()
+    viewer = MockUser("Viewer")
+    bob = MockUser("Bob")
+    alice = MockUser("Alice")
+    server._users = {"Viewer": viewer, "Bob": bob, "Alice": alice}
+
+    table = server._tables.create_table("crazyeights", "Bob", bob)
+    table.add_member("Alice", alice, as_spectator=True)
+    table.status = "playing"
+
+    server._show_online_users_menu(viewer)
+
+    texts = _menu_texts(viewer, "online_users")
+    assert "Bob (User, Desktop, English): Playing Crazy Eights" in texts
+    assert "Alice (User, Desktop, English): Spectating Crazy Eights" in texts
 
