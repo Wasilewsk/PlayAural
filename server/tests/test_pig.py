@@ -283,6 +283,78 @@ def test_holding_scores_points_and_advances() -> None:
     assert game.current_player is next_player
 
 
+def test_touch_hold_focuses_actor_without_stealing_next_players_focus() -> None:
+    game = make_game(mobile_first=True)
+    next_user = game.get_user(game.players[1])
+    assert isinstance(next_user, MockUser)
+    next_user.client_type = "mobile"
+    game.on_start()
+    game.flush_menus()
+
+    actor, next_player = game.players
+    actor_user = game.get_user(actor)
+    assert isinstance(actor_user, MockUser)
+    actor_user.clear_messages()
+    next_user.clear_messages()
+    actor.round_score = 10
+
+    game.execute_action(actor, "bank")
+    game.flush_menus()
+
+    assert game.current_player is next_player
+    actor_updates = [
+        message
+        for message in actor_user.messages
+        if message.type in {"show_menu", "update_menu"}
+        and message.data.get("menu_id") == "turn_menu"
+    ]
+    next_updates = [
+        message
+        for message in next_user.messages
+        if message.type in {"show_menu", "update_menu"}
+        and message.data.get("menu_id") == "turn_menu"
+    ]
+    assert actor_updates[-1].data["selection_id"] == "roll"
+    assert next_updates[-1].data["selection_id"] is None
+
+
+def test_touch_bust_focuses_actor_without_stealing_next_players_focus() -> None:
+    game = make_game(mobile_first=True)
+    next_user = game.get_user(game.players[1])
+    assert isinstance(next_user, MockUser)
+    next_user.client_type = "mobile"
+    game.on_start()
+    game.flush_menus()
+
+    actor, next_player = game.players
+    actor_user = game.get_user(actor)
+    assert isinstance(actor_user, MockUser)
+    actor_user.clear_messages()
+    next_user.clear_messages()
+    actor.round_score = 10
+
+    with patch("server.games.pig.game.random.randint", return_value=1):
+        game.execute_action(actor, "roll")
+    resolve_roll(game)
+    game.flush_menus()
+
+    assert game.current_player is next_player
+    actor_updates = [
+        message
+        for message in actor_user.messages
+        if message.type in {"show_menu", "update_menu"}
+        and message.data.get("menu_id") == "turn_menu"
+    ]
+    next_updates = [
+        message
+        for message in next_user.messages
+        if message.type in {"show_menu", "update_menu"}
+        and message.data.get("menu_id") == "turn_menu"
+    ]
+    assert actor_updates[-1].data["selection_id"] == "roll"
+    assert next_updates[-1].data["selection_id"] is None
+
+
 def test_holding_target_score_wins_immediately() -> None:
     game = make_game(start=True, target_score=10)
     actor = game.players[0]

@@ -1,76 +1,97 @@
 \*\*Toss Up\*\*
 
+Toss Up is a push-your-luck dice game for 2 to 6 players. Each die shows one of three traffic-light colors: green, yellow, or red.
 
+Green dice earn points. Yellow and red dice stay in your hand for the next roll. You decide when to bank your turn points, but one dangerous roll can erase everything you have earned during that turn.
 
-Toss Up is a push-your-luck dice game where you roll a handful of colored dice. Each die can land on Green, Yellow, or Red. The concept is simple: keep rolling to accumulate points by landing on Green, or bank what you have and pass the turn. However, the presence of Red dice means you could bust and lose all your turn points at any moment.
+\*\*Goal\*\*
 
+Finish with the highest score above the target threshold. The default threshold is 100 points.
 
+Reaching exactly the threshold is not enough. You must bank a score that goes above it.
 
-The first player or team to reach the target score wins.
+\*\*Your Turn\*\*
 
+1\. Roll every die currently in your hand.
 
+2\. Set aside every green die. Each green die adds 1 point to your turn total.
 
-\*\*Gameplay\*\*
+3\. Keep every yellow and red die for the next roll.
 
+4\. Choose whether to roll the remaining dice again or bank your turn points.
 
+Banked points are safe and cannot be lost on later turns.
 
-The game is played in rounds, with each player taking one turn per round. On your turn, you start with a pool of dice (10 by default, configurable between 5 and 20).
+\*\*The Three Colors\*\*
 
+\* \*\*Green - Go:\*\* Set the die aside and add 1 point to your turn total.
 
+\* \*\*Yellow - Caution:\*\* The die earns no point and stays in your hand.
 
-\*\*The Dice Colors:\*\*
+\* \*\*Red - Stop:\*\* The die earns no point and stays in your hand. Under the Classic rules, red becomes dangerous when a roll contains no green dice.
 
-\* \*\*Green:\*\* You score 1 point per green die, and those dice are removed from your pool for the rest of the turn.
+\*\*Busts\*\*
 
-\* \*\*Yellow:\*\* These dice do nothing. They stay in your pool for the next roll.
+The selected rules determine when you bust:
 
-\* \*\*Red:\*\* These dice stay in your pool. They do not score, but they carry the risk of ending your turn.
+\* \*\*Classic:\*\* You bust when a roll contains no green dice and at least one red die. An all-yellow roll is safe.
 
+\* \*\*Forgiving:\*\* Green, yellow, and red have equal odds. You bust only when every die in the roll is red.
 
+When you bust, your turn ends immediately and you lose all unbanked points from that turn. Your previously banked score remains safe.
 
-If all of your dice are removed (all came up green), you receive a fresh set of dice at the starting count and can keep going. This is known as getting "fresh dice" and can lead to massive scores in a single turn.
+\*\*All-Yellow Rolls\*\*
 
+An all-yellow roll is safe but earns no points. You may roll those dice again, or choose Bank to end your turn with the points you already accumulated. If it was your first roll, banking ends the turn for 0 points.
 
+\*\*Fresh Dice\*\*
 
-\*\*Bust Conditions\*\*
+If every die in your hand rolls green, all of them are set aside. Your turn continues with a fresh full set of dice.
 
+There is no limit to how many fresh sets you can earn during one turn. You may keep building a very large turn total, but all of it remains at risk until you bank.
 
+\*\*Final Turns and Winning\*\*
 
-How you bust depends on the rules variant chosen at the \*\*table\*\*:
+When a player banks a score above the target threshold, every player who has not yet acted in that round receives one final turn.
 
-\* \*\*Standard (Default):\*\* You bust if you roll \*\*no green dice\*\* and at least one red die. You need at least one green to stay alive unless the roll is entirely yellow.
+After those remaining turns:
 
-\* \*\*PlayAural:\*\* You bust only if \*\*every single die\*\* lands on red (no greens and no yellows at all).
+\* The player with the highest score above the threshold wins.
 
+\* Players who already took their turn before the threshold was crossed do not receive another turn.
 
+\* If the highest eligible score is tied, only the tied leaders enter another complete tiebreaker round. Tiebreaker rounds continue until one leader has the higher score.
 
-When you bust, all points accumulated during the current turn are lost, and your turn ends immediately.
+\*\*Personal Options\*\*
 
+\* \*\*Brief announcements:\*\* Combines repeated roll and turn details into shorter audio messages.
 
-
-\*\*Winning\*\*
-
-
-
-The game continues until a player or team reaches the target score (default 100). If multiple players are tied at or above the target at the end of a round, they enter a tiebreaker round to determine the winner.
-
-
+\* \*\*Confirm risky actions:\*\* When enabled, a high-stakes reroll asks you to press Roll a second time. The warning is used when you are risking a meaningful turn total or could safely bank a winning lead.
 
 \*\*Game Options\*\*
 
-\* \*\*Target Score:\*\* The score needed to win (default 100, range 20-500).
+\* \*\*Target threshold:\*\* The score that must be exceeded to trigger final turns. Default: 100. Range: 20-500.
 
-\* \*\*Starting Dice:\*\* How many dice each player rolls per turn (default 10, range 5-20).
+\* \*\*Dice per set:\*\* Number of dice at the beginning of each turn and in every fresh set. Default: 10. Range: 5-20.
 
-\* \*\*Rules Variant:\*\* Standard (bust = no green + at least one red) or PlayAural (bust = all dice red).
+\* \*\*Rules:\*\* Choose Classic or Forgiving color odds and bust conditions.
 
+\*\*Information Actions\*\*
 
+\* \*\*Check turn status:\*\* Hear the current player, banked score, unbanked turn points, last roll, and dice remaining.
+
+\* \*\*Check scores:\*\* Hear every player's banked score.
 
 \*\*Keyboard Shortcuts\*\*
 
+\* \*\*R:\*\* Roll the current dice.
 
+\* \*\*B:\*\* Bank your current turn total and end your turn.
 
-\* \*\*R:\*\* Roll the dice.
+\* \*\*H:\*\* Check the current turn status.
 
-\* \*\*B:\*\* Bank your points.
+\* \*\*S:\*\* Check scores.
 
+\* \*\*Shift+S:\*\* Open detailed scores.
+
+Toss Up is based on the published Toss Up dice game and its traffic-light rules.

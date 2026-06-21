@@ -234,6 +234,11 @@ class PigGame(Game):
         player.pending_risky_action = ""
         player.risky_confirm_ticks = 0
 
+    def _focus_roll_after_action(self, player: PigPlayer) -> None:
+        """Return a touch player's completed action to the persistent Roll anchor."""
+        if self.is_touch_client(self.get_user(player)):
+            self.request_menu_focus(player, "roll")
+
     def _should_confirm_risky_roll(self, player: PigPlayer) -> bool:
         if player.is_bot or self._is_bank_enabled(player) is not None:
             self._clear_risky_confirmation(player)
@@ -557,6 +562,7 @@ class PigGame(Game):
                 brief_others_key="pig-player-busts-brief",
                 points=lost,
             )
+            self._focus_roll_after_action(player)
             self.end_turn()
             return
 
@@ -597,6 +603,7 @@ class PigGame(Game):
         if team and total >= self.options.target_score:
             self._finish_with_team(team)
             return
+        self._focus_roll_after_action(player)
         self.end_turn()
 
     def on_sequence_callback(

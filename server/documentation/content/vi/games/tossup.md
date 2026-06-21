@@ -1,76 +1,97 @@
-\*\*Toss Up (Gieo Màu)\*\*
+\*\*Toss Up\*\*
 
+Toss Up là trò chơi xúc xắc thử vận may dành cho 2 đến 6 người. Mỗi viên xúc xắc hiện một trong ba màu đèn giao thông: xanh, vàng hoặc đỏ.
 
+Mặt xanh mang lại điểm. Mặt vàng và mặt đỏ vẫn nằm trong tay để gieo tiếp. Bạn tự quyết định lúc nào nên chốt điểm lượt, nhưng chỉ một lần gieo nguy hiểm cũng có thể xóa sạch mọi điểm chưa chốt trong lượt đó.
 
-Toss Up là một trò chơi xúc xắc thử thách vận may, nơi bạn gieo một nhóm các viên xúc xắc có màu. Mỗi viên xúc xắc có thể hiện ra màu Xanh lá, Vàng hoặc Đỏ. Ý tưởng rất đơn giản: tiếp tục gieo để tích lũy điểm bằng cách tung ra màu Xanh, hoặc chốt điểm và kết thúc lượt. Tuy nhiên, sự xuất hiện của màu Đỏ có nghĩa là bạn có thể "mất trắng" và mất toàn bộ số điểm trong lượt đó bất cứ lúc nào.
+\*\*Mục tiêu\*\*
 
+Kết thúc với số điểm cao nhất trên mốc mục tiêu. Mốc mặc định là 100 điểm.
 
+Chạm đúng mốc vẫn chưa đủ. Bạn phải chốt tổng điểm vượt qua mốc đó.
 
-Người chơi (hoặc đội) đầu tiên đạt đến điểm mục tiêu sẽ giành chiến thắng.
+\*\*Lượt chơi của bạn\*\*
 
+1\. Gieo tất cả xúc xắc hiện có trong tay.
 
+2\. Để riêng mọi viên ra mặt xanh. Mỗi mặt xanh cộng 1 điểm vào điểm lượt.
 
-\*\*Cách chơi\*\*
+3\. Giữ các viên ra mặt vàng và mặt đỏ trong tay cho lần gieo tiếp theo.
 
+4\. Chọn gieo tiếp số xúc xắc còn lại hoặc chốt điểm lượt.
 
+Điểm đã chốt được bảo toàn và không thể mất trong các lượt sau.
 
-Trò chơi diễn ra theo vòng, mỗi người chơi thực hiện một lượt mỗi vòng. Khi bắt đầu lượt, bạn có một bộ xúc xắc (mặc định là 10 viên, có thể chỉnh từ 5 đến 20).
+\*\*Ý nghĩa ba màu\*\*
 
+\* \*\*Xanh - Đi:\*\* Để viên xúc xắc sang một bên và cộng 1 điểm vào điểm lượt.
 
+\* \*\*Vàng - Cẩn thận:\*\* Không được điểm; viên xúc xắc vẫn ở trong tay.
 
-\*\*Ý nghĩa các màu:\*\*
+\* \*\*Đỏ - Dừng:\*\* Không được điểm; viên xúc xắc vẫn ở trong tay. Với luật Cổ điển, mặt đỏ trở nên nguy hiểm khi lần gieo không có mặt xanh nào.
 
-\* \*\*Xanh lá:\*\* Bạn ghi được 1 điểm cho mỗi viên màu xanh, và những viên đó sẽ được bỏ ra ngoài trong phần còn lại của lượt.
+\*\*Mất trắng\*\*
 
-\* \*\*Vàng:\*\* Những viên này không có điểm. chúng sẽ ở lại trong bộ xúc xắc của bạn cho lần gieo tiếp theo.
+Luật đã chọn quyết định khi nào bạn mất trắng:
 
-\* \*\*Đỏ:\*\* Những viên này cũng ở lại trong bộ xúc xắc. chúng không ghi điểm nhưng mang theo rủi ro khiến lượt của bạn kết thúc.
+\* \*\*Cổ điển:\*\* Bạn mất trắng nếu lần gieo không có mặt xanh nhưng có ít nhất một mặt đỏ. Toàn mặt vàng vẫn an toàn.
 
+\* \*\*Dễ thở:\*\* Ba màu xanh, vàng và đỏ có cơ hội bằng nhau. Bạn chỉ mất trắng khi tất cả xúc xắc vừa gieo đều ra mặt đỏ.
 
+Khi mất trắng, lượt kết thúc ngay và bạn mất toàn bộ điểm chưa chốt trong lượt đó. Điểm đã chốt từ trước vẫn được bảo toàn.
 
-Nếu tất cả xúc xắc đều đã được bỏ ra ngoài (tất cả đều gieo ra màu xanh), bạn sẽ nhận lại một bộ xúc xắc mới đầy đủ và có thể tiếp tục gieo. Điều này giúp bạn có cơ hội tạo ra những lượt ghi điểm cực lớn.
+\*\*Gieo toàn mặt vàng\*\*
 
+Toàn mặt vàng không làm bạn mất trắng, nhưng cũng không mang lại điểm. Bạn có thể gieo lại số xúc xắc đó hoặc chọn Chốt điểm để kết thúc lượt với số điểm đã tích lũy. Nếu đây là lần gieo đầu tiên, bạn có thể chốt 0 điểm để kết thúc lượt.
 
+\*\*Nhận bộ xúc xắc mới\*\*
 
-\*\*Điều kiện Mất trắng (Bust)\*\*
+Nếu tất cả xúc xắc trong tay đều ra mặt xanh, bạn để riêng toàn bộ số đó rồi tiếp tục lượt với một bộ mới đầy đủ.
 
+Không có giới hạn số bộ mới trong một lượt. Bạn có thể tích lũy điểm lượt rất lớn, nhưng toàn bộ số điểm đó vẫn có thể mất cho đến khi được chốt.
 
+\*\*Lượt cuối và chiến thắng\*\*
 
-Việc bạn bị mất trắng hay không tùy thuộc vào biến thể luật được chọn tại \*\*bàn chơi\*\*:
+Khi một người chốt tổng điểm vượt mốc mục tiêu, tất cả người chưa chơi trong vòng hiện tại được nhận một lượt cuối.
 
-\* \*\*Tiêu chuẩn (Mặc định):\*\* Bạn mất trắng nếu gieo \*\*không ra màu xanh nào\*\* và có ít nhất một viên màu đỏ. Bạn cần ít nhất một màu xanh để sống sót, trừ khi tất cả xúc xắc gieo ra đều là màu vàng.
+Sau những lượt còn lại:
 
-\* \*\*PlayAural:\*\* Bạn chỉ mất trắng nếu \*\*tất cả xúc xắc\*\* đều gieo ra màu đỏ (không có màu xanh và cũng không có màu vàng).
+\* Người có điểm cao nhất trên mốc sẽ thắng.
 
+\* Người đã hoàn thành lượt trước khi mốc bị vượt sẽ không được chơi thêm lượt nữa.
 
+\* Nếu những người dẫn đầu hòa điểm, chỉ họ bước vào một vòng phân định đầy đủ. Các vòng phân định tiếp tục cho đến khi có một người đạt điểm cao hơn.
 
-Khi bị mất trắng, toàn bộ điểm tích lũy trong lượt hiện tại sẽ bị xóa sạch và lượt chơi của bạn kết thúc ngay lập tức.
+\*\*Tùy chọn cá nhân\*\*
 
+\* \*\*Thông báo ngắn gọn:\*\* Gộp các chi tiết lặp lại về lần gieo và lượt chơi thành thông báo âm thanh ngắn hơn.
 
-
-\*\*Chiến thắng\*\*
-
-
-
-Trò chơi tiếp tục cho đến khi có người đạt đến điểm mục tiêu (mặc định là 100). Nếu có nhiều người cùng đạt hoặc vượt điểm mục tiêu vào cuối vòng, những người đó sẽ vào vòng phân định thắng thua để tìm ra người chiến thắng cuối cùng.
-
-
+\* \*\*Xác nhận hành động rủi ro:\*\* Khi bật, một lần gieo tiếp có mức rủi ro cao sẽ yêu cầu bạn nhấn Gieo lần thứ hai. Cảnh báo xuất hiện khi bạn đang mạo hiểm số điểm lượt đáng kể hoặc đã có thể chốt để giành lợi thế chiến thắng.
 
 \*\*Tùy chọn trò chơi\*\*
 
-\* \*\*Điểm mục tiêu:\*\* Số điểm cần đạt để thắng (mặc định 100, phạm vi 20-500).
+\* \*\*Mốc điểm:\*\* Số điểm phải vượt qua để bắt đầu các lượt cuối. Mặc định: 100. Phạm vi: 20-500.
 
-\* \*\*Số xúc xắc bắt đầu:\*\* Số viên xúc xắc mỗi người gieo mỗi lượt (mặc định 10, phạm vi 5-20).
+\* \*\*Số xúc xắc mỗi bộ:\*\* Số viên khi bắt đầu mỗi lượt và trong mỗi bộ mới. Mặc định: 10. Phạm vi: 5-20.
 
-\* \*\*Biến thể luật:\*\* Tiêu chuẩn (nổ = không xanh + ít nhất một đỏ) hoặc PlayAural (nổ = toàn bộ xúc xắc đỏ).
+\* \*\*Luật chơi:\*\* Chọn Cổ điển hoặc Dễ thở để quyết định cơ hội của từng màu và điều kiện mất trắng.
 
+\*\*Hành động thông tin\*\*
 
+\* \*\*Kiểm tra lượt hiện tại:\*\* Nghe người đang tới lượt, điểm đã chốt, điểm lượt chưa chốt, lần gieo gần nhất và số xúc xắc còn lại.
 
-\*\*Phím tắt bàn phím\*\*
+\* \*\*Kiểm tra điểm:\*\* Nghe điểm đã chốt của từng người chơi.
 
+\*\*Phím tắt\*\*
 
+\* \*\*R:\*\* Gieo số xúc xắc hiện tại.
 
-\* \*\*R:\*\* Gieo xúc xắc.
+\* \*\*B:\*\* Chốt điểm lượt hiện tại và kết thúc lượt.
 
-\* \*\*B:\*\* Chốt điểm.
+\* \*\*H:\*\* Kiểm tra lượt hiện tại.
 
+\* \*\*S:\*\* Kiểm tra điểm.
+
+\* \*\*Shift+S:\*\* Mở bảng điểm chi tiết.
+
+Toss Up trong PlayAural được xây dựng dựa trên trò chơi xúc xắc Toss Up đã phát hành và bộ luật đèn giao thông của trò chơi đó.

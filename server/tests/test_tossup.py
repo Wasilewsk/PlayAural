@@ -1,563 +1,674 @@
-"""
-Tests for the Toss Up game.
+"""Tests for polished Toss Up mechanics, accessibility, and persistence."""
 
-Following the testing strategy:
-- Unit tests for individual functions
-- Play tests that run the game from start to finish with bots
-- Persistence tests (save/reload at each tick)
-"""
+import json
+from pathlib import Path
+import random
+import re
+from unittest.mock import patch
 
 import pytest
-import random
-import json
 
-from ..games.tossup.game import TossUpGame, TossUpOptions
-from ..users.test_user import MockUser
+from ..games.registry import GameRegistry
+from ..games.tossup.game import (
+    RISK_CONFIRM_TICKS,
+    TossUpGame,
+    TossUpOptions,
+    TossUpPlayer,
+)
+from ..messages.localization import Localization
 from ..users.bot import Bot
+from ..users.test_user import MockUser
 
 
-class TestTossUpGameUnit:
-    """Unit tests for Toss Up game functions."""
+LOCALES_DIR = Path(__file__).parent.parent / "locales"
 
-    def test_game_creation(self):
-        """Test creating a new Toss Up game."""
-        game = TossUpGame()
-        assert game.get_name() == "Toss Up"
-        assert game.get_type() == "tossup"
-        assert game.get_category() == "dice"
-        assert game.get_min_players() == 2
-        assert game.get_max_players() == 8
 
-    def test_player_creation(self):
-        """Test creating a player with correct initial state."""
-        game = TossUpGame()
-        user = MockUser("Alice")
-        player = game.add_player("Alice", user)
-
-        assert player.name == "Alice"
-        assert player.turn_points == 0
-        assert player.dice_count == 0
-        assert player.last_roll == {}
-        assert player.is_bot is False
-
-    def test_options_defaults(self):
-        """Test default game options."""
-        game = TossUpGame()
-        assert game.options.target_score == 100
-        assert game.options.starting_dice == 10
-        assert game.options.rules_variant == "Standard"
-
-    def test_custom_options(self):
-        """Test custom game options."""
-        options = TossUpOptions(
-            target_score=200, starting_dice=15, rules_variant="PlayAural"
+def make_game(
+    *,
+    player_count: int = 2,
+    start: bool = True,
+    bot_all: bool = False,
+    mobile_first: bool = False,
+    **option_overrides,
+) -> TossUpGame:
+    game = TossUpGame(options=TossUpOptions(**option_overrides))
+    game.setup_keybinds()
+    for index in range(player_count):
+        name = f"Player{index + 1}"
+        user = (
+            Bot(name, uuid=f"p{index + 1}")
+            if bot_all
+            else MockUser(name, uuid=f"p{index + 1}")
         )
-        game = TossUpGame(options=options)
-        assert game.options.target_score == 200
-        assert game.options.starting_dice == 15
-        assert game.options.rules_variant == "PlayAural"
-
-    def test_serialization(self):
-        """Test that game state can be serialized and deserialized."""
-        game = TossUpGame()
-        user1 = MockUser("Alice")
-        user2 = MockUser("Bob")
-        game.add_player("Alice", user1)
-        game.add_player("Bob", user2)
-
-        # Start game to set up teams
+        if mobile_first and index == 0:
+            user.client_type = "mobile"
+        game.add_player(name, user)
+    game.host = "Player1"
+    if start:
         game.on_start()
-
-        # Modify some state via TeamManager
-        game._team_manager.add_to_team_score("Alice", 35)
-        game.players[0].turn_points = 12
-        game.players[0].dice_count = 3
-        game.players[0].last_roll = {"green": 2, "yellow": 1, "red": 1}
-        game.round = 4
-
-        # Serialize
-        json_str = game.to_json()
-        data = json.loads(json_str)
-
-        # Verify structure
-        assert data["round"] == 4
-        assert len(data["players"]) == 2
-        assert data["players"][0]["turn_points"] == 12
-        assert data["players"][0]["dice_count"] == 3
-        assert data["players"][0]["last_roll"]["green"] == 2
-        # Score is in team_manager, not player
-        assert data["_team_manager"]["teams"][0]["total_score"] == 35
-
-        # Deserialize
-        loaded_game = TossUpGame.from_json(json_str)
-        assert loaded_game.round == 4
-        assert loaded_game.get_player_score(loaded_game.players[0]) == 35
-        assert loaded_game.players[0].turn_points == 12
-        assert loaded_game.players[0].dice_count == 3
-        assert loaded_game.players[0].last_roll["green"] == 2
-
-
-class TestTossUpGameActions:
-    """Test individual game actions."""
-
-    def setup_method(self):
-        """Set up a game with two players for each test."""
-        self.game = TossUpGame()
-        self.user1 = MockUser("Alice")
-        self.user2 = MockUser("Bob")
-        self.player1 = self.game.add_player("Alice", self.user1)
-        self.player2 = self.game.add_player("Bob", self.user2)
-        # Start game to initialize TeamManager and turn order
-        self.game.on_start()
-        # Reset to first player
-        self.game.reset_turn_order()
-
-    def test_roll_all_green(self):
-        """Test rolling when all dice come up green."""
-        # Seed random to get mostly green
-        random.seed(10)
-
-        self.player1.dice_count = 10
-        self.player1.turn_points = 0
-        initial_turn_points = self.player1.turn_points
-
-        self.game.execute_action(self.player1, "roll")
-
-        # Should have added some points
-        assert self.player1.turn_points > initial_turn_points
-        # Game should still be active and turn should not have ended
-        assert self.game.game_active
-
-    def test_roll_standard_bust(self):
-        """Test bust condition in Standard rules (no greens, at least one red)."""
-        self.game.options.rules_variant = "Standard"
-
-        # Try multiple times to get a bust scenario
-        # A bust happens when green=0 and red>0
-        busted = False
-        for attempt in range(50):
-            # Reset player state for new attempt
-            self.player1.dice_count = 3
-            self.player1.turn_points = 20
-
-            random.seed(1000 + attempt)
-            old_player = self.game.current_player
-            self.game.execute_action(self.player1, "roll")
-
-            # Check if we got a bust
-            if self.player1.turn_points == 0 and self.game.current_player != old_player:
-                busted = True
-                break
-            elif self.game.current_player != old_player:
-                # Turn ended but not from bust, reset for next test
-                self.game.reset_turn_order()
-
-        # We should have encountered at least one bust in 50 attempts
-        assert busted, "Should encounter a bust scenario in Standard rules"
-
-    def test_roll_PlayAural_bust(self):
-        """Test bust condition in PlayAural rules (all red)."""
-        self.game.options.rules_variant = "PlayAural"
-
-        # Try multiple times to get a bust scenario
-        # A bust in PlayAural happens when green=0 and yellow=0 (all red)
-        busted = False
-        for attempt in range(50):
-            # Reset player state for new attempt
-            self.player1.dice_count = 2
-            self.player1.turn_points = 15
-
-            random.seed(2000 + attempt)
-            old_player = self.game.current_player
-            self.game.execute_action(self.player1, "roll")
-
-            # Check if we got a bust
-            if self.player1.turn_points == 0 and self.game.current_player != old_player:
-                busted = True
-                break
-            elif self.game.current_player != old_player:
-                # Turn ended but not from bust, reset for next test
-                self.game.reset_turn_order()
-
-        # We should have encountered at least one bust in 50 attempts
-        assert busted, "Should encounter a bust scenario in PlayAural rules"
-
-    def test_fresh_dice(self):
-        """Test that running out of dice gives fresh dice."""
-        # Seed to get all greens or yellows (no red)
-        random.seed(42)
-
-        self.player1.dice_count = 2
-        self.player1.turn_points = 10
-
-        # Find a seed where we remove all dice (greens/yellows only)
-        found_clear = False
-        for seed in range(1000):
-            random.seed(seed)
-            red = 0
-            for _ in range(2):
-                roll = random.randint(1, 6)
-                if roll == 6:
-                    red += 1
-            if red == 0:
-                random.seed(seed)
-                found_clear = True
-                break
-
-        if found_clear:
-            old_turn_points = self.player1.turn_points
-            self.game.execute_action(self.player1, "roll")
-
-            # Should have 0 red dice left, so get fresh dice
-            if self.player1.dice_count == self.game.options.starting_dice:
-                # Successfully got fresh dice
-                assert self.player1.turn_points >= old_turn_points
-
-    def test_bank_adds_to_score(self):
-        """Test that banking adds turn points to total."""
-        self.player1.turn_points = 25
-        # Set initial score via TeamManager
-        self.game._team_manager.add_to_team_score("Alice", 15)
-        old_player = self.game.current_player
-        self.game.execute_action(self.player1, "bank")
-
-        assert self.game.current_player != old_player  # Turn ended
-        assert self.game.get_player_score(self.player1) == 40  # 15 + 25
-        assert self.player1.turn_points == 0
-
-    def test_bank_hidden_when_no_points(self):
-        """Test that bank action is hidden when turn points is 0."""
-        self.player1.turn_points = 0
-        visible_actions = self.game.get_all_visible_actions(self.player1)
-        visible_ids = [a.action.id for a in visible_actions]
-
-        assert "roll" in visible_ids
-        assert "bank" not in visible_ids
-
-    def test_bank_visible_with_points(self):
-        """Test that bank action is visible when player has points."""
-        self.player1.turn_points = 10
-        visible_actions = self.game.get_all_visible_actions(self.player1)
-        visible_ids = [a.action.id for a in visible_actions]
-
-        assert "roll" in visible_ids
-        assert "bank" in visible_ids
-
-    def test_requires_turn(self):
-        """Test that turn-required actions are only available on your turn."""
-        p1_actions = self.game.get_all_visible_actions(self.player1)
-        p2_actions = self.game.get_all_visible_actions(self.player2)
-
-        p1_ids = [a.action.id for a in p1_actions]
-        p2_ids = [a.action.id for a in p2_actions]
-
-        p2_by_id = {a.action.id: a for a in p2_actions}
-
-        assert "roll" in p1_ids
-        assert "roll" in p2_ids
-        assert p2_by_id["roll"].enabled is False
-        assert p2_by_id["roll"].disabled_reason == "action-not-your-turn"
-
-
-class TestTossUpPlayTest:
-    """
-    Play tests that run complete games with bots.
-
-    Following the testing strategy: games are ticked, saved and reloaded
-    at each tick to verify persistence.
-    """
-
-    def test_two_player_game_completes(self):
-        """Test that a 2-player game runs to completion."""
-        random.seed(123)
-
-        game = TossUpGame(options=TossUpOptions(target_score=50))
-        bot1 = Bot("Bot1")
-        bot2 = Bot("Bot2")
-        game.add_player("Bot1", bot1)
-        game.add_player("Bot2", bot2)
-
-        game.on_start()
-
-        # Run game with periodic save/reload to test persistence
-        max_ticks = 3000
-        for tick in range(max_ticks):
-            if not game.game_active:
-                break
-
-            # Save and reload every 50 ticks to verify persistence
-            if tick % 50 == 0 and tick > 0:
-                json_str = game.to_json()
-                game = TossUpGame.from_json(json_str)
-                game.attach_user("Bot1", bot1)
-                game.attach_user("Bot2", bot2)
-                # Rebuild runtime state (BotHelper, etc.)
-                game.rebuild_runtime_state()
-                # Reinitialize actions for all players after reload
-                for player in game.players:
-                    user = game.get_user(player)
-                    if user:
-                        game.setup_player_actions(player)
-
-            # Tick
-            game.on_tick()
-
-        assert not game.game_active, "Game should have ended"
-        # At least one player should have reached target
-        max_score = max(game.get_player_score(p) for p in game.players)
-        assert max_score >= 50
-
-    def test_eight_player_game_completes(self):
-        """Test that an 8-player game runs to completion."""
-        random.seed(555)
-
-        game = TossUpGame(options=TossUpOptions(target_score=50))
-        bots = [Bot(f"Bot{i}") for i in range(1, 9)]
-        for bot in bots:
-            game.add_player(bot.username, bot)
-
-        game.on_start()
-
-        max_ticks = 8000
-        for tick in range(max_ticks):
-            if not game.game_active:
-                break
-
-            # Save and reload every 100 ticks
-            if tick % 100 == 0 and tick > 0:
-                json_str = game.to_json()
-                game = TossUpGame.from_json(json_str)
-                for bot in bots:
-                    game.attach_user(bot.username, bot)
-                # Rebuild runtime state (BotHelper, etc.)
-                game.rebuild_runtime_state()
-                # Reinitialize actions for all players after reload
-                for player in game.players:
-                    game.setup_player_actions(player)
-
-            game.on_tick()
-
-        assert not game.game_active
-
-    def test_PlayAural_rules_variant(self):
-        """Test game with PlayAural rules."""
-        random.seed(789)
-
-        game = TossUpGame(
-            options=TossUpOptions(target_score=30, rules_variant="PlayAural")
-        )
-        bot1 = Bot("Bot1")
-        bot2 = Bot("Bot2")
-        game.add_player("Bot1", bot1)
-        game.add_player("Bot2", bot2)
-
-        game.on_start()
-
-        max_ticks = 3000
-        for tick in range(max_ticks):
-            if not game.game_active:
-                break
-            game.on_tick()
-
-        assert not game.game_active
-        assert game.options.rules_variant == "PlayAural"
-
-    def test_standard_rules_variant(self):
-        """Test game with Standard rules."""
-        random.seed(321)
-
-        game = TossUpGame(
-            options=TossUpOptions(target_score=30, rules_variant="Standard")
-        )
-        bot1 = Bot("Bot1")
-        bot2 = Bot("Bot2")
-        game.add_player("Bot1", bot1)
-        game.add_player("Bot2", bot2)
-
-        game.on_start()
-
-        max_ticks = 3000
-        for tick in range(max_ticks):
-            if not game.game_active:
-                break
-            game.on_tick()
-
-        assert not game.game_active
-        assert game.options.rules_variant == "Standard"
-
-    def test_human_and_bot_game(self):
-        """Test a game with one human and one bot."""
-        random.seed(999)
-
-        game = TossUpGame(options=TossUpOptions(target_score=40))
-        human = MockUser("Human")
-        bot = Bot("Bot")
-        game.add_player("Human", human)
-        game.add_player("Bot", bot)
-
-        game.on_start()
-
-        # Simulate human banking at 15 points
-        max_ticks = 3000
-        for tick in range(max_ticks):
-            if not game.game_active:
-                break
-
-            # Save and reload every 50 ticks
-            if tick % 50 == 0 and tick > 0:
-                json_str = game.to_json()
-                game = TossUpGame.from_json(json_str)
-                game.attach_user("Human", human)
-                game.attach_user("Bot", bot)
-                # Rebuild runtime state (BotHelper, etc.)
-                game.rebuild_runtime_state()
-                # Reinitialize actions for all players after reload
-                for player in game.players:
-                    game.setup_player_actions(player)
-
-            # If it's the human's turn and they have >= 15 points, bank
-            current = game.current_player
-            if current and current.name == "Human" and current.turn_points >= 15:
-                game.execute_action(current, "bank")
-            elif current and current.name == "Human":
-                game.execute_action(current, "roll")
-            else:
-                game.on_tick()
-
-        assert not game.game_active
-
-        # Check that we got game messages
-        messages = human.get_spoken_messages()
-        assert len(messages) > 0
-        assert any("Round" in m for m in messages)
-
-    def test_tiebreaker_scenario(self):
-        """Test that tiebreakers work correctly."""
-        random.seed(777)
-
-        game = TossUpGame(options=TossUpOptions(target_score=30))
-        bot1 = Bot("Bot1")
-        bot2 = Bot("Bot2")
-        game.add_player("Bot1", bot1)
-        game.add_player("Bot2", bot2)
-
-        # Start game to set up teams
-        game.on_start()
-
-        # Manually set up a tie situation via TeamManager
-        game._team_manager.teams[0].total_score = 30
-        game._team_manager.teams[1].total_score = 30
-        game.round = 1
-
-        # Trigger round end check
-        game._on_round_end()
-
-        # Should still be active (tiebreaker)
-        # Just verify the game handled it without crashing
-
-    def test_different_starting_dice(self):
-        """Test game with different starting dice counts."""
-        for dice_count in [5, 15, 20]:
-            random.seed(100 + dice_count)
-
-            game = TossUpGame(
-                options=TossUpOptions(target_score=30, starting_dice=dice_count)
-            )
-            bot1 = Bot("Bot1")
-            bot2 = Bot("Bot2")
-            game.add_player("Bot1", bot1)
-            game.add_player("Bot2", bot2)
-
-            game.on_start()
-
-            # More ticks needed due to bot thinking delays
-            for _ in range(3000):
-                if not game.game_active:
-                    break
-                game.on_tick()
-
-            # Game should complete
-            assert (
-                not game.game_active
-            ), f"Game with {dice_count} starting dice should complete"
-
-
-class TestTossUpPersistence:
-    """Specific tests for game persistence."""
-
-    def test_full_state_preserved(self):
-        """Test that all game state is preserved through save/load."""
-        game = TossUpGame(
-            options=TossUpOptions(
-                target_score=150, starting_dice=12, rules_variant="PlayAural"
-            )
-        )
-        user1 = MockUser("Alice")
-        user2 = MockUser("Bob")
-        game.add_player("Alice", user1)
-        game.add_player("Bob", user2)
-
-        # Start game to set up teams
-        game.on_start()
-
-        # Set various state
-        game.round = 6
-        game.turn_index = 1  # Set to second player
-        # Set scores via TeamManager
-        game._team_manager.teams[0].total_score = 78
-        game.players[0].turn_points = 18
-        game.players[0].dice_count = 4
-        game.players[0].last_roll = {"green": 3, "yellow": 2, "red": 1}
-        game._team_manager.teams[1].total_score = 62
-        game.players[1].turn_points = 0
-        game.players[1].dice_count = 12
-
-        # Save
-        json_str = game.to_json()
-
-        # Load
-        loaded = TossUpGame.from_json(json_str)
-
-        # Verify all state
-        assert loaded.game_active is True
-        assert loaded.round == 6
-        assert loaded.options.target_score == 150
-        assert loaded.options.starting_dice == 12
-        assert loaded.options.rules_variant == "PlayAural"
-        assert loaded.get_player_score(loaded.players[0]) == 78
-        assert loaded.players[0].turn_points == 18
-        assert loaded.players[0].dice_count == 4
-        assert loaded.players[0].last_roll["green"] == 3
-        assert loaded.get_player_score(loaded.players[1]) == 62
-        assert loaded.players[1].turn_points == 0
-        assert loaded.players[1].dice_count == 12
-
-    def test_actions_work_after_reload(self):
-        """Test that actions work correctly after reloading."""
-        game = TossUpGame()
-        user = MockUser("Alice")
-        bot = Bot("Bot")
-        game.add_player("Alice", user)
-        game.add_player("Bot", bot)
-        game.on_start()
-
-        # Do some actions
-        game.execute_action(game.players[0], "roll")
-
-        # Save and reload
-        json_str = game.to_json()
-        game = TossUpGame.from_json(json_str)
-        game.attach_user("Alice", user)
-        game.attach_user("Bot", bot)
-        # Reinitialize actions for all players after reload
-        for player in game.players:
-            game.setup_player_actions(player)
-
-        # Actions should still work
-        actions = game.get_all_enabled_actions(game.players[0])
-        assert len(actions) > 0
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
-
+    return game
+
+
+def roll_values(
+    game: TossUpGame, player: TossUpPlayer, values: list[int]
+) -> None:
+    iterator = iter(values)
+
+    def fixed_randint(low: int, high: int) -> int:
+        if low == 1 and high in {3, 6}:
+            return next(iterator)
+        return low
+
+    with patch("server.games.tossup.game.random.randint", side_effect=fixed_randint):
+        game.execute_action(player, "roll")
+
+
+def mark_safe_roll(player: TossUpPlayer) -> None:
+    player.last_roll = {"green": 0, "yellow": 1, "red": 0}
+
+
+def test_registration_metadata_defaults_and_preferences() -> None:
+    game = TossUpGame()
+    assert GameRegistry.get("tossup") is TossUpGame
+    assert game.get_name() == "Toss Up"
+    assert game.get_type() == "tossup"
+    assert game.get_category() == "dice"
+    assert game.get_min_players() == 2
+    assert game.get_max_players() == 6
+    assert game.get_supported_leaderboards() == [
+        "wins",
+        "total_score",
+        "high_score",
+        "rating",
+        "games_played",
+    ]
+    assert game.relevant_preferences == [
+        "brief_announcements",
+        "confirm_destructive_actions",
+    ]
+    assert game.options == TossUpOptions(
+        target_score=100,
+        starting_dice=10,
+        rules_variant="Standard",
+    )
+
+
+def test_player_and_game_state_round_trip() -> None:
+    game = make_game(
+        target_score=150,
+        starting_dice=12,
+        rules_variant="PlayAural",
+    )
+    player = game.players[0]
+    game.round = 6
+    game.tiebreaker_player_names = ["Player1", "Player2"]
+    game._team_manager.teams[0].total_score = 78
+    player.turn_points = 18
+    player.dice_count = 4
+    player.last_roll = {"green": 3, "yellow": 2, "red": 1}
+    player.pending_risky_action = "roll:6:78:18:4:PlayAural"
+    player.risky_confirm_ticks = 9
+
+    data = json.loads(game.to_json())
+    assert data["tiebreaker_player_names"] == ["Player1", "Player2"]
+    assert data["players"][0]["pending_risky_action"].startswith("roll:6")
+
+    loaded = TossUpGame.from_json(game.to_json())
+    loaded_player = loaded.players[0]
+    assert loaded.round == 6
+    assert loaded.options == game.options
+    assert loaded.tiebreaker_player_names == ["Player1", "Player2"]
+    assert loaded.get_player_score(loaded_player) == 78
+    assert loaded_player.turn_points == 18
+    assert loaded_player.dice_count == 4
+    assert loaded_player.last_roll == {"green": 3, "yellow": 2, "red": 1}
+    assert loaded_player.risky_confirm_ticks == 9
+
+
+def test_prestart_validation_reports_all_invalid_values() -> None:
+    game = make_game(
+        start=False,
+        target_score=19,
+        starting_dice=21,
+        rules_variant="unknown",
+    )
+    errors = game.prestart_validate()
+    assert (
+        "tossup-error-target-out-of-range",
+        {"value": 19, "min": 20, "max": 500},
+    ) in errors
+    assert (
+        "tossup-error-dice-out-of-range",
+        {"value": 21, "min": 5, "max": 20},
+    ) in errors
+    assert (
+        "tossup-error-rules-variant",
+        {"variant": "unknown"},
+    ) in errors
+
+
+def test_classic_color_mapping_scores_green_and_keeps_yellow_red() -> None:
+    game = make_game(starting_dice=5)
+    actor, observer = game.players
+    actor_user = game.get_user(actor)
+    observer_user = game.get_user(observer)
+    assert isinstance(actor_user, MockUser)
+    assert isinstance(observer_user, MockUser)
+    actor_user.clear_messages()
+    observer_user.clear_messages()
+
+    roll_values(game, actor, [1, 3, 4, 5, 6])
+
+    assert actor.last_roll == {"green": 2, "yellow": 2, "red": 1}
+    assert actor.turn_points == 2
+    assert actor.dice_count == 3
+    assert "You rolled 2 green, 2 yellow, and 1 red." in actor_user.get_spoken_messages()
+    assert (
+        "Player1 rolled 2 green, 2 yellow, and 1 red."
+        in observer_user.get_spoken_messages()
+    )
+
+
+def test_classic_red_light_busts_without_green() -> None:
+    game = make_game(starting_dice=2)
+    actor = game.players[0]
+    actor.turn_points = 9
+    actor.dice_count = 2
+    old_player = game.current_player
+
+    roll_values(game, actor, [4, 6])
+
+    assert actor.last_roll == {"green": 0, "yellow": 1, "red": 1}
+    assert actor.turn_points == 0
+    assert game.current_player is not old_player
+
+
+def test_forgiving_rules_bust_only_when_every_die_is_red() -> None:
+    game = make_game(starting_dice=2, rules_variant="PlayAural")
+    actor = game.players[0]
+
+    roll_values(game, actor, [2, 3])
+    assert actor.last_roll == {"green": 0, "yellow": 1, "red": 1}
+    assert game.current_player is actor
+
+    actor.turn_points = 7
+    roll_values(game, actor, [3, 3])
+    assert actor.turn_points == 0
+    assert game.current_player is game.players[1]
+
+
+def test_all_yellow_first_roll_can_bank_zero_and_end_turn() -> None:
+    game = make_game(starting_dice=2)
+    actor = game.players[0]
+    roll_values(game, actor, [4, 5])
+
+    bank = {
+        resolved.action.id: resolved
+        for resolved in game.get_all_visible_actions(actor)
+    }["bank"]
+    assert bank.enabled is True
+    assert actor.turn_points == 0
+
+    game.execute_action(actor, "bank")
+    assert game.current_player is game.players[1]
+    assert game.get_player_score(actor) == 0
+
+
+def test_all_green_awards_fresh_set_without_ending_turn() -> None:
+    game = make_game(starting_dice=2)
+    actor = game.players[0]
+
+    roll_values(game, actor, [1, 2])
+
+    assert actor.turn_points == 2
+    assert actor.dice_count == 2
+    assert game.current_player is actor
+    assert "fresh set of 2 dice" in " ".join(
+        game.get_user(actor).get_spoken_messages()
+    )
+
+
+def test_roll_and_bank_remain_visible_as_stable_controls() -> None:
+    game = make_game()
+    current, waiting = game.players
+    current_actions = {
+        resolved.action.id: resolved
+        for resolved in game.get_all_visible_actions(current)
+    }
+    waiting_actions = {
+        resolved.action.id: resolved
+        for resolved in game.get_all_visible_actions(waiting)
+    }
+
+    assert current_actions["roll"].enabled is True
+    assert current_actions["bank"].enabled is False
+    assert current_actions["bank"].disabled_reason == "tossup-error-bank-roll-first"
+    assert waiting_actions["roll"].disabled_reason == (
+        "tossup-error-roll-not-your-turn",
+        {"player": "Player1"},
+    )
+    assert waiting_actions["bank"].disabled_reason == (
+        "tossup-error-bank-not-your-turn",
+        {"player": "Player1"},
+    )
+
+
+def test_touch_focus_returns_to_roll_after_roll_and_bank() -> None:
+    game = make_game(starting_dice=2, mobile_first=True)
+    actor = game.players[0]
+    user = game.get_user(actor)
+    assert isinstance(user, MockUser)
+
+    roll_values(game, actor, [1, 4])
+    game.flush_menus()
+    assert user.menus["turn_menu"]["selection_id"] == "roll"
+
+    game.execute_action(actor, "bank")
+    game.flush_menus()
+    assert user.menus["turn_menu"]["selection_id"] == "roll"
+
+
+def test_touch_focus_returns_to_roll_after_bust() -> None:
+    game = make_game(starting_dice=2, mobile_first=True)
+    actor = game.players[0]
+    user = game.get_user(actor)
+    assert isinstance(user, MockUser)
+    actor.turn_points = 4
+
+    roll_values(game, actor, [4, 6])
+    game.flush_menus()
+
+    assert game.current_player is game.players[1]
+    assert user.menus["turn_menu"]["selection_id"] == "roll"
+
+
+def test_touch_bank_does_not_steal_next_players_menu_focus() -> None:
+    game = make_game(start=False, starting_dice=2, mobile_first=True)
+    next_user = game.get_user(game.players[1])
+    assert isinstance(next_user, MockUser)
+    next_user.client_type = "mobile"
+    game.on_start()
+    game.flush_menus()
+
+    actor, next_player = game.players
+    actor_user = game.get_user(actor)
+    assert isinstance(actor_user, MockUser)
+    actor_user.clear_messages()
+    next_user.clear_messages()
+
+    roll_values(game, actor, [1, 4])
+    game.flush_menus()
+    actor_user.clear_messages()
+    next_user.clear_messages()
+    game.execute_action(actor, "bank")
+    game.flush_menus()
+
+    assert game.current_player is next_player
+    actor_updates = [
+        message
+        for message in actor_user.messages
+        if message.type in {"show_menu", "update_menu"}
+        and message.data.get("menu_id") == "turn_menu"
+    ]
+    next_updates = [
+        message
+        for message in next_user.messages
+        if message.type in {"show_menu", "update_menu"}
+        and message.data.get("menu_id") == "turn_menu"
+    ]
+    assert actor_updates[-1].data["selection_id"] == "roll"
+    assert next_updates[-1].data["selection_id"] is None
+
+
+def test_touch_standard_actions_start_with_game_status() -> None:
+    game = make_game(mobile_first=True)
+    player = game.players[0]
+    action_ids = [
+        resolved.action.id
+        for resolved in game.get_all_visible_actions(player)
+        if resolved.action.id
+        in {"check_turn_status", "check_scores", "whose_turn", "whos_at_table"}
+    ]
+    assert action_ids == [
+        "check_turn_status",
+        "check_scores",
+        "whose_turn",
+        "whos_at_table",
+    ]
+
+
+def test_turn_status_has_actor_and_observer_context() -> None:
+    game = make_game(starting_dice=2)
+    actor, observer = game.players
+    actor_user = game.get_user(actor)
+    observer_user = game.get_user(observer)
+    assert isinstance(actor_user, MockUser)
+    assert isinstance(observer_user, MockUser)
+    roll_values(game, actor, [1, 4])
+    actor_user.clear_messages()
+    observer_user.clear_messages()
+
+    game.execute_action(actor, "check_turn_status")
+    game.execute_action(observer, "check_turn_status")
+
+    assert actor_user.get_last_spoken().startswith("Your last roll")
+    assert observer_user.get_last_spoken().startswith("Player1 last rolled")
+
+
+def test_spectators_receive_public_rolls_and_can_check_status() -> None:
+    game = make_game(player_count=3, start=False, starting_dice=2)
+    spectator = game.players[2]
+    spectator.is_spectator = True
+    spectator_user = game.get_user(spectator)
+    assert isinstance(spectator_user, MockUser)
+    game.on_start()
+    spectator_user.clear_messages()
+
+    roll_values(game, game.players[0], [1, 4])
+    assert spectator_user.get_spoken_messages()[0].startswith("Player1 rolled")
+
+    game.execute_action(spectator, "check_turn_status")
+    assert spectator_user.get_last_spoken().startswith("Player1 last rolled")
+
+
+def test_brief_announcements_are_selected_per_listener() -> None:
+    game = make_game(starting_dice=2)
+    actor, observer = game.players
+    actor_user = game.get_user(actor)
+    observer_user = game.get_user(observer)
+    assert isinstance(actor_user, MockUser)
+    assert isinstance(observer_user, MockUser)
+    actor_user.preferences.brief_announcements = True
+    actor_user.clear_messages()
+    observer_user.clear_messages()
+
+    roll_values(game, actor, [1, 4])
+
+    assert actor_user.get_spoken_messages() == [
+        "You: 1 green and 1 yellow; turn total 1; 1 left."
+    ]
+    assert len(observer_user.get_spoken_messages()) == 2
+    assert observer_user.get_spoken_messages()[0].startswith("Player1 rolled")
+
+
+def test_risky_roll_requires_second_press_and_preserves_state() -> None:
+    game = make_game(starting_dice=5)
+    actor = game.players[0]
+    user = game.get_user(actor)
+    assert isinstance(user, MockUser)
+    actor.turn_points = 20
+    actor.dice_count = 1
+    mark_safe_roll(actor)
+    before = dict(actor.last_roll)
+
+    with patch("server.games.tossup.game.random.randint", return_value=1) as randint:
+        game.execute_action(actor, "roll")
+        assert randint.call_count == 0
+        assert actor.turn_points == 20
+        assert actor.last_roll == before
+        assert actor.pending_risky_action.startswith("roll:")
+        assert actor.risky_confirm_ticks == RISK_CONFIRM_TICKS
+        assert "Press Roll again" in user.get_last_spoken()
+
+        game.execute_action(actor, "roll")
+        assert randint.call_count == 1
+
+    assert actor.pending_risky_action == ""
+    assert actor.turn_points == 21
+
+
+def test_risky_confirmation_can_be_disabled_and_expires() -> None:
+    game = make_game(starting_dice=5)
+    actor = game.players[0]
+    user = game.get_user(actor)
+    assert isinstance(user, MockUser)
+    actor.turn_points = 20
+    actor.dice_count = 1
+    mark_safe_roll(actor)
+    user.preferences.confirm_destructive_actions = False
+
+    with patch("server.games.tossup.game.random.randint", return_value=1):
+        game.execute_action(actor, "roll")
+    assert actor.turn_points == 21
+    assert actor.pending_risky_action == ""
+
+    actor.turn_points = 20
+    actor.dice_count = 1
+    mark_safe_roll(actor)
+    user.preferences.confirm_destructive_actions = True
+    game.execute_action(actor, "roll")
+    actor.risky_confirm_ticks = 1
+    game.on_tick()
+    assert actor.pending_risky_action == ""
+    assert actor.risky_confirm_ticks == 0
+
+
+def test_low_value_reroll_does_not_interrupt_with_confirmation() -> None:
+    game = make_game(starting_dice=5)
+    actor = game.players[0]
+    actor.turn_points = 4
+    actor.dice_count = 1
+    mark_safe_roll(actor)
+
+    with patch("server.games.tossup.game.random.randint", return_value=1):
+        game.execute_action(actor, "roll")
+
+    assert actor.turn_points == 5
+    assert actor.pending_risky_action == ""
+
+
+def test_exact_target_does_not_trigger_game_end() -> None:
+    game = make_game(target_score=20)
+    first, second = game.players
+    game._team_manager.teams[0].total_score = 19
+    first.turn_points = 1
+    mark_safe_roll(first)
+    game.execute_action(first, "bank")
+
+    mark_safe_roll(second)
+    game.execute_action(second, "bank")
+
+    assert game.status == "playing"
+    assert game.get_player_score(first) == 20
+    assert game.current_player is first
+    assert game.round == 2
+
+
+def test_last_player_crossing_threshold_finishes_the_round_immediately() -> None:
+    game = make_game(target_score=20)
+    first, second = game.players
+
+    mark_safe_roll(first)
+    game.execute_action(first, "bank")
+
+    game._team_manager.teams[1].total_score = 20
+    second.turn_points = 1
+    mark_safe_roll(second)
+    game.execute_action(second, "bank")
+
+    assert game.status == "finished"
+    assert game.get_player_score(second) == 21
+    assert game.build_game_result().custom_data["winner_name"] == "Player2"
+
+
+def test_only_remaining_players_receive_final_response_turns() -> None:
+    game = make_game(player_count=3, target_score=20)
+    first, trigger, responder = game.players
+
+    mark_safe_roll(first)
+    game.execute_action(first, "bank")
+
+    game._team_manager.teams[1].total_score = 20
+    trigger.turn_points = 1
+    mark_safe_roll(trigger)
+    game.execute_action(trigger, "bank")
+    assert game.current_player is responder
+    assert game.status == "playing"
+
+    game._team_manager.teams[2].total_score = 20
+    responder.turn_points = 2
+    mark_safe_roll(responder)
+    game.execute_action(responder, "bank")
+
+    assert game.status == "finished"
+    assert game.get_player_score(trigger) == 21
+    assert game.get_player_score(responder) == 22
+    assert game.build_game_result().custom_data["winner_name"] == "Player3"
+
+
+def test_tiebreaker_filters_turns_without_mutating_player_roles() -> None:
+    game = make_game(player_count=3, target_score=20)
+    first, second, third = game.players
+    game._team_manager.teams[0].total_score = 21
+    game._team_manager.teams[1].total_score = 21
+    game._team_manager.teams[2].total_score = 15
+
+    game._on_round_end()
+
+    assert game.tiebreaker_player_names == ["Player1", "Player2"]
+    assert [player.name for player in game.turn_players] == ["Player1", "Player2"]
+    assert all(not player.is_spectator for player in game.players)
+    assert [p.player_name for p in game.build_game_result().player_results] == [
+        "Player1",
+        "Player2",
+        "Player3",
+    ]
+
+    first.turn_points = 1
+    mark_safe_roll(first)
+    game.execute_action(first, "bank")
+    mark_safe_roll(second)
+    game.execute_action(second, "bank")
+    assert game.status == "finished"
+    assert game.build_game_result().custom_data["winner_name"] == "Player1"
+    assert third.is_spectator is False
+
+
+def test_legacy_tiebreaker_spectator_flags_are_repaired_on_restore() -> None:
+    game = make_game(player_count=3, target_score=20)
+    first, second, third = game.players
+    game._team_manager.teams[0].total_score = 21
+    game._team_manager.teams[1].total_score = 21
+    game._team_manager.teams[2].total_score = 15
+    third.is_spectator = True
+    game.tiebreaker_player_names = []
+
+    loaded = TossUpGame.from_json(game.to_json())
+    loaded.rebuild_runtime_state()
+
+    assert loaded.tiebreaker_player_names == ["Player1", "Player2"]
+    assert all(not player.is_spectator for player in loaded.players)
+    assert [player.name for player in loaded._round_players()] == [
+        "Player1",
+        "Player2",
+    ]
+
+
+def test_finishing_clears_all_risky_confirmation_state() -> None:
+    game = make_game(target_score=20)
+    first, second = game.players
+    first.pending_risky_action = "roll:first"
+    first.risky_confirm_ticks = 50
+    second.pending_risky_action = "roll:second"
+    second.risky_confirm_ticks = 50
+    game._team_manager.teams[0].total_score = 21
+
+    game._on_round_end()
+
+    assert game.status == "finished"
+    assert all(not player.pending_risky_action for player in game.players)
+    assert all(player.risky_confirm_ticks == 0 for player in game.players)
+
+
+def test_bot_strategy_uses_risk_and_final_score_context() -> None:
+    game = make_game(target_score=100)
+    player, opponent = game.players
+    player.turn_points = 20
+    player.dice_count = 1
+    mark_safe_roll(player)
+    assert game.bot_think(player) == "bank"
+
+    game._team_manager.teams[1].total_score = 105
+    player.turn_points = 5
+    player.dice_count = 1
+    assert game.bot_think(player) == "roll"
+
+    game._team_manager.teams[0].total_score = 104
+    player.turn_points = 2
+    assert game.bot_think(player) == "bank"
+
+
+@pytest.mark.parametrize(
+    ("player_count", "rules_variant"),
+    [(2, "Standard"), (2, "PlayAural"), (6, "Standard")],
+)
+def test_bot_games_complete(
+    player_count: int, rules_variant: str
+) -> None:
+    random.seed(2026 + player_count)
+    game = make_game(
+        player_count=player_count,
+        bot_all=True,
+        target_score=20,
+        starting_dice=5,
+        rules_variant=rules_variant,
+    )
+
+    for tick in range(15000):
+        if game.status == "finished":
+            break
+        if tick and tick % 200 == 0:
+            game = TossUpGame.from_json(game.to_json())
+            for index in range(player_count):
+                name = f"Player{index + 1}"
+                game.attach_user(name, Bot(name, uuid=f"p{index + 1}"))
+            game.rebuild_runtime_state()
+            for player in game.players:
+                game.setup_player_actions(player)
+        game.on_tick()
+
+    assert game.status == "finished"
+    assert max(game.get_player_score(player) for player in game.players) > 20
+    assert len(game.players) == player_count
+
+
+def test_locale_key_and_variable_parity() -> None:
+    en_text = (LOCALES_DIR / "en" / "tossup.ftl").read_text(encoding="utf-8")
+    vi_text = (LOCALES_DIR / "vi" / "tossup.ftl").read_text(encoding="utf-8")
+
+    def messages(text: str) -> dict[str, set[str]]:
+        result: dict[str, set[str]] = {}
+        current = ""
+        for line in text.splitlines():
+            match = re.match(r"^([a-z0-9-]+)\s*=", line)
+            if match:
+                current = match.group(1)
+                result[current] = set()
+            if current:
+                result[current].update(
+                    re.findall(r"\{\s*\$([a-z0-9_]+)", line)
+                )
+        return result
+
+    assert messages(en_text) == messages(vi_text)
+    assert Localization.get(
+        "vi", "tossup-result-green", count=2
+    ) == "2 mặt xanh"
+
+
+def test_vietnamese_manual_matches_localized_terminology() -> None:
+    text = (
+        Path(__file__).parent.parent
+        / "documentation"
+        / "content"
+        / "vi"
+        / "games"
+        / "tossup.md"
+    ).read_text(encoding="utf-8")
+    assert "mặt xanh" in text
+    assert "mặt vàng" in text
+    assert "mặt đỏ" in text
+    assert "mất trắng" in text
+    assert "chốt điểm" in text
+    assert "vượt mốc" in text
+    assert "nổ" not in text
