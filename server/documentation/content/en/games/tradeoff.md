@@ -1,81 +1,107 @@
 \*\*Tradeoff\*\*
 
+Tradeoff is a dice-trading game for 2 to 8 players. Everyone rolls at the same time, chooses which dice to keep, and sends the rest into a shared pool. Then players take dice back from that pool to finish building their hand.
 
+Each round gives every player 15 dice. The game scores those dice automatically by finding the best non-overlapping sets.
 
-Tradeoff is a dice-trading game for 2 to 8 players. Each round you build up a hand of 15 dice across three iterations of rolling, trading, and taking back. At the end of the round your 15 dice are scored automatically for the best possible combination of sets. The first player to reach the target score wins.
+\*\*Goal\*\*
 
+Be the first player to reach or pass the target score after a scoring round. The default target is 60 points.
 
+\*\*A Round\*\*
 
-\*\*Gameplay\*\*
+Each round has three hands. Every hand has two phases: trading and taking.
 
+\*\*Trading Phase\*\*
 
+1\. Every player rolls 5 dice.
 
-A round consists of exactly three iterations. In each iteration all players participate simultaneously in two phases.
+2\. All 5 dice start marked for trading.
 
-\*\*Trading phase\*\*
+3\. Choose which dice you want to keep. Kept dice move into your round hand when you confirm.
 
-1\. All players roll 5 dice at once.
+4\. Dice still marked for trading go into the shared pool.
 
-2\. By default, all 5 dice are marked for trading. Toggle individual dice to decide what you want to keep and what you want to put into the shared pool.
+5\. Confirm your trade choices. Once confirmed, you wait until every other player has confirmed too.
 
-3\. When you are happy with your selection, confirm your trades. All players must confirm before anything moves.
+You may trade all 5 dice, keep all 5 dice, or choose anything in between.
 
-4\. Once everyone has confirmed, the game reveals what each player traded, moves kept dice into your permanent hand, and adds traded dice to the shared pool.
+\*\*Taking Phase\*\*
 
-\*\*Taking phase\*\*
+After everyone confirms, the traded dice are revealed and placed in the shared pool.
 
-Players then take turns picking one die at a time from the pool. You must take back exactly as many dice as you traded — no more, no less. If you traded zero dice, you skip the taking phase entirely for this iteration.
+Players who traded dice take turns choosing one die at a time from the pool. You must take back exactly the same number of dice you traded. For example, if you traded 3 dice, you will take 3 dice from the pool before the hand ends.
 
-Turn order during taking is determined by current score: the player with the lowest total score goes first. Ties are broken by hand sum, then randomly. After each die is taken, the turn passes to the next eligible player in round-robin order.
+Players with lower total scores take first. If scores are tied, the player with the lower current hand sum goes first. If that is also tied, the order is randomized.
 
-After 3 iterations every active player will have exactly 15 dice in hand.
-
-
+After each die is taken, the turn passes to the next player who still needs dice. If you kept all 5 dice, you skip the taking phase for that hand.
 
 \*\*Scoring\*\*
 
+After the third hand, each player has 15 dice. The game checks every possible scoring set and chooses the combination worth the most points. A die can only belong to one set.
 
+\* \*\*Triple:\*\* 3 dice of the same value. Worth \*\*3 points\*\*.
 
-At the end of the third iteration, each player's 15 dice are automatically analyzed to find the highest-scoring combination of non-overlapping sets.
+\* \*\*Short straight:\*\* 4 consecutive values, such as 1-2-3-4. Worth \*\*7 points\*\*.
 
-\* \*\*Triple\*\* — 3 dice of the same value. Worth \*\*3 points\*\*.
-\* \*\*Mini Straight\*\* — 4 consecutive values (1-2-3-4, 2-3-4-5, or 3-4-5-6). Worth \*\*7 points\*\*.
-\* \*\*Group\*\* — 5 dice of the same value. Worth \*\*8 points\*\*.
-\* \*\*Double Triple\*\* — Two triples of different values (6 dice total). Worth \*\*10 points\*\*.
-\* \*\*Straight\*\* — 5 consecutive values (1-2-3-4-5 or 2-3-4-5-6). Worth \*\*12 points\*\*.
-\* \*\*Double Group\*\* — Two groups of different values (10 dice total). Worth \*\*30 points\*\*.
-\* \*\*All Groups\*\* — Three groups covering all 15 dice. Worth \*\*50 points\*\*.
-\* \*\*All Triplets\*\* — Five triples covering all 15 dice. Worth \*\*50 points\*\*.
+\* \*\*Group of five:\*\* 5 dice of the same value. Worth \*\*8 points\*\*.
 
-Sets do not overlap. The game picks the combination that gives you the highest total. Unmatched dice score nothing.
+\* \*\*Two triples:\*\* Two different triples, 6 dice total. Worth \*\*10 points\*\*.
 
-After scoring, the round summary is read aloud: each player's round points, their running total, and the current leader. If no player has reached the target score, a new round begins.
+\* \*\*Straight:\*\* 5 consecutive values, either 1-2-3-4-5 or 2-3-4-5-6. Worth \*\*12 points\*\*.
 
+\* \*\*Two groups of five:\*\* Two different groups of five, 10 dice total. Worth \*\*30 points\*\*.
 
+\* \*\*Three groups of five:\*\* Three groups of five covering all 15 dice. Worth \*\*50 points\*\*.
 
-\*\*Options\*\*
+\* \*\*Five triples:\*\* Five triples covering all 15 dice. Worth \*\*50 points\*\*.
 
+Dice that do not fit into the best scoring combination are worth 0 points.
 
+\*\*Game Options\*\*
 
-\* \*\*Target Score:\*\* The score a player must reach to win. Default is 60. Configurable from 30 to 500.
+\* \*\*Target score:\*\* The score needed to win after a scoring round. Default: 60. Range: 30-500.
 
+\*\*Personal Options\*\*
 
+\* \*\*Brief announcements:\*\* Shortens repeated trade reveals and score summaries.
+
+\* \*\*Dice keeping style:\*\* With Dice indexes, press 1-5 during trading to toggle dice by position. With Dice values, press 1-6 during trading to keep one matching die, and Shift+1-6 to mark one kept matching die for trading.
+
+\*\*Information Actions\*\*
+
+\* \*\*View your hand:\*\* Hear the dice you have already kept this round. During trading, it also reads your current roll and which dice are marked for trading.
+
+\* \*\*View the pool:\*\* Hear which dice values are currently available in the shared pool.
+
+\* \*\*View players:\*\* Hear each player's kept hand and what they traded in the last revealed hand.
+
+\* \*\*Check scores:\*\* Hear the current score totals.
 
 \*\*Keyboard Shortcuts\*\*
 
-
-
 Trading phase:
 
-\* \*\*1–5:\*\* Toggle the die at that position between trading and keeping. If your dice keeping style is set to Dice values (in Options), keys 1–6 instead keep the first trading die showing that face value, and Shift+1–6 marks the first kept die of that value for trading.
-\* \*\*B:\*\* Confirm your trades.
+\* \*\*1-5:\*\* Toggle dice by position when using Dice indexes.
+
+\* \*\*1-6:\*\* Keep one matching die when using Dice values.
+
+\* \*\*Shift+1-6:\*\* Mark one kept matching die for trading when using Dice values.
+
+\* \*\*B:\*\* Confirm your trade choices.
 
 Taking phase:
 
-\* \*\*1–6:\*\* Take a die showing that face value from the pool.
+\* \*\*1-6:\*\* Take one matching die from the shared pool.
 
 Anytime during the game:
 
-\* \*\*H:\*\* Read your current hand (dice accumulated so far this round).
-\* \*\*P:\*\* Read the current pool.
-\* \*\*V:\*\* Read each player's hand and what they traded last iteration.
+\* \*\*H:\*\* View your hand.
+
+\* \*\*P:\*\* View the pool.
+
+\* \*\*V:\*\* View players.
+
+\* \*\*S:\*\* Check scores.
+
+\* \*\*Shift+S:\*\* Open detailed scores.

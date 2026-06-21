@@ -3,12 +3,15 @@ Tests for the Tradeoff game.
 """
 
 import json
+from pathlib import Path
+import re
 
 from ..games.tradeoff.game import (
     TradeoffGame,
     TradeoffPlayer,
     TradeoffOptions,
 )
+from ..games.tradeoff.bot import bot_think_taking
 from ..games.tradeoff.scoring import (
     SET_DEFINITIONS,
     find_best_scoring,
@@ -21,8 +24,47 @@ from ..games.tradeoff.scoring import (
     is_all_groups,
     is_all_triplets,
 )
+from ..messages.localization import Localization
+from ..users.preferences import DiceKeepingStyle
 from ..users.test_user import MockUser
 from ..users.bot import Bot
+
+
+LOCALES_DIR = Path(__file__).parent.parent / "locales"
+
+
+def _ftl_messages(text: str) -> dict[str, set[str]]:
+    result: dict[str, set[str]] = {}
+    current_key = None
+    current_lines: list[str] = []
+    for line in text.splitlines():
+        if line and not line.startswith((" ", "\t")) and "=" in line:
+            if current_key is not None:
+                result[current_key] = set(
+                    re.findall(r"\{\s*\$([a-zA-Z_][\w-]*)", "\n".join(current_lines))
+                )
+            current_key = line.split("=", 1)[0].strip()
+            current_lines = [line]
+        elif current_key is not None:
+            current_lines.append(line)
+    if current_key is not None:
+        result[current_key] = set(
+            re.findall(r"\{\s*\$([a-zA-Z_][\w-]*)", "\n".join(current_lines))
+        )
+    return result
+
+
+def make_human_game(*, mobile_first: bool = False, target_score: int = 60) -> TradeoffGame:
+    game = TradeoffGame(options=TradeoffOptions(target_score=target_score))
+    game.setup_keybinds()
+    for index, name in enumerate(("Alice", "Bob")):
+        user = MockUser(name, uuid=f"tradeoff-{index + 1}")
+        if mobile_first and index == 0:
+            user.client_type = "mobile"
+        game.add_player(name, user)
+    game.host = "Alice"
+    game.on_start()
+    return game
 
 
 class TestTradeoffScoring:
@@ -237,6 +279,7 @@ class TestTradeoffGameUnit:
         assert game.get_category() == "dice"
         assert game.get_min_players() == 2
         assert game.get_max_players() == 8
+        assert game.relevant_preferences == ["brief_announcements", "dice_keeping_style"]
 
     def test_player_creation(self):
         """Test creating a player with correct initial state."""
@@ -258,6 +301,15 @@ class TestTradeoffGameUnit:
         options = TradeoffOptions(target_score=50)
         game = TradeoffGame(options=options)
         assert game.options.target_score == 50
+
+    def test_prestart_validation_reports_invalid_target(self):
+        """Target score limits are enforced with contextual setup feedback."""
+        game = TradeoffGame(options=TradeoffOptions(target_score=29))
+        errors = game.prestart_validate()
+        assert (
+            "tradeoff-error-target-out-of-range",
+            {"score": 29, "min": 30, "max": 500},
+        ) in errors
 
     def test_serialization(self):
         """Test that game state can be serialized and deserialized."""
@@ -449,4 +501,209 @@ class TestTradeoffPhases:
             tp: TradeoffPlayer = p  # type: ignore
             assert len(tp.rolled_dice) == 5
             assert all(1 <= d <= 6 for d in tp.rolled_dice)
+
+
+class TestTradeoffPolish:
+    """Regression tests for Tradeoff accessibility and rules polish."""
+
+    def test_taking_number_key_takes_matching_pool_die(self):
+        game = make_human_game()
+        player: TradeoffPlayer = game.players[0]  # type: ignore
+        user = game.get_user(player)
+        assert isinstance(user, MockUser)
+        user.preferences.dice_keeping_style = DiceKeepingStyle.VALUE_BASED
+
+        game.phase = "taking"
+        game.pool = [4, 5]
+        game.taking_order = [player.id]
+        game.taking_index = 0
+        player.hand = []
+        player.dice_traded_count = 2
+        player.dice_taken_count = 0
+
+        game.execute_action(player, "dice_key_4")
+
+        assert player.hand == [4]
+        assert game.pool == [5]
+        assert player.dice_taken_count == 1
+
+    def test_taking_number_key_reports_missing_pool_value(self):
+        game = make_human_game()
+        player: TradeoffPlayer = game.players[0]  # type: ignore
+        user = game.get_user(player)
+        assert isinstance(user, MockUser)
+        user.clear_messages()
+
+        game.phase = "taking"
+        game.pool = [2]
+        game.taking_order = [player.id]
+        game.taking_index = 0
+        player.dice_traded_count = 1
+        player.dice_taken_count = 0
+
+        game.execute_action(player, "dice_key_6")
+
+        assert "There is no 6 in the shared pool right now." in user.get_last_spoken()
+        assert player.hand == []
+
+    def test_trade_reveal_uses_personal_and_observer_wording(self):
+        game = make_human_game()
+        alice: TradeoffPlayer = game.players[0]  # type: ignore
+        bob: TradeoffPlayer = game.players[1]  # type: ignore
+        alice_user = game.get_user(alice)
+        bob_user = game.get_user(bob)
+        assert isinstance(alice_user, MockUser)
+        assert isinstance(bob_user, MockUser)
+        alice_user.clear_messages()
+        bob_user.clear_messages()
+
+        alice.rolled_dice = [1, 2, 3, 4, 5]
+        alice.trading_indices = [0, 2]
+        bob.rolled_dice = [6, 6, 6, 6, 6]
+        bob.trading_indices = []
+
+        game.execute_action(alice, "confirm_trades")
+        game.execute_action(bob, "confirm_trades")
+
+        alice_messages = " ".join(alice_user.get_spoken_messages())
+        bob_messages = " ".join(bob_user.get_spoken_messages())
+        assert "You traded 2 dice into the pool" in alice_messages
+        assert "Alice traded 2 dice into the pool" in bob_messages
+        assert "You kept all five dice from this hand" in bob_messages
+
+    def test_brief_trade_reveal_shortens_actor_message(self):
+        game = make_human_game()
+        alice: TradeoffPlayer = game.players[0]  # type: ignore
+        bob: TradeoffPlayer = game.players[1]  # type: ignore
+        alice_user = game.get_user(alice)
+        bob_user = game.get_user(bob)
+        assert isinstance(alice_user, MockUser)
+        assert isinstance(bob_user, MockUser)
+        alice_user.preferences.brief_announcements = True
+        alice_user.clear_messages()
+
+        alice.rolled_dice = [1, 2, 3, 4, 5]
+        alice.trading_indices = [0, 1, 2]
+        bob.rolled_dice = [6, 6, 6, 6, 6]
+        bob.trading_indices = []
+
+        game.execute_action(alice, "confirm_trades")
+        game.execute_action(bob, "confirm_trades")
+
+        assert "You traded 3 dice." in alice_user.get_spoken_messages()
+
+    def test_scoring_uses_personal_and_observer_wording(self):
+        game = make_human_game(target_score=500)
+        alice: TradeoffPlayer = game.players[0]  # type: ignore
+        bob: TradeoffPlayer = game.players[1]  # type: ignore
+        alice_user = game.get_user(alice)
+        bob_user = game.get_user(bob)
+        assert isinstance(alice_user, MockUser)
+        assert isinstance(bob_user, MockUser)
+        alice_user.clear_messages()
+        bob_user.clear_messages()
+
+        alice.hand = [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5]
+        bob.hand = [1, 1, 1, 1, 1, 2, 2, 2, 3, 4, 5, 6, 4, 5, 6]
+
+        game._do_scoring()
+
+        assert any(
+            message.startswith("You scored 50 points")
+            for message in alice_user.get_spoken_messages()
+        )
+        assert any(
+            message.startswith("Alice scored 50 points")
+            for message in bob_user.get_spoken_messages()
+        )
+
+    def test_touch_standard_actions_use_tradeoff_info_order(self):
+        game = make_human_game(mobile_first=True)
+        player = game.players[0]
+        action_ids = [
+            resolved.action.id
+            for resolved in game.get_all_visible_actions(player)
+            if resolved.action.id
+            in {
+                "view_hand",
+                "view_pool",
+                "view_players",
+                "check_scores",
+                "whose_turn",
+                "whos_at_table",
+            }
+        ]
+
+        assert action_ids == [
+            "view_hand",
+            "view_pool",
+            "view_players",
+            "check_scores",
+            "whose_turn",
+            "whos_at_table",
+        ]
+
+    def test_touch_confirm_focuses_actor_without_stealing_observer_focus(self):
+        game = make_human_game(mobile_first=True)
+        alice: TradeoffPlayer = game.players[0]  # type: ignore
+        bob = game.players[1]
+        bob_user = game.get_user(bob)
+        alice_user = game.get_user(alice)
+        assert isinstance(alice_user, MockUser)
+        assert isinstance(bob_user, MockUser)
+        bob_user.client_type = "mobile"
+        alice_user.clear_messages()
+        bob_user.clear_messages()
+
+        game.execute_action(alice, "confirm_trades")
+        game.flush_menus()
+
+        alice_updates = [
+            message
+            for message in alice_user.messages
+            if message.type in {"show_menu", "update_menu"}
+            and message.data.get("menu_id") == "turn_menu"
+        ]
+        bob_updates = [
+            message
+            for message in bob_user.messages
+            if message.type in {"show_menu", "update_menu"}
+            and message.data.get("menu_id") == "turn_menu"
+        ]
+        assert alice_updates[-1].data["selection_id"] == "view_hand"
+        assert bob_updates[-1].data["selection_id"] is None
+
+    def test_bot_taking_prefers_completing_group(self):
+        game = TradeoffGame()
+        player = TradeoffPlayer(id="bot", name="Bot", is_bot=True)
+        player.hand = [4, 4, 4, 4]
+        player.dice_traded_count = 1
+        player.dice_taken_count = 0
+        game.players = [player]
+        game.phase = "taking"
+        game.pool = [1, 4, 6]
+        game.taking_order = [player.id]
+        game.taking_index = 0
+
+        assert bot_think_taking(game, player) == "take_4"
+
+    def test_locale_key_and_variable_parity_and_vi_manual_terms(self):
+        en_text = (LOCALES_DIR / "en" / "tradeoff.ftl").read_text(encoding="utf-8")
+        vi_text = (LOCALES_DIR / "vi" / "tradeoff.ftl").read_text(encoding="utf-8")
+        assert _ftl_messages(en_text) == _ftl_messages(vi_text)
+        assert Localization.get("vi", "tradeoff-set-mini-straight", low=1, high=4) == (
+            "sảnh ngắn 1-4"
+        )
+
+        manual = (
+            Path(__file__).parent.parent
+            / "documentation"
+            / "content"
+            / "vi"
+            / "games"
+            / "tradeoff.md"
+        ).read_text(encoding="utf-8")
+        assert "tay giữ" in manual
+        assert "hũ chung" in manual
+        assert "sảnh ngắn" in manual.lower()
 

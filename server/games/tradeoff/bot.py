@@ -4,6 +4,8 @@ Bot AI logic for Tradeoff game.
 
 from typing import TYPE_CHECKING
 
+from .scoring import find_best_scoring
+
 if TYPE_CHECKING:
     from .game import TradeoffGame, TradeoffPlayer
 
@@ -12,8 +14,8 @@ def bot_think_trading(game: "TradeoffGame", player: "TradeoffPlayer") -> str | N
     """
     Trading-phase AI.
 
-    Strategy: keep dice that contribute to sets (duplicates); trade the rest.
-    Always keeps at least 2 dice.
+    Strategy: keep dice that improve the current hand's set or straight
+    potential; trade isolated dice back into the pool.
 
     All dice start marked for trading, so the bot toggles each desired-keep
     die off the trade list one at a time, then confirms.
@@ -21,10 +23,7 @@ def bot_think_trading(game: "TradeoffGame", player: "TradeoffPlayer") -> str | N
     if player.trades_confirmed:
         return None
 
-    counts = _count_dice(player.rolled_dice)
-    _merge_counts(counts, player.hand)
-
-    desired_keeps = _select_keep_indices(player.rolled_dice, counts, min_keeps=2)
+    desired_keeps = _select_keep_indices(player.hand, player.rolled_dice)
 
     toggle_action = _next_trade_toggle(player.trading_indices, desired_keeps)
     if toggle_action:
@@ -37,8 +36,8 @@ def bot_think_taking(game: "TradeoffGame", player: "TradeoffPlayer") -> str | No
     """
     Taking-phase AI.
 
-    Strategy: pick the pool die whose face value best complements the
-    existing hand (prefer values we already have more of).
+    Strategy: pick the pool die that most improves immediate score and near-set
+    potential for the hand being built this round.
     """
     if game.taking_index >= len(game.taking_order):
         return None
@@ -47,9 +46,8 @@ def bot_think_taking(game: "TradeoffGame", player: "TradeoffPlayer") -> str | No
     if player.dice_taken_count >= player.dice_traded_count:
         return None
 
-    counts = _count_dice(player.hand)
     pool_counts = _count_dice(game.pool)
-    best_value = _select_best_pool_value(counts, pool_counts)
+    best_value = _select_best_pool_value(player.hand, pool_counts)
     return f"take_{best_value}" if best_value is not None else None
 
 
@@ -64,31 +62,54 @@ def _count_dice(values: list[int]) -> dict[int, int]:
     return counts
 
 
-def _merge_counts(counts: dict[int, int], values: list[int]) -> None:
-    for value in values:
-        counts[value] = counts.get(value, 0) + 1
+def _score_sets(values: list[int]) -> int:
+    return sum(points for _, _, points in find_best_scoring(values))
 
 
-def _select_keep_indices(
-    rolled_dice: list[int], counts: dict[int, int], min_keeps: int
-) -> list[int]:
-    """Return indices of dice worth keeping; guarantee at least min_keeps."""
-    desired_keeps = [
-        i for i, value in enumerate(rolled_dice) if counts.get(value, 0) > 1
-    ]
-    if len(desired_keeps) >= min_keeps:
-        return desired_keeps
-    # Pad with most-common remaining dice
-    sorted_dice = sorted(
-        enumerate(rolled_dice),
-        key=lambda x: counts.get(x[1], 0),
-        reverse=True,
-    )
-    for i, _ in sorted_dice:
-        if i not in desired_keeps:
-            desired_keeps.append(i)
-            if len(desired_keeps) >= min_keeps:
-                break
+def _straight_pressure(values: list[int], value: int) -> float:
+    unique = set(values)
+    pressure = 0.0
+    for run in ([1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6]):
+        if value in run:
+            present = sum(1 for die in run if die in unique)
+            if present >= 3:
+                pressure += present * 0.8
+    for run in ([1, 2, 3, 4, 5], [2, 3, 4, 5, 6]):
+        if value in run:
+            present = sum(1 for die in run if die in unique)
+            if present >= 4:
+                pressure += present * 1.2
+    return pressure
+
+
+def _value_potential(values: list[int], value: int) -> float:
+    counts = _count_dice(values)
+    count = counts.get(value, 0)
+    score = _score_sets(values) * 4.0
+    if count >= 5:
+        score += 18
+    elif count == 4:
+        score += 10
+    elif count == 3:
+        score += 8
+    elif count == 2:
+        score += 3
+    score += _straight_pressure(values, value)
+    return score
+
+
+def _select_keep_indices(hand: list[int], rolled_dice: list[int]) -> list[int]:
+    """Return rolled-die indices worth locking into the hand."""
+    desired_keeps: list[int] = []
+    combined = list(hand) + list(rolled_dice)
+    for index, value in enumerate(rolled_dice):
+        without_die = list(combined)
+        without_die.remove(value)
+        marginal = _value_potential(combined, value) - _value_potential(
+            without_die, value
+        )
+        if marginal >= 2.5:
+            desired_keeps.append(index)
     return desired_keeps
 
 
@@ -101,16 +122,21 @@ def _next_trade_toggle(trading_indices: list[int], desired_keeps: list[int]) -> 
 
 
 def _select_best_pool_value(
-    counts: dict[int, int], pool_counts: dict[int, int]
+    hand: list[int], pool_counts: dict[int, int]
 ) -> int | None:
     """Pick the pool die value that best matches the existing hand."""
     best_value = None
-    best_score = -1
-    for value, count in pool_counts.items():
+    best_score: tuple[float, int, int] | None = None
+    for value, count in sorted(pool_counts.items()):
         if count <= 0:
             continue
-        score = counts.get(value, 0)
-        if score > best_score:
+        candidate = list(hand) + [value]
+        score = (
+            _value_potential(candidate, value),
+            count,
+            -value,
+        )
+        if best_score is None or score > best_score:
             best_score = score
             best_value = value
     return best_value

@@ -1,81 +1,107 @@
 \*\*Tradeoff\*\*
 
+Tradeoff là trò chơi xúc xắc đổi chác dành cho 2 đến 8 người chơi. Mọi người gieo xúc xắc cùng lúc, chọn viên muốn giữ, rồi bỏ các viên còn lại vào hũ chung. Sau đó, người chơi lần lượt lấy xúc xắc từ hũ chung để hoàn thành tay giữ của mình.
 
+Mỗi vòng cho mỗi người chơi 15 viên xúc xắc. Trò chơi sẽ tự động tính điểm 15 viên đó bằng cách tìm các bộ không chồng chéo có tổng điểm cao nhất.
 
-Tradeoff là trò chơi xúc xắc đổi chác dành cho 2 đến 8 người chơi. Mỗi vòng, bạn tích lũy 15 viên xúc xắc qua ba lần lặp gồm gieo xúc xắc, đổi và lấy về. Kết thúc vòng, 15 viên xúc xắc của bạn sẽ được tính điểm tự động theo tổ hợp bộ tốt nhất có thể. Người đầu tiên đạt đến điểm mục tiêu sẽ thắng.
+\*\*Mục tiêu\*\*
 
+Hãy là người đầu tiên đạt hoặc vượt qua điểm mục tiêu sau một vòng tính điểm. Điểm mục tiêu mặc định là 60 điểm.
 
+\*\*Một vòng chơi\*\*
 
-\*\*Cách chơi\*\*
+Mỗi vòng có ba lượt gieo. Mỗi lượt gieo gồm hai giai đoạn: đổi và lấy.
 
+\*\*Giai đoạn đổi\*\*
 
+1\. Mỗi người chơi gieo 5 viên xúc xắc.
 
-Mỗi vòng gồm đúng ba lần lặp. Trong mỗi lần lặp, tất cả người chơi tham gia đồng thời qua hai giai đoạn.
+2\. Cả 5 viên ban đầu đều được đánh dấu để đổi.
 
-\*\*Giai đoạn đổi xúc xắc\*\*
+3\. Chọn các viên bạn muốn giữ. Khi bạn xác nhận, các viên đang giữ sẽ chuyển vào tay giữ của vòng này.
 
-1\. Tất cả người chơi cùng gieo 5 viên xúc xắc.
+4\. Các viên vẫn được đánh dấu để đổi sẽ đi vào hũ chung.
 
-2\. Theo mặc định, cả 5 viên đều được đánh dấu để đổi. Bạn chọn từng viên muốn giữ lại hay bỏ vào hũ chung.
+5\. Xác nhận lựa chọn đổi. Sau khi xác nhận, bạn chờ đến khi tất cả người chơi khác cũng xác nhận.
 
-3\. Khi hài lòng với lựa chọn, xác nhận giao dịch. Tất cả người chơi phải xác nhận thì trò chơi mới chuyển tiếp.
+Bạn có thể đổi cả 5 viên, giữ cả 5 viên, hoặc chọn bất kỳ số lượng nào ở giữa.
 
-4\. Sau khi mọi người xác nhận, trò chơi tiết lộ những gì mỗi người đã đổi, chuyển xúc xắc giữ lại vào tay bài vĩnh viễn và gộp xúc xắc đổi vào hũ chung.
+\*\*Giai đoạn lấy\*\*
 
-\*\*Giai đoạn lấy xúc xắc\*\*
+Sau khi mọi người xác nhận, các viên đã đổi được tiết lộ và đặt vào hũ chung.
 
-Người chơi lần lượt chọn từng viên xúc xắc từ hũ chung. Bạn phải lấy về đúng số lượng viên đã đổi — không nhiều hơn, không ít hơn. Nếu bạn không đổi viên nào, bạn bỏ qua giai đoạn này.
+Những người đã đổi xúc xắc sẽ lần lượt chọn từng viên từ hũ chung. Bạn phải lấy lại đúng số viên mình đã đổi. Ví dụ: nếu bạn đổi 3 viên, bạn sẽ lấy 3 viên từ hũ chung trước khi lượt gieo đó kết thúc.
 
-Thứ tự lượt lấy được xác định theo điểm hiện tại: người có điểm thấp nhất đi trước. Hòa thì so tổng xúc xắc trên tay, nếu vẫn bằng thì bốc thăm ngẫu nhiên. Sau mỗi viên được lấy, lượt chuyển sang người tiếp theo theo vòng tròn.
+Người có tổng điểm thấp hơn được lấy trước. Nếu bằng điểm, người có tổng tay giữ hiện tại thấp hơn được lấy trước. Nếu vẫn bằng, thứ tự sẽ được chọn ngẫu nhiên.
 
-Sau 3 lần lặp, mỗi người chơi sẽ có đúng 15 viên xúc xắc trên tay.
+Sau mỗi viên được lấy, lượt chuyển sang người tiếp theo còn cần lấy xúc xắc. Nếu bạn giữ cả 5 viên, bạn bỏ qua giai đoạn lấy của lượt gieo đó.
 
+\*\*Cách tính điểm\*\*
 
+Sau lượt gieo thứ ba, mỗi người chơi có 15 viên xúc xắc. Trò chơi kiểm tra mọi bộ có thể ghi điểm và chọn tổ hợp có giá trị cao nhất. Một viên xúc xắc chỉ được dùng trong một bộ.
 
-\*\*Ghi điểm\*\*
+\* \*\*Bộ ba:\*\* 3 viên cùng mặt. Được \*\*3 điểm\*\*.
 
+\* \*\*Sảnh ngắn:\*\* 4 mặt liên tiếp, ví dụ 1-2-3-4. Được \*\*7 điểm\*\*.
 
+\* \*\*Nhóm năm:\*\* 5 viên cùng mặt. Được \*\*8 điểm\*\*.
 
-Kết thúc lần lặp thứ ba, 15 viên xúc xắc của mỗi người được phân tích tự động để tìm tổ hợp bộ không chồng chéo có tổng điểm cao nhất.
+\* \*\*Hai bộ ba:\*\* Hai bộ ba khác mặt, tổng cộng 6 viên. Được \*\*10 điểm\*\*.
 
-\* \*\*Bộ Ba (Triple)\*\* — 3 viên cùng giá trị. Được \*\*3 điểm\*\*.
-\* \*\*Sảnh Mini (Mini Straight)\*\* — 4 giá trị liên tiếp (1-2-3-4, 2-3-4-5 hoặc 3-4-5-6). Được \*\*7 điểm\*\*.
-\* \*\*Nhóm (Group)\*\* — 5 viên cùng giá trị. Được \*\*8 điểm\*\*.
-\* \*\*Bộ Ba Kép (Double Triple)\*\* — Hai bộ ba khác giá trị (tổng 6 viên). Được \*\*10 điểm\*\*.
-\* \*\*Sảnh (Straight)\*\* — 5 giá trị liên tiếp (1-2-3-4-5 hoặc 2-3-4-5-6). Được \*\*12 điểm\*\*.
-\* \*\*Nhóm Kép (Double Group)\*\* — Hai nhóm khác giá trị (tổng 10 viên). Được \*\*30 điểm\*\*.
-\* \*\*Tất Cả Nhóm (All Groups)\*\* — Ba nhóm bao phủ cả 15 viên. Được \*\*50 điểm\*\*.
-\* \*\*Tất Cả Bộ Ba (All Triplets)\*\* — Năm bộ ba bao phủ cả 15 viên. Được \*\*50 điểm\*\*.
+\* \*\*Sảnh:\*\* 5 mặt liên tiếp, gồm 1-2-3-4-5 hoặc 2-3-4-5-6. Được \*\*12 điểm\*\*.
 
-Các bộ không được dùng chung viên xúc xắc. Trò chơi tự chọn tổ hợp cho điểm cao nhất. Các viên không thuộc bộ nào thì không tính điểm.
+\* \*\*Hai nhóm năm:\*\* Hai nhóm năm khác mặt, tổng cộng 10 viên. Được \*\*30 điểm\*\*.
 
-Sau khi tính điểm, bảng tóm tắt vòng được đọc lên: điểm vòng của từng người, tổng điểm tích lũy và người đang dẫn đầu. Nếu chưa ai đạt điểm mục tiêu, vòng mới bắt đầu.
+\* \*\*Ba nhóm năm:\*\* Ba nhóm năm dùng đủ cả 15 viên. Được \*\*50 điểm\*\*.
 
+\* \*\*Năm bộ ba:\*\* Năm bộ ba dùng đủ cả 15 viên. Được \*\*50 điểm\*\*.
 
+Các viên không thuộc tổ hợp ghi điểm tốt nhất sẽ được tính 0 điểm.
 
-\*\*Tùy chọn\*\*
+\*\*Tùy chọn trò chơi\*\*
 
+\* \*\*Điểm mục tiêu:\*\* Số điểm cần đạt để thắng sau một vòng tính điểm. Mặc định: 60. Phạm vi: 30-500.
 
+\*\*Tùy chọn cá nhân\*\*
 
-\* \*\*Điểm mục tiêu:\*\* Điểm cần đạt để thắng. Mặc định là 60. Có thể đặt từ 30 đến 500.
+\* \*\*Thông báo ngắn gọn:\*\* Rút ngắn các thông báo lặp lại khi tiết lộ xúc xắc đã đổi và khi đọc tóm tắt điểm.
 
+\* \*\*Kiểu giữ xúc xắc:\*\* Với Theo vị trí, nhấn 1-5 trong giai đoạn đổi để đổi trạng thái từng viên theo vị trí. Với Theo giá trị, nhấn 1-6 trong giai đoạn đổi để giữ một viên cùng mặt, và Shift+1-6 để đánh dấu đổi một viên đang giữ cùng mặt.
 
+\*\*Hành động thông tin\*\*
+
+\* \*\*Xem tay giữ của bạn:\*\* Nghe các viên bạn đã giữ trong vòng này. Trong giai đoạn đổi, hành động này cũng đọc lượt gieo hiện tại và viên nào đang được đánh dấu để đổi.
+
+\* \*\*Xem hũ chung:\*\* Nghe các mặt xúc xắc hiện đang có trong hũ chung.
+
+\* \*\*Xem người chơi:\*\* Nghe tay giữ của từng người và các viên họ đã đổi trong lượt gieo vừa được tiết lộ.
+
+\* \*\*Kiểm tra điểm:\*\* Nghe tổng điểm hiện tại.
 
 \*\*Phím tắt\*\*
 
+Giai đoạn đổi:
 
+\* \*\*1-5:\*\* Đổi trạng thái xúc xắc theo vị trí khi dùng kiểu Theo vị trí.
 
-Giai đoạn đổi xúc xắc:
+\* \*\*1-6:\*\* Giữ một viên cùng mặt khi dùng kiểu Theo giá trị.
 
-\* \*\*1–5:\*\* Chuyển đổi giữa đổi và giữ cho viên xúc xắc ở vị trí tương ứng. Nếu kiểu giữ xúc xắc của bạn được đặt thành Theo giá trị (trong Tùy chọn), phím 1–6 thay vào đó giữ lại viên đang đổi có giá trị đó, còn Shift+1–6 đánh dấu đổi viên đang giữ có giá trị đó.
-\* \*\*B:\*\* Xác nhận giao dịch.
+\* \*\*Shift+1-6:\*\* Đánh dấu đổi một viên đang giữ cùng mặt khi dùng kiểu Theo giá trị.
 
-Giai đoạn lấy xúc xắc:
+\* \*\*B:\*\* Xác nhận lựa chọn đổi.
 
-\* \*\*1–6:\*\* Lấy một viên có giá trị tương ứng từ hũ chung.
+Giai đoạn lấy:
 
-Bất kỳ lúc nào trong trò chơi:
+\* \*\*1-6:\*\* Lấy một viên cùng mặt từ hũ chung.
 
-\* \*\*H:\*\* Đọc tay bài hiện tại (các viên đã tích lũy trong vòng này).
-\* \*\*P:\*\* Đọc nội dung hũ chung.
-\* \*\*V:\*\* Đọc tay bài và xúc xắc đã đổi của từng người chơi.
+Bất kỳ lúc nào trong ván:
+
+\* \*\*H:\*\* Xem tay giữ của bạn.
+
+\* \*\*P:\*\* Xem hũ chung.
+
+\* \*\*V:\*\* Xem người chơi.
+
+\* \*\*S:\*\* Kiểm tra điểm.
+
+\* \*\*Shift+S:\*\* Mở bảng điểm chi tiết.

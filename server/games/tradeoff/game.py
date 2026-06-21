@@ -22,8 +22,14 @@ from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
 from ...users.preferences import DiceKeepingStyle
 
-from .scoring import SET_DEFINITIONS, find_best_scoring
+from .scoring import find_best_scoring
 from .bot import bot_think_trading, bot_think_taking
+
+
+MIN_TARGET_SCORE = 30
+MAX_TARGET_SCORE = 500
+ITERATIONS_PER_ROUND = 3
+DICE_PER_ITERATION = 5
 
 
 @dataclass
@@ -62,12 +68,13 @@ class TradeoffOptions(GameOptions):
     target_score: int = option_field(
         IntOption(
             default=60,
-            min_val=30,
-            max_val=500,
+            min_val=MIN_TARGET_SCORE,
+            max_val=MAX_TARGET_SCORE,
             value_key="score",
             label="tradeoff-set-target",
             prompt="tradeoff-enter-target",
             change_msg="tradeoff-option-changed-target",
+            description="tradeoff-desc-target-score",
         )
     )
 
@@ -86,7 +93,7 @@ class TradeoffGame(Game):
     First to reach the target score wins.
     """
 
-    relevant_preferences = ["dice_keeping_style"]
+    relevant_preferences = ["brief_announcements", "dice_keeping_style"]
 
     players: list[TradeoffPlayer] = field(default_factory=list)
     options: TradeoffOptions = field(default_factory=TradeoffOptions)
@@ -150,6 +157,106 @@ class TradeoffGame(Game):
         """Create a new player with Tradeoff-specific state."""
         return TradeoffPlayer(id=player_id, name=name, is_bot=is_bot)
 
+    def _wants_brief(self, user) -> bool:
+        return bool(
+            user
+            and user.preferences.get_effective(
+                "brief_announcements", game_type=self.get_type()
+            )
+        )
+
+    def _broadcast_actor_l(
+        self,
+        actor: TradeoffPlayer,
+        personal_key: str,
+        others_key: str,
+        *,
+        brief_personal_key: str | None = None,
+        brief_others_key: str | None = None,
+        **kwargs,
+    ) -> None:
+        """Broadcast actor-owned events with listener-specific perspective."""
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+
+            is_actor = listener.id == actor.id
+            key = personal_key if is_actor else others_key
+            if self._wants_brief(user):
+                if is_actor and brief_personal_key:
+                    key = brief_personal_key
+                elif not is_actor and brief_others_key:
+                    key = brief_others_key
+
+            payload = dict(kwargs)
+            if not is_actor:
+                payload["player"] = actor.name
+            user.speak_l(key, buffer="game", **payload)
+
+    def _broadcast_global_l(
+        self,
+        full_key: str,
+        brief_key: str | None = None,
+        **kwargs,
+    ) -> None:
+        """Broadcast a global event with optional brief wording per listener."""
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+            key = brief_key if brief_key and self._wants_brief(user) else full_key
+            user.speak_l(key, buffer="game", **kwargs)
+
+    def _format_dice_values(self, values: list[int], locale: str) -> str:
+        return Localization.format_list(locale, [str(value) for value in sorted(values)])
+
+    def _format_dice_counts(self, values: list[int], locale: str) -> str:
+        counts = Counter(values)
+        parts = [
+            Localization.get(locale, "tradeoff-die-count", value=value, count=counts[value])
+            for value in range(1, 7)
+            if counts[value] > 0
+        ]
+        return Localization.format_list(locale, parts)
+
+    def _hand_text(self, player: TradeoffPlayer, locale: str) -> str:
+        if player.hand:
+            return self._format_dice_values(player.hand, locale)
+        return Localization.get(locale, "tradeoff-hand-state-empty")
+
+    def _focus_first_take_or_status(self, player: TradeoffPlayer) -> None:
+        """After a direct touch action, land on the next useful Tradeoff control."""
+        if not self.is_touch_client(self.get_user(player)):
+            return
+        if self.phase == "taking" and self.taking_index < len(self.taking_order):
+            if self.taking_order[self.taking_index] == player.id:
+                for value in range(1, 7):
+                    if value in self.pool:
+                        self.request_menu_focus(player, f"take_{value}")
+                        return
+        if self.phase == "trading" and player.rolled_dice and not player.trades_confirmed:
+            self.request_menu_focus(player, "toggle_trade_0")
+        elif self.phase == "taking":
+            self.request_menu_focus(player, "view_pool")
+        elif self.status == "playing":
+            self.request_menu_focus(player, "view_hand")
+
+    def prestart_validate(self) -> list[str | tuple[str, dict]]:
+        errors: list[str | tuple[str, dict]] = list(super().prestart_validate())
+        if not MIN_TARGET_SCORE <= self.options.target_score <= MAX_TARGET_SCORE:
+            errors.append(
+                (
+                    "tradeoff-error-target-out-of-range",
+                    {
+                        "score": self.options.target_score,
+                        "min": MIN_TARGET_SCORE,
+                        "max": MAX_TARGET_SCORE,
+                    },
+                )
+            )
+        return errors
+
     # ==========================================================================
     # Action guards — toggle trade (shared logic, index injected dynamically)
     # ==========================================================================
@@ -165,7 +272,7 @@ class TradeoffGame(Game):
         if tp.trades_confirmed:
             return "tradeoff-already-confirmed"
         if index >= len(tp.rolled_dice):
-            return "tradeoff-no-die"
+            return ("tradeoff-no-die-position", {"position": index + 1})
         return None
 
     def _is_toggle_trade_hidden(self, player: Player, index: int) -> Visibility:
@@ -179,6 +286,8 @@ class TradeoffGame(Game):
         if tp.trades_confirmed:
             return Visibility.HIDDEN
         if not tp.rolled_dice:
+            return Visibility.HIDDEN
+        if index >= len(tp.rolled_dice):
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 
@@ -249,12 +358,15 @@ class TradeoffGame(Game):
         if self.taking_index >= len(self.taking_order):
             return "action-not-your-turn"
         if self.taking_order[self.taking_index] != player.id:
+            current_taker = self.get_player_by_id(self.taking_order[self.taking_index])
+            if current_taker:
+                return ("tradeoff-not-your-take-turn", {"player": current_taker.name})
             return "action-not-your-turn"
         tp: TradeoffPlayer = player  # type: ignore
         if tp.dice_taken_count >= tp.dice_traded_count:
             return "tradeoff-no-more-takes"
         if value not in self.pool:
-            return "tradeoff-not-in-pool"
+            return ("tradeoff-not-in-pool", {"value": value})
         return None
 
     def _is_take_hidden(self, player: Player, value: int) -> Visibility:
@@ -265,6 +377,8 @@ class TradeoffGame(Game):
         if self.phase != "taking":
             return Visibility.HIDDEN
         if self.taking_index >= len(self.taking_order):
+            return Visibility.HIDDEN
+        if self.taking_order[self.taking_index] != player.id:
             return Visibility.HIDDEN
         tp: TradeoffPlayer = player  # type: ignore
         if tp.dice_taken_count >= tp.dice_traded_count:
@@ -285,10 +399,75 @@ class TradeoffGame(Game):
     # Action guards — dice keybind actions (always hidden, keybind-dispatched)
     # ==========================================================================
 
-    def _is_dice_key_enabled(self, player: Player) -> str | None:
+    def _is_dice_key_enabled(
+        self, player: Player, *, action_id: str | None = None
+    ) -> str | tuple[str, dict] | None:
         if self.status != "playing":
             return "action-not-playing"
-        return None
+        if player.is_spectator:
+            return "action-spectator"
+
+        value = 0
+        if action_id:
+            try:
+                value = int(action_id.split("_")[-1])
+            except ValueError:
+                value = 0
+
+        tp: TradeoffPlayer = player  # type: ignore
+        user = self.get_user(player)
+        style = (
+            user.preferences.get_effective(
+                "dice_keeping_style", game_type=self.get_type()
+            )
+            if user
+            else DiceKeepingStyle.INDEX_BASED
+        )
+
+        if self.phase == "trading":
+            if tp.trades_confirmed:
+                return "tradeoff-already-confirmed"
+            if not tp.rolled_dice:
+                return "tradeoff-no-rolled-dice"
+            if action_id and action_id.startswith("dice_trade_"):
+                if style != DiceKeepingStyle.VALUE_BASED:
+                    return "tradeoff-value-trade-style-required"
+                if value not in [
+                    die
+                    for index, die in enumerate(tp.rolled_dice)
+                    if index not in tp.trading_indices
+                ]:
+                    return ("tradeoff-no-kept-die-value", {"value": value})
+                return None
+            if style == DiceKeepingStyle.INDEX_BASED:
+                if not 1 <= value <= len(tp.rolled_dice):
+                    return ("tradeoff-no-die-position", {"position": value})
+                return None
+            if value not in [
+                die
+                for index, die in enumerate(tp.rolled_dice)
+                if index in tp.trading_indices
+            ]:
+                return ("tradeoff-no-trading-die-value", {"value": value})
+            return None
+
+        if self.phase == "taking":
+            if action_id and action_id.startswith("dice_trade_"):
+                return "tradeoff-use-plain-number-to-take"
+            if self.taking_index >= len(self.taking_order):
+                return "action-not-your-turn"
+            if self.taking_order[self.taking_index] != player.id:
+                current_taker = self.get_player_by_id(self.taking_order[self.taking_index])
+                if current_taker:
+                    return ("tradeoff-not-your-take-turn", {"player": current_taker.name})
+                return "action-not-your-turn"
+            if tp.dice_taken_count >= tp.dice_traded_count:
+                return "tradeoff-no-more-takes"
+            if value not in self.pool:
+                return ("tradeoff-not-in-pool", {"value": value})
+            return None
+
+        return "tradeoff-no-dice-key-phase"
 
     def _is_dice_key_hidden(self, player: Player) -> Visibility:
         return Visibility.HIDDEN
@@ -347,7 +526,7 @@ class TradeoffGame(Game):
         action_set = ActionSet(name="turn")
 
         # Trading phase actions — toggle each die (menu items, phase-gated)
-        for i in range(5):
+        for i in range(DICE_PER_ITERATION):
             action_set.add(
                 Action(
                     id=f"toggle_trade_{i}",
@@ -434,6 +613,7 @@ class TradeoffGame(Game):
                 handler="_action_view_pool",
                 is_enabled="_is_view_pool_enabled",
                 is_hidden="_is_view_pool_hidden",
+                include_spectators=True,
             )
         )
         action_set.add(
@@ -443,11 +623,19 @@ class TradeoffGame(Game):
                 handler="_action_view_players",
                 is_enabled="_is_view_players_enabled",
                 is_hidden="_is_view_players_hidden",
+                include_spectators=True,
             )
         )
 
         if self.is_touch_client(user):
-            info_actions = ["check_scores", "whose_turn", "whos_at_table"]
+            info_actions = [
+                "view_hand",
+                "view_pool",
+                "view_players",
+                "check_scores",
+                "whose_turn",
+                "whos_at_table",
+            ]
             self._order_touch_standard_actions(action_set, info_actions)
         return action_set
 
@@ -537,6 +725,9 @@ class TradeoffGame(Game):
         """
         user = self.get_user(player)
         if not user:
+            return
+        if self.phase == "taking":
+            self._take_die(player, key_num)
             return
         style = user.preferences.get_effective(
             "dice_keeping_style", game_type=self.get_type()
@@ -632,6 +823,7 @@ class TradeoffGame(Game):
         tp.trading_indices = []
 
         self._check_all_traded()
+        self._focus_first_take_or_status(tp)
         self.refresh_menus()
 
     def _check_all_traded(self) -> None:
@@ -643,21 +835,44 @@ class TradeoffGame(Game):
         # Announce what each player traded (locale-formatted per recipient)
         for p in active_players:
             tp: TradeoffPlayer = p  # type: ignore
-            if tp.traded_dice:
-                dice_strs = [str(d) for d in sorted(tp.traded_dice)]
-                for recipient in self.players:
-                    user = self.get_user(recipient)
-                    if not user:
-                        continue
-                    dice_list_str = Localization.format_list(user.locale, dice_strs)
-                    user.speak_l("tradeoff-player-traded", buffer="game", player=p.name, dice=dice_list_str)
-            else:
-                self.broadcast_l("tradeoff-player-traded-none", buffer="game", player=p.name)
+            self._broadcast_trade_reveal(tp)
 
         if self.pool:
             self._start_taking_phase()
         else:
             self._end_iteration()
+
+    def _broadcast_trade_reveal(self, actor: TradeoffPlayer) -> None:
+        """Reveal one player's confirmed trade with actor/observer wording."""
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+
+            is_actor = listener.id == actor.id
+            payload: dict[str, int | str] = {
+                "count": len(actor.traded_dice),
+            }
+            if not is_actor:
+                payload["player"] = actor.name
+
+            if actor.traded_dice:
+                payload["dice"] = self._format_dice_values(actor.traded_dice, user.locale)
+                if self._wants_brief(user):
+                    key = (
+                        "tradeoff-you-traded-brief"
+                        if is_actor
+                        else "tradeoff-player-traded-brief"
+                    )
+                else:
+                    key = "tradeoff-you-traded" if is_actor else "tradeoff-player-traded"
+            else:
+                key = (
+                    "tradeoff-you-traded-none"
+                    if is_actor
+                    else "tradeoff-player-traded-none"
+                )
+            user.speak_l(key, buffer="game", **payload)
 
     # ==========================================================================
     # Taking logic
@@ -681,10 +896,17 @@ class TradeoffGame(Game):
         tp.hand.append(value)
         tp.dice_taken_count += 1
 
-        self.broadcast_personal_l(player, "tradeoff-you-take", "tradeoff-player-takes", value=value)
+        self.broadcast_personal_l(
+            player,
+            "tradeoff-you-take",
+            "tradeoff-player-takes",
+            buffer="game",
+            value=value,
+        )
 
         # Round-robin: advance to next taker after every die taken
         self._advance_taker()
+        self._focus_first_take_or_status(tp)
         self.refresh_menus()
 
     def _start_taking_phase(self) -> None:
@@ -744,7 +966,7 @@ class TradeoffGame(Game):
 
     def _end_iteration(self) -> None:
         """End this iteration; start next or score if this was iteration 3."""
-        if self.iteration < 3:
+        if self.iteration < ITERATIONS_PER_ROUND:
             self._start_iteration()
         else:
             self._do_scoring()
@@ -759,10 +981,40 @@ class TradeoffGame(Game):
         user = self.get_user(player)
         if not user:
             return
-        if tp.hand:
-            dice_strs = [str(d) for d in sorted(tp.hand)]
-            hand_str = Localization.format_list(user.locale, dice_strs)
-            user.speak_l("tradeoff-hand-display", buffer="game", count=len(tp.hand), dice=hand_str)
+        hand_str = self._hand_text(tp, user.locale)
+        if tp.rolled_dice:
+            roll_parts = []
+            for index, value in enumerate(tp.rolled_dice):
+                status_key = (
+                    "tradeoff-trade-status-trading"
+                    if index in tp.trading_indices
+                    else "tradeoff-trade-status-keeping"
+                )
+                roll_parts.append(
+                    Localization.get(
+                        user.locale,
+                        "tradeoff-roll-die-status",
+                        position=index + 1,
+                        value=value,
+                        status=Localization.get(user.locale, status_key),
+                    )
+                )
+            roll_str = Localization.format_list(user.locale, roll_parts)
+            user.speak_l(
+                "tradeoff-hand-display-with-roll",
+                buffer="game",
+                count=len(tp.hand),
+                dice=hand_str,
+                roll=roll_str,
+                trade_count=len(tp.trading_indices),
+            )
+        elif tp.hand:
+            user.speak_l(
+                "tradeoff-hand-display",
+                buffer="game",
+                count=len(tp.hand),
+                dice=hand_str,
+            )
         else:
             user.speak_l("tradeoff-hand-empty", buffer="game")
 
@@ -772,9 +1024,13 @@ class TradeoffGame(Game):
         if not user:
             return
         if self.pool:
-            dice_strs = [str(d) for d in sorted(self.pool)]
-            pool_str = Localization.format_list(user.locale, dice_strs)
-            user.speak_l("tradeoff-pool-display", buffer="game", count=len(self.pool), dice=pool_str)
+            pool_str = self._format_dice_counts(self.pool, user.locale)
+            user.speak_l(
+                "tradeoff-pool-display",
+                buffer="game",
+                count=len(self.pool),
+                dice=pool_str,
+            )
         else:
             user.speak_l("tradeoff-pool-empty", buffer="game")
 
@@ -785,18 +1041,23 @@ class TradeoffGame(Game):
             return
         for p in self.get_active_players():
             tp: TradeoffPlayer = p  # type: ignore
-            hand_str = (
-                Localization.format_list(user.locale, [str(d) for d in sorted(tp.hand)])
-                if tp.hand
-                else "empty"
-            )
+            hand_str = self._hand_text(tp, user.locale)
             if tp.traded_dice:
-                traded_str = Localization.format_list(
-                    user.locale, [str(d) for d in sorted(tp.traded_dice)]
+                traded_str = self._format_dice_values(tp.traded_dice, user.locale)
+                user.speak_l(
+                    "tradeoff-player-info",
+                    buffer="game",
+                    player=p.name,
+                    hand=hand_str,
+                    traded=traded_str,
                 )
-                user.speak_l("tradeoff-player-info", buffer="game", player=p.name, hand=hand_str, traded=traded_str)
             else:
-                user.speak_l("tradeoff-player-info-no-trade", buffer="game", player=p.name, hand=hand_str)
+                user.speak_l(
+                    "tradeoff-player-info-no-trade",
+                    buffer="game",
+                    player=p.name,
+                    hand=hand_str,
+                )
 
     # ==========================================================================
     # Game flow
@@ -835,7 +1096,7 @@ class TradeoffGame(Game):
             tp.dice_taken_count = 0
             tp.round_score = 0
 
-        self.broadcast_l("tradeoff-round-start", buffer="game", round=self.round)
+        self._broadcast_global_l("tradeoff-round-start", round=self.round)
         self._start_iteration()
 
     def _start_iteration(self) -> None:
@@ -844,13 +1105,13 @@ class TradeoffGame(Game):
         self.phase = "trading"
         self.pool = []
 
-        self.broadcast_l("tradeoff-iteration", buffer="game", iteration=self.iteration)
+        self._broadcast_global_l("tradeoff-iteration", iteration=self.iteration)
 
         active_players = self.get_active_players()
         for p in active_players:
             tp: TradeoffPlayer = p  # type: ignore
-            tp.rolled_dice = roll_dice(5, 6)
-            tp.trading_indices = list(range(5))  # all dice traded by default
+            tp.rolled_dice = roll_dice(DICE_PER_ITERATION, 6)
+            tp.trading_indices = list(range(DICE_PER_ITERATION))  # all dice traded by default
             tp.trades_confirmed = False
             tp.traded_dice = []
             tp.dice_traded_count = 0
@@ -919,43 +1180,37 @@ class TradeoffGame(Game):
             total_points = sum(s[2] for s in sets)
             tp.round_score = total_points
 
-            if sets:
-                for recipient in self.players:
-                    recipient_user = self.get_user(recipient)
-                    if not recipient_user:
-                        continue
-                    recipient_locale = recipient_user.locale
-                    set_descriptions = [
-                        self._format_set_description(recipient_locale, sn, du)
-                        for sn, du, _ in sets
-                    ]
-                    sets_str = Localization.format_list_and(recipient_locale, set_descriptions)
-                    msg = Localization.get(
-                        recipient_locale,
-                        "tradeoff-player-scored",
-                        player=p.name,
-                        points=total_points,
-                        sets=sets_str,
-                    )
-                    recipient_user.speak(msg, buffer="game")
-            else:
-                self.broadcast_l("tradeoff-no-sets", buffer="game", player=p.name)
+            self._broadcast_scoring_result(tp, sets, total_points)
 
             self._team_manager.add_to_team_round_score(p.name, total_points)
 
         self._team_manager.commit_round_scores()
 
         # Announce round summary
-        self.broadcast_l("tradeoff-round-scores", buffer="game", round=self.round)
+        self._broadcast_global_l(
+            "tradeoff-round-scores",
+            "tradeoff-round-scores-brief",
+            round=self.round,
+        )
         for p in active_players:
             tp: TradeoffPlayer = p  # type: ignore
             total = self._get_player_score(p.name)
-            self.broadcast_l(
-                "tradeoff-score-line", buffer="game",
-                player=p.name,
-                round_points=tp.round_score,
-                total=total,
-            )
+            for listener in self.players:
+                user = self.get_user(listener)
+                if not user:
+                    continue
+                key = (
+                    "tradeoff-score-line-brief"
+                    if self._wants_brief(user)
+                    else "tradeoff-score-line"
+                )
+                user.speak_l(
+                    key,
+                    buffer="game",
+                    player=p.name,
+                    round_points=tp.round_score,
+                    total=total,
+                )
 
         # Announce leader
         best_score = 0
@@ -966,7 +1221,12 @@ class TradeoffGame(Game):
                 best_score = score
                 leader = p
         if leader:
-            self.broadcast_l("tradeoff-leader", buffer="game", player=leader.name, score=best_score)
+            self._broadcast_global_l(
+                "tradeoff-leader",
+                "tradeoff-leader-brief",
+                player=leader.name,
+                score=best_score,
+            )
 
         # Check for winner
         for p in active_players:
@@ -977,6 +1237,42 @@ class TradeoffGame(Game):
         self._team_manager.reset_round_scores()
         self._start_round()
 
+    def _broadcast_scoring_result(
+        self,
+        actor: TradeoffPlayer,
+        sets: list[tuple[str, list[int], int]],
+        total_points: int,
+    ) -> None:
+        """Announce one player's round score with localized set names."""
+        for listener in self.players:
+            user = self.get_user(listener)
+            if not user:
+                continue
+            is_actor = listener.id == actor.id
+            payload: dict[str, int | str] = {"points": total_points}
+            if not is_actor:
+                payload["player"] = actor.name
+
+            if sets:
+                set_descriptions = [
+                    self._format_set_description(user.locale, set_name, dice_used)
+                    for set_name, dice_used, _ in sets
+                ]
+                payload["sets"] = Localization.format_list_and(
+                    user.locale, set_descriptions
+                )
+                if self._wants_brief(user):
+                    key = (
+                        "tradeoff-you-scored-brief"
+                        if is_actor
+                        else "tradeoff-player-scored-brief"
+                    )
+                else:
+                    key = "tradeoff-you-scored" if is_actor else "tradeoff-player-scored"
+            else:
+                key = "tradeoff-you-no-sets" if is_actor else "tradeoff-no-sets"
+            user.speak_l(key, buffer="game", **payload)
+
     def _end_game(self) -> None:
         """Announce the winner and end the game."""
         active_players = self.get_active_players()
@@ -986,14 +1282,35 @@ class TradeoffGame(Game):
         self.play_sound("game_pig/win.ogg")
 
         if len(winners) == 1:
-            self.broadcast_l("tradeoff-winner", buffer="game", player=winners[0].name, score=high_score)
+            winner: TradeoffPlayer = winners[0]  # type: ignore
+            self._broadcast_actor_l(
+                winner,
+                "tradeoff-you-win",
+                "tradeoff-winner",
+                score=high_score,
+            )
         else:
             winner_names = [w.name for w in winners]
             for p in self.players:
                 user = self.get_user(p)
                 if user:
-                    names_str = Localization.format_list_and(user.locale, winner_names)
-                    user.speak_l("tradeoff-winners-tie", buffer="game", players=names_str, score=high_score)
+                    if p in winners:
+                        other_names = [name for name in winner_names if name != p.name]
+                        names_str = Localization.format_list_and(user.locale, other_names)
+                        user.speak_l(
+                            "tradeoff-you-tie-win",
+                            buffer="game",
+                            players=names_str,
+                            score=high_score,
+                        )
+                    else:
+                        names_str = Localization.format_list_and(user.locale, winner_names)
+                        user.speak_l(
+                            "tradeoff-winners-tie",
+                            buffer="game",
+                            players=names_str,
+                            score=high_score,
+                        )
 
         self.finish_game()
 
