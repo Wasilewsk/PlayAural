@@ -202,8 +202,8 @@ pref-changed-dice-keeping-style = Dice keeping style set to { $choice }.
 pref-desc-play-turn-sound = Play a sound when it becomes your turn.
 pref-desc-confirm-destructive-actions = Ask for confirmation before risky or irreversible actions, such as passing in Pusoy Dos.
 pref-desc-allow-custom-bot-names = Let you set custom names for bots you add to a table.
-pref-desc-clear-kept-on-roll = Release your kept dice automatically each time you roll.
-pref-desc-dice-keeping-style = Choose whether dice are kept by position (1-5) or by face value (1-6).
+pref-desc-clear-kept-on-roll = In Yahtzee, release every kept die after each roll. Your next roll rerolls all dice unless you keep some again; with Dice values, use Shift+1-6 to keep matching dice.
+pref-desc-dice-keeping-style = Dice indexes: use 1-5, or 1-6 in Midnight, to toggle dice by position. Dice values: use 1-6 to release one kept die with that face value and Shift+1-6 to keep one matching released die. In Tradeoff, 1-6 keeps one matching die and Shift+1-6 marks one for trading.
 
 cancel = Cancel
 no-bot-names-available = No bot names available.

@@ -52,7 +52,7 @@ Bạn gieo hai viên cuối và được 3 và 5. Bạn giữ mặt 3. Viên 5 c
 
 \* \*\*Thông báo ngắn gọn:\*\* Rút ngắn các thông báo lặp lại về lượt chơi, gieo, giữ xúc xắc, và tính điểm.
 
-\* \*\*Kiểu giữ xúc xắc:\*\* Chọn phím số theo vị trí viên xúc xắc hoặc theo giá trị mặt xúc xắc.
+\* \*\*Kiểu giữ xúc xắc:\*\* Với Theo vị trí, nhấn 1-5 để đổi trạng thái từng viên theo vị trí. Với Theo giá trị, mọi viên vừa gieo bắt đầu ở trạng thái giữ; nhấn 1-6 để thả một viên có mặt tương ứng cho lần gieo tiếp theo, hoặc Shift+1-6 để giữ lại một viên đã thả có mặt tương ứng. Nhấn cùng một phím nhiều lần để xử lý lần lượt các viên trùng mặt.
 
 \*\*Hành động thông tin\*\*
 
@@ -67,5 +67,9 @@ Bạn gieo hai viên cuối và được 3 và 5. Bạn giữ mặt 3. Viên 5 c
 \* \*\*B:\*\* Chốt điểm lượt chơi.
 
 \* \*\*1-5:\*\* Giữ hoặc bỏ giữ xúc xắc khi dùng kiểu điều khiển theo vị trí.
+
+\* \*\*1-6:\*\* Trong chế độ Theo giá trị, thả một viên đang giữ có mặt tương ứng.
+
+\* \*\*Shift+1-6:\*\* Trong chế độ Theo giá trị, giữ lại một viên đã thả có mặt tương ứng.
 
 \* \*\*H:\*\* Kiểm tra xúc xắc hiện tại.

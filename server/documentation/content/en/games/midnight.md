@@ -58,11 +58,17 @@ If you finish without both required numbers, you do not qualify and score 0 for 
 
 \* \*\*Rounds:\*\* Number of rounds to play. Default: 5. Range: 1-20.
 
+\*\*Personal Options\*\*
+
+\* \*\*Dice keeping style:\*\* With Dice indexes, press 1-6 to toggle dice by position. With Dice values, every newly rolled die begins kept; press 1-6 to release one matching die for the next roll, or Shift+1-6 to keep one matching released die again. Repeat a key to handle duplicate values one die at a time.
+
 \*\*Keyboard Shortcuts\*\*
 
 \* \*\*R:\*\* Roll the dice.
 
-\* \*\*1-6:\*\* Toggle keeping a die, using your personal dice-keeping style.
+\* \*\*1-6:\*\* Toggle by position in Dice indexes mode, or release one matching kept die in Dice values mode.
+
+\* \*\*Shift+1-6:\*\* In Dice values mode, keep one matching released die.
 
 \* \*\*B:\*\* Bank your score once every die is decided.
 

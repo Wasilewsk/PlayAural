@@ -1,6 +1,7 @@
 """Tests for the declarative preference engine and client-compat invariants."""
 
 from ..users.preferences import UserPreferences, DiceKeepingStyle, PREF_CATEGORIES
+from ..games.registry import GameRegistry
 
 
 # The exact key set web/mobile clients read from preferences.to_dict(). Migrating
@@ -34,6 +35,18 @@ def test_declarative_categories_and_fields() -> None:
     # Non-declarative prefs have no PrefMeta.
     assert UserPreferences.get_pref_meta("music_volume") is None
     assert UserPreferences.get_pref_meta("dice_keeping_style").kind == "menu"
+
+
+def test_dice_preferences_are_exposed_only_by_games_that_use_them() -> None:
+    assert GameRegistry.get_games_for_preference("clear_kept_on_roll") == [
+        "yahtzee"
+    ]
+    assert GameRegistry.get_games_for_preference("dice_keeping_style") == [
+        "midnight",
+        "threes",
+        "tradeoff",
+        "yahtzee",
+    ]
 
 
 def test_get_effective_bool_and_enum_overrides() -> None:

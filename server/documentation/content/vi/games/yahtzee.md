@@ -78,12 +78,21 @@ Nếu không có mục nào còn trống phù hợp với xúc xắc hiện tạ
 \* \*\*Số ván:\*\* Số ván đầy đủ (13 vòng) trong một phiên chơi (mặc định 1).
 
 
+\*\*Tùy chọn cá nhân\*\*
+
+\* \*\*Kiểu giữ xúc xắc:\*\* Với Theo vị trí, nhấn 1-5 để đổi trạng thái từng viên theo vị trí. Với Theo giá trị, mọi viên vừa gieo bắt đầu ở trạng thái giữ, trừ khi bạn bật Xóa xúc xắc đã giữ khi gieo; nhấn 1-6 để thả một viên có mặt tương ứng cho lần gieo tiếp theo, hoặc Shift+1-6 để giữ lại một viên đã thả có mặt tương ứng.
+
+\* \*\*Xóa xúc xắc đã giữ khi gieo:\*\* Khi bật, mọi viên sẽ được thả sau mỗi lần gieo. Lần gieo tiếp theo sẽ gieo lại cả năm viên, trừ những viên bạn giữ lại. Trong chế độ Theo giá trị, dùng Shift+1-6 sau khi gieo để giữ viên có mặt tương ứng.
+
+
 
 \*\*Phím tắt bàn phím\*\*
 
 
 
 \* \*\*R:\*\* Gieo xúc xắc (hoặc gieo lại các viên chưa giữ).
-\* \*\*1–5:\*\* Bật/tắt giữ từng viên xúc xắc theo vị trí (1 = viên bên trái nhất).
+\* \*\*1–5:\*\* Trong chế độ Theo vị trí, bật hoặc tắt giữ từng viên xúc xắc theo vị trí (1 = viên bên trái nhất).
+\* \*\*1–6:\*\* Trong chế độ Theo giá trị, thả một viên đang giữ có mặt tương ứng để gieo lại.
+\* \*\*Shift+1–6:\*\* Trong chế độ Theo giá trị, giữ lại một viên đã thả có mặt tương ứng.
 \* \*\*D:\*\* Đọc giá trị các viên xúc xắc hiện tại và những viên đang được giữ.
 \* \*\*C:\*\* Đọc bảng điểm đầy đủ, bao gồm các mục còn trống và tổng điểm hiện tại.

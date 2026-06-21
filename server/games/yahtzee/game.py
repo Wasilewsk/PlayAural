@@ -427,7 +427,9 @@ class YahtzeeGame(Game, DiceGameMixin):
             else True
         )
         ytz_player.dice.roll(lock_kept=False, clear_kept=clear_kept)
-        self._apply_dice_values_defaults(ytz_player)
+        # Value-based controls normally begin with every die kept. Respect the
+        # explicit clear preference instead of immediately restoring that state.
+        self._apply_dice_values_defaults(ytz_player, keep_all=not clear_kept)
         ytz_player.rolls_left -= 1
 
         # Announce only the dice that were actually rerolled.

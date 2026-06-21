@@ -202,8 +202,8 @@ pref-changed-dice-keeping-style = Đã đặt kiểu giữ xúc xắc thành { $
 pref-desc-play-turn-sound = Phát âm thanh khi đến lượt của bạn.
 pref-desc-confirm-destructive-actions = Hỏi xác nhận trước các hành động rủi ro hoặc không thể hoàn tác, chẳng hạn như bỏ lượt trong Pusoy Dos.
 pref-desc-allow-custom-bot-names = Cho phép bạn đặt tên tùy chỉnh cho các bot bạn thêm vào bàn.
-pref-desc-clear-kept-on-roll = Tự động thả các xúc xắc đã giữ mỗi khi bạn gieo.
-pref-desc-dice-keeping-style = Chọn giữ xúc xắc theo vị trí (1-5) hay theo giá trị mặt (1-6).
+pref-desc-clear-kept-on-roll = Trong Yahtzee, thả tất cả xúc xắc đang giữ sau mỗi lần gieo. Lần gieo tiếp theo sẽ gieo lại tất cả, trừ những viên bạn giữ lại; khi dùng Theo giá trị, nhấn Shift+1-6 để giữ viên có mặt tương ứng.
+pref-desc-dice-keeping-style = Theo vị trí: dùng phím 1-5, hoặc 1-6 trong Midnight, để đổi trạng thái từng viên theo vị trí. Theo giá trị: dùng phím 1-6 để thả một viên đang giữ có mặt tương ứng, và Shift+1-6 để giữ lại một viên đã thả. Riêng trong Tradeoff, phím 1-6 giữ lại một viên tương ứng, còn Shift+1-6 đánh dấu một viên để đổi.
 
 cancel = Hủy
 no-bot-names-available = Không có tên bot nào.

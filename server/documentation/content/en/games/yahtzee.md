@@ -78,12 +78,21 @@ If none of your open categories fit your dice, you must take a zero in one of th
 \* \*\*Number of Games:\*\* How many full 13-round games to play in a session (default 1).
 
 
+\*\*Personal Options\*\*
+
+\* \*\*Dice keeping style:\*\* With Dice indexes, press 1-5 to toggle dice by position. With Dice values, every result begins kept unless Clear kept dice when rolling is enabled; press 1-6 to release one matching die for the next roll, or Shift+1-6 to keep one matching released die.
+
+\* \*\*Clear kept dice when rolling:\*\* When enabled, every die is released after each roll. The next roll rerolls all five dice unless you keep some again. In Dice values mode, use Shift+1-6 after the roll to keep matching dice.
+
+
 
 \*\*Keyboard Shortcuts\*\*
 
 
 
 \* \*\*R:\*\* Roll the dice (or reroll unkept dice).
-\* \*\*1–5:\*\* Toggle keeping or rerolling each die by position (1 = leftmost).
+\* \*\*1–5:\*\* In Dice indexes mode, toggle keeping or rerolling each die by position (1 = leftmost).
+\* \*\*1–6:\*\* In Dice values mode, release one kept die showing that value so it will reroll.
+\* \*\*Shift+1–6:\*\* In Dice values mode, keep one released die showing that value.
 \* \*\*D:\*\* Read out the current dice values and which are being kept.
 \* \*\*C:\*\* Read your full scorecard, including remaining categories and current totals.

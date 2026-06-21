@@ -52,7 +52,7 @@ Your turn score is 0 + 0 + 1 + 0 + 5 = 6 points.
 
 \* \*\*Brief announcements:\*\* Shortens repeated turn, roll, keep, and scoring announcements.
 
-\* \*\*Dice keeping style:\*\* Choose whether number keys refer to die positions or die values.
+\* \*\*Dice keeping style:\*\* With Dice indexes, press 1-5 to toggle dice by position. With Dice values, every newly rolled die begins kept; press 1-6 to release one matching die for the next roll, or Shift+1-6 to keep one matching released die again. Repeat a key to handle duplicate values one die at a time.
 
 \*\*Information Actions\*\*
 
@@ -67,5 +67,9 @@ Your turn score is 0 + 0 + 1 + 0 + 5 = 6 points.
 \* \*\*B:\*\* Bank your turn score.
 
 \* \*\*1-5:\*\* Keep or release dice when using position-based dice controls.
+
+\* \*\*1-6:\*\* In Dice values mode, release one matching kept die.
+
+\* \*\*Shift+1-6:\*\* In Dice values mode, keep one matching released die.
 
 \* \*\*H:\*\* Check the current dice.

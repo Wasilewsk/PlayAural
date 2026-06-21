@@ -241,8 +241,16 @@ class DiceGameMixin:
             return action_id
         return f"Keep {key_num}"
 
-    def _apply_dice_values_defaults(self, player: Player) -> None:
-        """In dice values style, default to keeping all dice after a roll."""
+    def _apply_dice_values_defaults(
+        self, player: Player, *, keep_all: bool = True
+    ) -> None:
+        """Initialize the post-roll selection used by value-based controls.
+
+        Value-based controls use number keys to release matching dice and
+        Shift+number to keep them. Most games therefore begin with every newly
+        rolled die kept. A game that explicitly clears kept dice can pass
+        ``keep_all=False`` so that policy remains authoritative.
+        """
         user = self.get_user(player)
         style = (
             user.preferences.get_effective("dice_keeping_style", game_type=self.get_type())
@@ -256,7 +264,9 @@ class DiceGameMixin:
         dice = player.dice
         if not dice.has_rolled:
             return
-        dice.kept = list(range(dice.num_dice))
+        dice.kept = (
+            list(range(dice.num_dice)) if keep_all else list(dice.locked)
+        )
 
     def _has_kept_value(self, player: Player, value: int) -> bool:
         if not hasattr(player, "dice"):

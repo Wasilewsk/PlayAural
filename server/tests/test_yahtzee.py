@@ -17,6 +17,7 @@ from ..games.yahtzee.game import (
 )
 from ..users.test_user import MockUser
 from ..users.bot import Bot
+from ..users.preferences import DiceKeepingStyle
 
 
 class TestYahtzeeScoring:
@@ -240,6 +241,49 @@ class TestYahtzeePlayTest:
             game.on_tick()
 
         assert game.status == "finished"
+
+    def test_value_style_defaults_to_all_kept_when_clear_is_off(self):
+        """Value controls release dice from an all-kept post-roll state."""
+        game = YahtzeeGame()
+        user = MockUser("Alice")
+        user.preferences.dice_keeping_style = DiceKeepingStyle.VALUE_BASED
+        user.preferences.clear_kept_on_roll = False
+        player = game.add_player("Alice", user)
+        game.on_start()
+
+        game.execute_action(player, "roll")
+
+        assert player.dice.kept == [0, 1, 2, 3, 4]
+        value = player.dice.values[0]
+        game.execute_action(player, f"dice_key_{value}")
+        assert len(player.dice.kept) == 4
+        assert 0 not in player.dice.kept
+
+    def test_value_style_honors_clear_kept_after_every_roll(self, monkeypatch):
+        """Clear-kept must not be overwritten by value-mode defaults."""
+        game = YahtzeeGame()
+        user = MockUser("Alice")
+        user.preferences.dice_keeping_style = DiceKeepingStyle.VALUE_BASED
+        user.preferences.clear_kept_on_roll = True
+        player = game.add_player("Alice", user)
+        game.on_start()
+
+        game.execute_action(player, "roll")
+        assert player.dice.kept == []
+
+        value = player.dice.values[0]
+        game.execute_action(player, f"dice_unkeep_{value}")
+        assert player.dice.kept == [0]
+        kept_value = player.dice.values[0]
+
+        monkeypatch.setattr(
+            "server.game_utils.dice.random.randint",
+            lambda _minimum, _maximum: 6 if kept_value != 6 else 5,
+        )
+        game.execute_action(player, "roll")
+
+        assert player.dice.values[0] == kept_value
+        assert player.dice.kept == []
 
     def test_four_player_game_completes(self):
         """Test that a 4-player bot game completes."""
