@@ -1,5 +1,37 @@
 Nhật ký thay đổi
 
+Chủ Nhật 21 Tháng Sáu 2026
+
+Cập nhật máy chủ:
+
+Đợt đánh bóng diện rộng tiếp tục với Kỷ Nguyên Anh Hùng, Bunko, Xúc xắc màu, Farkle, Trái, Giữa, Phải, Tháp Pháo Quang Năng, Ống Sắt, 1-4-24, Nine, Pig, Hải Tặc: Những Vùng Biển Thất Lạc, Bóng Lăn, Rắn và Thang, Ba điểm, Toss Up, Tradeoff, Yahtzee và Cards Against Humanity. Các trò chơi này có luật rõ hơn, thông báo tự nhiên hơn, tiêu điểm cảm ứng ổn định hơn, người máy thông minh hơn ở nơi cần thiết, và tài liệu được làm mới khi phù hợp.
+
+Thông báo lượt và hành động giờ nói đúng góc nhìn hơn. Khi đến lượt bạn, bạn nghe "Đến lượt bạn"; những người khác nghe tên người đang có lượt. Các thông báo thắng, bị loại, giao chiến, ghi điểm, hết giờ và chiếu trong các trò như Cờ vua, Thành Phố Trung Cổ, Sorry!, UNO và Kỷ Nguyên Anh Hùng cũng dùng cách nói cá nhân hơn, nên bạn không còn nghe hành động của mình như thể do người khác làm.
+
+Tiêu điểm menu ổn định hơn trên toàn nền tảng. Khi quay lại từ menu con, hệ thống khôi phục đúng mục bạn đã mở, bao gồm Quản trị, Quản lý bàn, Tùy chỉnh, menu bàn, màn hình trạng thái và các lời nhắc hành động. Người chơi cảm ứng sẽ ít gặp tình trạng bị nhảy về đầu menu sau khi chọn, hủy hoặc đóng menu.
+
+Nút Bắt đầu game giờ luôn hiện trong phòng chờ kể cả khi tùy chọn thiết lập còn cần chỉnh. Khi chọn, trò chơi sẽ giải thích cần sửa gì, giúp việc chuẩn bị bàn dễ điều hướng hơn bằng bàn phím, cảm ứng và trình đọc màn hình.
+
+Các tùy chọn giữ xúc xắc rõ ràng và dễ đoán hơn. Kiểu giữ xúc xắc giờ giải thích Theo vị trí và Theo giá trị chính xác hơn, và chỉ những trò thật sự dùng kiểu điều khiển đó mới hiển thị tùy chọn này.
+
+Yahtzee giờ hỗ trợ luyện tập solo, xem bảng điểm chung và tính điểm gọn gàng hơn. Shift+C mở Xem bảng điểm của mọi người chơi cho cả người chơi lẫn khán giả, phím kiểm tra điểm chuẩn giờ hiển thị đúng tổng điểm Yahtzee, ván solo không tính vào bảng xếp hạng cạnh tranh, và sau khi ghi điểm, tiêu điểm cảm ứng quay lại Gieo xúc xắc.
+
+Cờ vua giờ an toàn hơn với xin đi lại, đề nghị cờ hòa và trạng thái đồng hồ. Khi chấp nhận đi lại, ván không còn bị xử lý nhầm thành cờ hòa; lịch sử đi lại được dọn đúng cách; Nhập nước cờ vẫn hiện làm điểm bám tiêu điểm; người chơi cảm ứng quay lại Nhập nước cờ sau khi nhập nước.
+
+Hải Tặc: Những Vùng Biển Thất Lạc có người máy thông minh hơn nhiều và kỹ năng mượt hơn. Trực Giác Thủy Thủ không còn tạo lựa chọn trống, cân bằng kỹ năng và thông báo rõ hơn, và Cổng Dịch Chuyển giờ có Ô ngẫu nhiên trên bản đồ để dịch chuyển đến bất kỳ ô hợp lệ nào, kể cả vùng biển trống, ngay cả khi không có tàu đối địch ở vùng biển khác.
+
+Bóng Lăn giờ có các bộ bóng phong phú và chính xác hơn, bao gồm Vòng quanh thế giới và Hành trình Việt Nam. Tài liệu đã được viết lại thành hướng dẫn thân thiện cho người mới và ghi rõ nguồn gốc từ dự án mã nguồn mở PlayPalace.
+
+Đường Đua Nghìn Dặm giờ giải thích giới hạn lá dặm đường rõ ràng hơn. Các lá dặm đường hợp lệ vẫn đánh được khi không đi quá đích, Yêu cầu về đích chính xác được tôn trọng, việc về đích quá mục tiêu hoạt động đúng khi tùy chọn đó đang tắt, Giới Hạn Tốc Độ được xử lý đúng, và lời nhắc bỏ bài đưa tiêu điểm về lại vị trí lá bài bạn vừa chọn.
+
+Rắn và Thang giờ bám sát nhịp chơi quen thuộc hơn, với thông báo rõ hơn khi bắt đầu, leo thang, trượt theo rắn, bật ngược, cần gieo đúng để về đích và thắng ván.
+
+Gấu Cuồng Loạn, 1-4-24, Ba điểm, Toss Up, Pig, Tradeoff, Bunko, Farkle, Xúc xắc màu, Tháp Pháo Quang Năng, Trái, Giữa, Phải và Ống Sắt giờ có nhịp vòng chơi mượt hơn và tùy chọn âm thanh ngắn gọn ở những nơi hữu ích. Các menu Gieo, Chốt điểm, Giữ điểm, chọn xúc xắc, bảng điểm và trạng thái ổn định hơn cho người chơi cảm ứng, Điểm mục tiêu mặc định của Farkle giờ là 1000, còn người máy ra quyết định tốt hơn trong Farkle, Bóng Lăn, Tradeoff và Hải Tặc: Những Vùng Biển Thất Lạc.
+
+UNO giờ giữ đúng chồng lá rút đang chờ khi một lá Rút thắng vòng bài, và thông báo tính điểm loại trực tiếp rõ hơn cho người liên quan lẫn những người còn lại.
+
+Cards Against Humanity giờ phản hồi rõ hơn khi nộp bài, chấm bài, thiết lập nhiều trọng tài, dùng số bài trên tay lớn hơn 10, và giải thích việc nội dung lá bài hiện chỉ hỗ trợ tiếng Anh. Các hiệu ứng âm thanh riêng của trò này cũng được định tuyến đúng trên các ứng dụng.
+
 Thứ Tư 17 Tháng Sáu 2026
 
 Cập nhật máy chủ:

@@ -1,5 +1,37 @@
 Changelog
 
+Sunday 21 June 2026
+
+Server Updates:
+
+The platform-wide game polish continued with Age of Heroes, Bunko, Color Game, Farkle, Left Right Center, Light Turret, Metal Pipe, Midnight, Nine, Pig, Pirates of the Lost Seas, Rolling Balls, Snakes and Ladders, Threes, Toss Up, Tradeoff, Yahtzee, and Cards Against Humanity. These games received clearer rules, more natural announcements, steadier touch focus, smarter bots where useful, and refreshed manuals where needed.
+
+Turn and action announcements now speak to each listener more naturally. When it is your turn, you hear "It is your turn"; everyone else hears whose turn it is. Winner, elimination, combat, score, timeout, and check messages in games such as Chess, Citadels, Sorry!, UNO, and Age of Heroes now use the same personal wording instead of describing your own actions as if someone else did them.
+
+Menu focus is more dependable across the platform. Returning from submenus now restores the item you opened, including Administration, Host Management, Options, table menus, status screens, and action prompts. Touch players should see fewer jumps back to the top after choosing, canceling, or closing a menu.
+
+The Start game option now stays visible in waiting rooms even when setup choices need attention. Selecting it explains what must be fixed, which makes setup easier to navigate by keyboard, touch, and screen reader.
+
+Dice keeping preferences are clearer and more predictable. Dice keeping style now explains Dice indexes and Dice values more accurately, and games only expose those controls when their dice flow actually uses them.
+
+Yahtzee now supports solo practice, shared scorecard viewing, and cleaner scoring. Shift+C opens Check scorecard for all players for players and spectators, standard score checks now show real Yahtzee totals, solo games stay out of competitive rankings, and scoring a category returns touch focus to Roll dice.
+
+Chess takeback, draw offer, and clock states are safer. Accepting a takeback no longer resolves as a draw, undo history is cleaned up properly, Enter Move remains available as a stable focus anchor, and touch players return to Enter Move after submitting a move.
+
+Pirates of the Lost Seas has a much smarter bot and smoother skills. Sailor's Instinct no longer creates blank choices, skill balance and announcements are clearer, and Portal now includes Random map space so it can teleport to any valid space on the map, including empty seas, even when there are no rival ships elsewhere.
+
+Rolling Balls now has richer, more accurate ball sets, including Around the World and Journey Through Vietnam. Its manual has been rewritten as a beginner guide and clearly credits the original open-source PlayPalace project.
+
+Mile by Mile now explains distance-card limits clearly. Legal distance cards remain playable when they do not pass the finish, Require exact finish is respected, finishing past the target works when that option is off, Speed Limit is handled correctly, and discard prompts return focus to the card position you came from.
+
+Snakes and Ladders now follows familiar board-game flow more closely, with clearer start, ladder, snake, bounce-back, exact-finish, and winning announcements.
+
+Chaos Bear, Midnight, Threes, Toss Up, Pig, Tradeoff, Bunko, Farkle, Color Game, Light Turret, Left Right Center, and Metal Pipe now have smoother round flow and shorter audio options where they help. Roll, Bank, Hold, dice-choice, score, and status menus are more stable for touch clients, Farkle's default Target Score is now 1000, and bots make stronger choices in Farkle, Rolling Balls, Tradeoff, and Pirates of the Lost Seas.
+
+UNO now preserves a pending Draw stack correctly when a Draw card wins the hand, and elimination scoring announcements are clearer for the player involved and for everyone else.
+
+Cards Against Humanity now gives clearer feedback around submissions, judging, multi-judge setup, hand sizes above 10 cards, and English-only card text. Its dedicated sound cues are also routed correctly across clients.
+
 Wednesday 17 June 2026
 
 Server Updates:
