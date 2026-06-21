@@ -1,134 +1,132 @@
-Texas Hold'em
+\*\*Poker Texas Hold'em\*\*
 
+Poker Texas Hold'em là trò poker dành cho 2 đến 10 người. Mỗi người nhận hai lá bài tẩy riêng, rồi cả bàn cùng dùng tối đa năm lá bài chung ở giữa bàn.
 
+Trò chơi chỉ đọc bài tẩy cho chính bạn. Những người khác sẽ nghe hành động cược, bài chung, và kết quả Ngửa bài.
 
-Texas Hold'em là biến thể phổ biến nhất của môn Poker. Người chơi sử dụng 2 lá bài tẩy (bài riêng) kết hợp với 5 lá bài chung trên bàn để tạo ra tay bài mạnh nhất.
+\*\*Mục tiêu\*\*
 
+Hãy giành toàn bộ chip trên bàn.
 
+Bạn có thể thắng chip theo hai cách:
 
-Mục tiêu
+\* Tất cả đối thủ đều bỏ bài, chỉ còn bạn trong ván.
+\* Bạn bước vào Ngửa bài với tay bài poker năm lá mạnh nhất.
 
+Trận đấu kết thúc khi chỉ còn một người có chip.
 
+\*\*Thứ hạng tay bài poker\*\*
 
-Chiến thắng số chip (xu) bằng cách sở hữu tay bài 5 lá mạnh nhất hoặc ép những người chơi khác phải Úp bỏ bài.
+Từ mạnh nhất đến yếu nhất, các tay bài là:
 
+1\. \*\*Sảnh chúa:\*\* 10, J, Q, K, và Át, tất cả cùng chất.
+2\. \*\*Thùng phá sảnh:\*\* năm lá liên tiếp và cùng chất.
+3\. \*\*Tứ quý:\*\* bốn lá cùng hạng.
+4\. \*\*Cù lũ:\*\* ba lá cùng hạng kèm hai lá cùng một hạng khác.
+5\. \*\*Thùng:\*\* năm lá cùng chất nhưng không liên tiếp.
+6\. \*\*Sảnh:\*\* năm lá liên tiếp nhưng không đồng chất. Át có thể tính thấp trong Át-2-3-4-5.
+7\. \*\*Sám cô:\*\* ba lá cùng hạng.
+8\. \*\*Hai đôi:\*\* hai đôi khác nhau.
+9\. \*\*Một đôi:\*\* hai lá cùng hạng.
+10\. \*\*Mậu thầu:\*\* không có tay bài nào mạnh hơn. Lá cao nhất quyết định tay bài.
 
+Nếu hai người có cùng loại tay bài, hạng của các lá trong tay bài sẽ phân định thắng thua. Nếu hai tay bài hoàn toàn ngang nhau, hũ được chia đều. Chất bài không bao giờ dùng để phá hòa.
 
-Thiết lập Trò chơi
+\*\*Bắt đầu một ván bài\*\*
 
+Khi mỗi ván bài bắt đầu:
 
+\* Nút di chuyển một ghế theo chiều kim đồng hồ.
+\* Mù nhỏ và Mù lớn được đóng tự động.
+\* Cược góp được đóng tự động khi tùy chọn cược góp đang có hiệu lực ở cấp mù hiện tại.
+\* Mỗi người còn chip nhận hai lá bài tẩy riêng.
 
-\* Số người chơi: 2 đến 12 người.
+Khi có từ ba người trở lên, Mù nhỏ là ghế còn hoạt động đầu tiên bên trái nút, và Mù lớn là ghế kế tiếp. Khi chỉ có hai người, người giữ nút đóng Mù nhỏ và hành động trước ở vòng pre-flop.
 
-\* Tiền Mù: Hai khoản cược bắt buộc (Mù nhỏ và Mù lớn) di chuyển quanh bàn để tạo tiền cược ban đầu.
+\*\*Các hành động cược\*\*
 
-\* Nút Dealer: Đánh dấu vị trí người chia bài, di chuyển theo chiều kim đồng hồ sau mỗi ván.
+Trong vòng cược, hành động dùng được phụ thuộc vào mức cược hiện tại:
 
+\* \*\*Xem:\*\* tiếp tục ván mà không thêm chip khi chưa ai cược cao hơn bạn.
+\* \*\*Theo:\*\* thêm đủ chip để bằng mức cược hiện tại.
+\* \*\*Tố:\*\* theo mức cược hiện tại rồi nâng mức đó lên. Hãy nhập số chip muốn tố thêm, không phải tổng mức cược sau cùng.
+\* \*\*Tất tay:\*\* đặt toàn bộ chip còn lại khi chế độ tố đã chọn cho phép.
+\* \*\*Bỏ bài:\*\* rời ván hiện tại và mất quyền lấy lại số chip đã đặt vào hũ.
 
+Vòng cược tiếp tục cho đến khi mọi người còn có thể hành động đã theo bằng mức cược hiện tại hoặc bỏ bài. Người đã hết chip vẫn ở lại ván nhưng không thể cược thêm.
 
-Trình tự Chơi
+Khi nhiều người tất tay với số chip khác nhau, trò chơi tự tạo hũ chính và các hũ phụ cần thiết. Một người chỉ có thể thắng những hũ mà mình đã góp chip vào.
 
+\*\*Bài chung trên bàn\*\*
 
+Poker Texas Hold'em có bốn vòng cược:
 
-1\. Đóng tiền mù: Người chơi bên trái nút Dealer đóng Mù nhỏ và người kế tiếp đóng Mù lớn. Khi chỉ còn hai người, người giữ nút Dealer đồng thời đóng Mù nhỏ và hành động trước ở vòng tiền Flop.
+1\. \*\*Pre-flop:\*\* vòng cược sau khi mọi người nhận hai lá bài tẩy.
+2\. \*\*Flop:\*\* ba lá bài chung được lật, rồi bắt đầu một vòng cược mới.
+3\. \*\*Turn:\*\* một lá bài chung được lật, rồi bắt đầu một vòng cược mới.
+4\. \*\*River:\*\* lá bài chung cuối cùng được lật, rồi bắt đầu vòng cược cuối.
 
-2\. Vòng Tiền-Flop (Trước khi chia bài chung): Mỗi người chơi được chia 2 lá bài tẩy (úp xuống). Một vòng cược diễn ra.
+Sau khi Flop, Turn, và River được lật, vòng cược bắt đầu từ người còn hoạt động đầu tiên bên trái nút.
 
-3\. Vòng Flop: 3 lá bài chung được chia ngửa ra giữa bàn. Một vòng cược tiếp theo diễn ra.
+\*\*Ngửa bài\*\*
 
-4\. Vòng Turn: 1 lá bài chung thứ tư được chia ngửa. Một vòng cược tiếp theo diễn ra.
+Nếu còn từ hai người trở lên sau vòng cược River, trò chơi thông báo Ngửa bài. Mỗi người còn trong ván tạo tay bài năm lá mạnh nhất từ bất kỳ tổ hợp nào giữa hai lá bài tẩy của mình và năm lá bài chung.
 
-5\. Vòng River: 1 lá bài chung cuối cùng được chia ngửa. Vòng cược cuối cùng diễn ra.
+Bạn có thể dùng cả hai lá bài tẩy, một lá bài tẩy, hoặc không dùng lá bài tẩy nào. Nếu tay bài mạnh nhất nằm hoàn toàn trên bài chung, mọi người còn trong ván đều đang chơi bài trên bàn.
 
-6\. Ngửa bài: Người chơi lật bài. Tay bài 5 lá mạnh nhất (kết hợp từ 2 lá bài tẩy và 5 lá bài chung) sẽ thắng hũ.
+Tay bài mạnh nhất thắng từng hũ. Nếu hòa, những người thắng chia hũ; chip lẻ không thể chia đều được trao theo thứ tự ghế sau nút.
 
+\*\*Hành động đọc thông tin\*\*
 
+Bạn có thể kiểm tra thông tin công khai mà không mất lượt:
 
-Xếp hạng Bài (Từ cao xuống thấp)
+\* \*\*Kiểm tra hũ:\*\* nghe tổng hũ, hũ chính, và các hũ phụ.
+\* \*\*Số tiền cần theo:\*\* nghe số chip bạn cần để theo. Khán giả và người không còn trong ván sẽ nghe mức cược hiện tại trên bàn.
+\* \*\*Mức tố tối thiểu:\*\* nghe mức tố nhỏ nhất và lớn nhất hiện đang dùng được.
+\* \*\*Người chơi trong ván:\*\* nghe danh sách những người chưa bỏ bài.
+\* \*\*Đọc bài chung:\*\* nghe các lá bài chung trên bàn.
+\* \*\*Ai đang giữ nút:\*\* nghe vị trí nút hiện tại.
+\* \*\*Vị trí của bạn:\*\* nghe bạn cách nút bao nhiêu ghế và ai đang đóng mù.
+\* \*\*Thời gian lượt:\*\* nghe thời gian còn lại cho quyết định hiện tại.
+\* \*\*Thời gian tăng mù:\*\* nghe khi nào Mù nhỏ và Mù lớn sẽ tăng.
+\* \*\*Đọc bài trên tay:\*\* nghe hai lá bài tẩy riêng của bạn.
+\* \*\*Đọc sức mạnh tay bài:\*\* nghe thứ hạng poker tốt nhất hiện có của bạn.
+\* \*\*Kiểm tra điểm:\*\* nghe số chip còn lại của từng người.
 
+Khi Ngửa bài, người còn tay bài hiệu lực có thể dùng các hành động đọc bài tẩy để nghe lại bài tẩy riêng của mình.
 
+\*\*Tùy chọn tùy chỉnh\*\*
 
-1\. Sảnh chúa: 10, J, Q, K, Át cùng chất.
+\* \*\*Số chip ban đầu:\*\* số chip mỗi người có khi vào trận, từ 100 đến 1.000.000. Mặc định: 20.000.
+\* \*\*Mù lớn:\*\* mức Mù lớn cơ bản, từ 1 đến 1.000.000. Mặc định: 200. Mức này phải thấp hơn số chip ban đầu.
+\* \*\*Cược góp:\*\* khoản bắt buộc tùy chọn cho mỗi người, từ 0 đến 1.000.000. Mặc định: 0.
+\* \*\*Cược góp bắt đầu từ cấp:\*\* cấp mù nơi Cược góp bắt đầu có hiệu lực. Mặc định: 0, nghĩa là Cược góp có hiệu lực từ ván đầu tiên khi mức cược góp lớn hơn 0.
+\* \*\*Thời gian mỗi lượt:\*\* 5, 10, 15, 20, 30, 45, 60, hoặc 90 giây, hoặc Không giới hạn. Mặc định: Không giới hạn.
+\* \*\*Thời gian tăng mù:\*\* 5, 10, 15, 20, hoặc 30 phút giữa các lần tăng mù. Mặc định: 20 phút.
+\* \*\*Chế độ tố:\*\* Không giới hạn, Giới hạn theo hũ, hoặc Giới hạn gấp đôi hũ. Mặc định: Không giới hạn.
+\* \*\*Số lần tố tối đa trong mỗi vòng cược:\*\* từ 0 đến 10. Số 0 nghĩa là không giới hạn. Mặc định: 0.
 
-2\. Thùng phá sảnh: 5 lá liên tiếp cùng chất.
-
-3\. Tứ quý: 4 lá cùng hạng, kèm 1 lá lẻ.
-
-4\. Cù lũ: Một bộ sám cô đi kèm với một đôi.
-
-5\. Thùng: 5 lá cùng chất, không cần liên tiếp.
-
-6\. Sảnh: 5 lá liên tiếp nhưng không đồng chất.
-
-7\. Sám cô: 3 lá cùng hạng, kèm 2 lá lẻ.
-
-8\. Hai đôi: Hai đôi khác nhau, kèm 1 lá lẻ.
-
-9\. Một đôi: 2 lá cùng hạng, kèm 3 lá lẻ.
-
-10\. Mậu thầu: Không có đôi, không có sảnh, không có thùng, và không có tay bài mạnh hơn; xét lá cao nhất.
-
-
-
-Tùy chọn \& Biến thể
-
-
-
-\* \*\*Chế độ Tố:\*\* Không giới hạn (tố tất cả bất kỳ lúc nào), Giới hạn Hũ (tố tối đa = hũ), hoặc Gấp đôi Hũ (tố tối đa = 2x hũ).
-
-\* \*\*Mù & Tiền gà:\*\*
-
-  \* Mù lớn: Mức cược cơ bản (mặc định 200).
-
-  \* Tiền gà (Ante): Cược bắt buộc cho tất cả (mặc định 0).
-
-  \* Hẹn giờ tăng mù: Tự động tăng tiền mù theo thời gian (mặc định mỗi 20 phút).
-
-  \* Tiền gà bắt đầu từ cấp độ: Cấp tiền mù mà tiền gà bắt đầu áp dụng (mặc định 0).
-
-\* \*\*Chip khởi điểm:\*\* Số chip ban đầu (mặc định 20,000).
-
-\* \*\*Giới hạn số lần Tố:\*\* Giới hạn số lần tố mỗi vòng cược (0 = không giới hạn, mặc định 0).
-
-\* \*\*Đồng hồ tính giờ:\*\* Giới hạn thời gian cho mỗi quyết định.
-
-
-
-Phím tắt
-
-
+\*\*Phím tắt\*\*
 
 \* \*\*C:\*\* Xem hoặc Theo.
-
-\* \*\*F:\*\* Úp bỏ bài.
-
+\* \*\*F:\*\* Bỏ bài.
 \* \*\*R:\*\* Tố.
-
-\* \*\*Shift+A:\*\* Tất tay (All-in).
-
-\* \*\*P:\*\* Kiểm tra trạng thái bàn (tổng hũ, mức cược hiện tại).
-
-\* \*\*H:\*\* Kiểm tra người chơi trong ván.
-
-\* \*\*W:\*\* Đọc các lá bài tẩy (bài riêng).
-
-\* \*\*G:\*\* Đọc sức mạnh tay bài.
-
-\* \*\*N:\*\* Kiểm tra mức cược hiện tại cần theo.
-
-\* \*\*M:\*\* Kiểm tra mức tố tối thiểu.
-
-\* \*\*E:\*\* Đọc các lá bài chung trên bàn.
-
-\* \*\*X:\*\* Kiểm tra vị trí Nút Dealer.
-
-\* \*\*Z:\*\* Vị trí của bạn.
-
-\* \*\*V:\*\* Kiểm tra hẹn giờ tăng mù.
-
-\* \*\*O:\*\* Lật cả hai lá bài tẩy (sau ván).
-
-\* \*\*U:\*\* Lật lá bài tẩy thứ nhất (sau ván).
-
-\* \*\*I:\*\* Lật lá bài tẩy thứ hai (sau ván).
-
+\* \*\*Shift+A:\*\* Tất tay.
+\* \*\*W:\*\* đọc bài tẩy của bạn.
+\* \*\*G:\*\* đọc sức mạnh tay bài.
+\* \*\*E:\*\* đọc bài chung.
+\* \*\*P:\*\* kiểm tra hũ.
+\* \*\*N:\*\* kiểm tra số chip cần theo.
+\* \*\*M:\*\* kiểm tra khoảng tố đang dùng được.
+\* \*\*H:\*\* kiểm tra người chơi trong ván.
+\* \*\*X:\*\* kiểm tra nút.
+\* \*\*Z:\*\* kiểm tra vị trí của bạn.
+\* \*\*Shift+T:\*\* kiểm tra thời gian lượt.
+\* \*\*V:\*\* kiểm tra thời gian tăng mù.
+\* \*\*O:\*\* đọc cả hai lá bài tẩy khi Ngửa bài.
+\* \*\*U:\*\* đọc lá bài tẩy thứ nhất khi Ngửa bài.
+\* \*\*I:\*\* đọc lá bài tẩy thứ hai khi Ngửa bài.
+\* \*\*S:\*\* kiểm tra số chip còn lại.
+\* \*\*Shift+S:\*\* mở bảng chip chi tiết.
+\* \*\*T:\*\* kiểm tra lượt hiện tại.
+\* \*\*Ctrl+U:\*\* nghe ai đang ở bàn.

@@ -17,6 +17,7 @@ from ...game_utils.poker_evaluator import best_hand, describe_hand, describe_par
 from ...game_utils.sequence_runner_mixin import SequenceBeat, SequenceOperation
 from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
+from ...users.base import MenuItem
 from .bot import bot_select_switch_card as _bot_select_switch_card
 from .bot import bot_record_switch_result as _bot_record_switch_result
 from .bot import bot_think as _bot_think
@@ -645,6 +646,7 @@ class DeadMansPokerGame(Game):
                 handler="_action_fold",
                 is_enabled="_is_fold_enabled",
                 is_hidden="_is_fold_hidden",
+                get_label="_get_fold_label",
                 show_in_actions_menu=False,
             )
         )
@@ -702,7 +704,7 @@ class DeadMansPokerGame(Game):
             )
 
         if self.is_touch_client(user):
-            primary_actions = ["call", "fold", "coward_fold", "switch_card", "all_in"]
+            primary_actions = ["call", "fold", "switch_card", "all_in"]
             switch_actions = [f"choose_switch_{index}" for index in range(3)]
             pinned = set(primary_actions) | set(switch_actions)
             rest = [action_id for action_id in action_set._order if action_id not in pinned]
@@ -759,16 +761,6 @@ class DeadMansPokerGame(Game):
         )
         action_set.add(
             Action(
-                id="read_card_counts",
-                label=Localization.get(locale, "deadmanspoker-read-card-counts"),
-                handler="_action_read_card_counts",
-                is_enabled="_is_public_info_enabled",
-                is_hidden="_is_public_info_hidden",
-                include_spectators=True,
-            )
-        )
-        action_set.add(
-            Action(
                 id="read_revolvers",
                 label=Localization.get(locale, "deadmanspoker-read-revolvers"),
                 handler="_action_read_revolvers",
@@ -784,7 +776,6 @@ class DeadMansPokerGame(Game):
                 "read_community_cards",
                 "read_hand_value",
                 "read_table",
-                "read_card_counts",
                 "read_revolvers",
                 "whose_turn",
                 "whos_at_table",
@@ -796,7 +787,6 @@ class DeadMansPokerGame(Game):
         super().setup_keybinds()
         self.define_keybind("c", "Call", ["call"], state=KeybindState.ACTIVE)
         self.define_keybind("f", "Fold", ["fold"], state=KeybindState.ACTIVE)
-        self.define_keybind("shift+f", "Coward's fold", ["coward_fold"], state=KeybindState.ACTIVE)
         self.define_keybind("d", "Switch card", ["switch_card"], state=KeybindState.ACTIVE)
         self.define_keybind("shift+a", "All in", ["all_in"], state=KeybindState.ACTIVE)
         self.define_keybind("w", "Read hand", ["read_hand"], state=KeybindState.ACTIVE)
@@ -812,13 +802,6 @@ class DeadMansPokerGame(Game):
             "v",
             "Read table",
             ["read_table"],
-            state=KeybindState.ACTIVE,
-            include_spectators=True,
-        )
-        self.define_keybind(
-            "h",
-            "Read card counts",
-            ["read_card_counts"],
             state=KeybindState.ACTIVE,
             include_spectators=True,
         )
@@ -868,13 +851,8 @@ class DeadMansPokerGame(Game):
             return error
         if self.phase not in {PHASE_DECISION, PHASE_ALL_IN_RESPONSE}:
             return "deadmanspoker-not-decision-phase"
-        if isinstance(player, DeadMansPokerPlayer):
-            if (
-                self.phase == PHASE_DECISION
-                and not player.acted_this_hand
-                and player.committed_bullets == STARTING_BULLETS
-            ):
-                return "deadmanspoker-fold-first-decision-use-coward"
+        if self._fold_uses_coward_context(player):
+            return self._is_coward_fold_enabled(player)
         return None
 
     def _is_coward_fold_enabled(self, player: Player) -> str | None:
@@ -910,6 +888,8 @@ class DeadMansPokerGame(Game):
         if error:
             return error
         dmp_player: DeadMansPokerPlayer = player  # type: ignore[assignment]
+        if self.phase == PHASE_ALL_IN_RESPONSE:
+            return self._is_call_enabled(dmp_player)
         if self.phase != PHASE_DECISION:
             return "deadmanspoker-not-decision-phase"
         if self.round_stage < 2 or self.revealed_community_count < 3:
@@ -957,7 +937,7 @@ class DeadMansPokerGame(Game):
         return self._is_turn_action_visible(player)
 
     def _is_coward_fold_hidden(self, player: Player) -> Visibility:
-        return self._is_turn_action_visible(player)
+        return Visibility.HIDDEN
 
     def _is_switch_card_hidden(self, player: Player) -> Visibility:
         return self._is_turn_action_visible(player)
@@ -1014,6 +994,14 @@ class DeadMansPokerGame(Game):
         if self.phase == PHASE_ALL_IN_RESPONSE:
             return Localization.get(locale, "deadmanspoker-match-all-in")
         return Localization.get(locale, "deadmanspoker-call")
+
+    def _get_fold_label(self, player: Player, action_id: str) -> str:
+        del action_id
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        if self._fold_uses_coward_context(player):
+            return Localization.get(locale, "deadmanspoker-coward-fold")
+        return Localization.get(locale, "deadmanspoker-fold")
 
     def _get_choose_switch_label(self, player: Player, action_id: str) -> str:
         user = self.get_user(player)
@@ -1089,6 +1077,9 @@ class DeadMansPokerGame(Game):
         )
 
     def _action_all_in(self, player: Player, action_id: str) -> None:
+        if self.phase == PHASE_ALL_IN_RESPONSE:
+            self._action_call(player, "call")
+            return
         dmp_player: DeadMansPokerPlayer = player  # type: ignore[assignment]
         added = max(0, MAX_BULLETS - dmp_player.committed_bullets)
         dmp_player.committed_bullets = MAX_BULLETS
@@ -1109,10 +1100,22 @@ class DeadMansPokerGame(Game):
         )
 
     def _action_fold(self, player: Player, action_id: str) -> None:
-        self._fold_player(player, coward=False)
+        self._fold_player(player, coward=self._fold_uses_coward_context(player))
 
     def _action_coward_fold(self, player: Player, action_id: str) -> None:
         self._fold_player(player, coward=True)
+
+    def _fold_uses_coward_context(self, player: Player) -> bool:
+        phase_allows_decision = self.phase == PHASE_DECISION or (
+            self.phase == PHASE_SWITCH
+            and self.pending_switch_previous_phase == PHASE_DECISION
+        )
+        return (
+            phase_allows_decision
+            and isinstance(player, DeadMansPokerPlayer)
+            and not player.acted_this_hand
+            and player.committed_bullets == STARTING_BULLETS
+        )
 
     def _fold_player(self, player: Player, *, coward: bool) -> None:
         dmp_player: DeadMansPokerPlayer = player  # type: ignore[assignment]
@@ -2125,95 +2128,110 @@ class DeadMansPokerGame(Game):
         user = self.get_user(player)
         if not user:
             return
-        lines = [
-            Localization.get(
-                user.locale,
-                "deadmanspoker-table-hand",
-                hand=self.hand_number,
-                round_stage=self.round_stage,
-            ),
-            Localization.get(
-                user.locale,
-                "deadmanspoker-table-community",
-                cards=self._format_community(user.locale),
-                hidden=self._format_hidden_community(user.locale),
-            ),
-        ]
-        current = self.current_player
-        if current:
-            lines.append(Localization.get(user.locale, "deadmanspoker-table-turn", player=current.name))
-        else:
-            lines.append(Localization.get(user.locale, "deadmanspoker-table-no-turn"))
-        for table_player in self.get_active_players():
-            if not isinstance(table_player, DeadMansPokerPlayer):
-                continue
-            status = Localization.get(user.locale, self._player_status_key(table_player))
-            lines.append(
-                Localization.get(
-                    user.locale,
-                    "deadmanspoker-table-player",
-                    player=table_player.name,
-                    bullets=table_player.committed_bullets,
-                    status=status,
-                )
-            )
-        self._speak_lines(user, lines)
-
-    def _action_read_card_counts(self, player: Player, action_id: str) -> None:
-        user = self.get_user(player)
-        if not user:
-            return
-        lines = []
-        for table_player in self.get_active_players():
-            if not isinstance(table_player, DeadMansPokerPlayer):
-                continue
-            if table_player.eliminated:
-                lines.append(
-                    Localization.get(
-                        user.locale,
-                        "deadmanspoker-card-count-eliminated",
-                        player=table_player.name,
-                    )
-                )
-            else:
-                lines.append(
-                    Localization.get(
-                        user.locale,
-                        "deadmanspoker-card-count-line",
-                        player=table_player.name,
-                        count=len(table_player.hand),
-                    )
-                )
-        self._speak_lines(user, lines)
+        self.live_status_box(
+            player,
+            "deadmanspoker_table",
+            lambda _player, live_user: self._table_status_items(live_user.locale),
+            focus_id="hand",
+        )
 
     def _action_read_revolvers(self, player: Player, action_id: str) -> None:
         user = self.get_user(player)
         if not user:
             return
-        lines = [Localization.get(user.locale, "deadmanspoker-revolvers-header")]
+        self.live_status_box(
+            player,
+            "deadmanspoker_revolvers",
+            lambda _player, live_user: self._revolver_status_items(live_user.locale),
+            focus_id="header",
+        )
+
+    def _table_status_items(self, locale: str) -> list[MenuItem]:
+        items = [
+            MenuItem(
+                text=Localization.get(
+                    locale,
+                    "deadmanspoker-table-hand",
+                    hand=self.hand_number,
+                    round_stage=self.round_stage,
+                ),
+                id="hand",
+            ),
+            MenuItem(
+                text=Localization.get(
+                    locale,
+                    "deadmanspoker-table-community",
+                    cards=self._format_community(locale),
+                    hidden=self._format_hidden_community(locale),
+                ),
+                id="community",
+            ),
+        ]
+        current = self.current_player
+        items.append(
+            MenuItem(
+                text=(
+                    Localization.get(locale, "deadmanspoker-table-turn", player=current.name)
+                    if current
+                    else Localization.get(locale, "deadmanspoker-table-no-turn")
+                ),
+                id="turn",
+            )
+        )
+        for table_player in self.get_active_players():
+            if not isinstance(table_player, DeadMansPokerPlayer):
+                continue
+            status = Localization.get(locale, self._player_status_key(table_player))
+            items.append(
+                MenuItem(
+                    text=Localization.get(
+                        locale,
+                        "deadmanspoker-table-player",
+                        player=table_player.name,
+                        bullets=table_player.committed_bullets,
+                        status=status,
+                    ),
+                    id=f"player:{table_player.id}",
+                )
+            )
+        return items
+
+    def _revolver_status_items(self, locale: str) -> list[MenuItem]:
+        items = [
+            MenuItem(
+                text=Localization.get(locale, "deadmanspoker-revolvers-header"),
+                id="header",
+            )
+        ]
         for table_player in self.get_active_players():
             if not isinstance(table_player, DeadMansPokerPlayer):
                 continue
             if table_player.eliminated:
-                lines.append(
-                    Localization.get(
-                        user.locale,
-                        "deadmanspoker-revolver-eliminated",
-                        player=table_player.name,
+                items.append(
+                    MenuItem(
+                        text=Localization.get(
+                            locale,
+                            "deadmanspoker-revolver-eliminated",
+                            player=table_player.name,
+                        ),
+                        id=f"revolver:{table_player.id}",
                     )
                 )
                 continue
-            risk = self._risk_text(table_player.committed_bullets, user.locale)
-            lines.append(
-                Localization.get(
-                    user.locale,
-                    "deadmanspoker-revolver-status",
-                    player=table_player.name,
-                    bullets=table_player.committed_bullets,
-                    risk=risk,
+            risk = self._risk_text(table_player.committed_bullets, locale)
+            items.append(
+                MenuItem(
+                    text=Localization.get(
+                        locale,
+                        "deadmanspoker-revolver-status",
+                        player=table_player.name,
+                        bullets=table_player.committed_bullets,
+                        risk=risk,
+                    ),
+                    id=f"revolver:{table_player.id}",
                 )
             )
-        self._speak_lines(user, lines)
+        return items
 
     def _risk_text(self, bullets: int, locale: str) -> str:
         if bullets <= 0:
@@ -2221,9 +2239,6 @@ class DeadMansPokerGame(Game):
         if bullets >= MAX_BULLETS:
             return Localization.get(locale, "deadmanspoker-risk-eight")
         return Localization.get(locale, "deadmanspoker-risk-normal", bullets=bullets)
-
-    def _speak_lines(self, user, lines: list[str]) -> None:
-        user.speak(" ".join(line for line in lines if line), buffer="game")
 
     def bot_think(self, player: DeadMansPokerPlayer) -> str | None:
         return _bot_think(self, player)

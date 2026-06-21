@@ -12,7 +12,7 @@ import random
 
 from ...game_utils.poker_evaluator import best_hand
 from ...game_utils.poker_state import order_after_button
-from ...game_utils.poker_actions import compute_pot_limit_caps, clamp_total_to_cap
+from ...game_utils.poker_actions import compute_pot_limit_caps
 
 if TYPE_CHECKING:
     from .game import HoldemGame, HoldemPlayer
@@ -155,5 +155,6 @@ def _can_raise_amount(game: "HoldemGame", player: "HoldemPlayer", to_call: int) 
     if player.chips - to_call < min_raise:
         return False
     caps = compute_pot_limit_caps(game.pot_manager.total_pot(), to_call, game.options.raise_mode)
-    total = clamp_total_to_cap(to_call + min_raise, caps)
-    return total - to_call >= min_raise
+    if caps and to_call + min_raise > min(player.chips, caps.total_cap):
+        return False
+    return True

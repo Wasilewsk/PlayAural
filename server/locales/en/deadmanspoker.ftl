@@ -10,7 +10,6 @@ deadmanspoker-read-hand = Read hand
 deadmanspoker-read-community-cards = Read community cards
 deadmanspoker-read-hand-value = Read hand strength
 deadmanspoker-read-table = Read table
-deadmanspoker-read-card-counts = Read card counts
 deadmanspoker-read-revolvers = Read revolvers
 
 deadmanspoker-action-sequence-running = Wait for the current sequence to finish.
@@ -22,7 +21,6 @@ deadmanspoker-no-opponents = There is no opponent left in this hand.
 deadmanspoker-already-matched-all-in = You have already matched the all-in.
 deadmanspoker-coward-used = You have already used Coward's Fold this match.
 deadmanspoker-coward-first-decision-only = Coward's Fold is only available on your first decision of a hand.
-deadmanspoker-fold-first-decision-use-coward = Normal Fold is not available on your first decision with one bullet. Only Coward's Fold can leave at that point.
 deadmanspoker-all-in-too-early = All-in is available only from betting round 2, after the first three community cards are revealed.
 deadmanspoker-switch-not-now = You cannot switch a card right now.
 deadmanspoker-switch-used = You have already switched a card this hand.
@@ -140,12 +138,6 @@ deadmanspoker-status-active = active
 deadmanspoker-status-folded = folded
 deadmanspoker-status-eliminated = eliminated
 deadmanspoker-status-waiting = waiting
-
-deadmanspoker-card-count-line = { $player }: { $count ->
-    [one] 1 card
-   *[other] { $count } cards
-}.
-deadmanspoker-card-count-eliminated = { $player }: eliminated.
 
 deadmanspoker-revolvers-header = Revolver risk
 deadmanspoker-revolver-status = { $player }: { $bullets ->

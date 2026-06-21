@@ -91,7 +91,7 @@ Bỏ bài nghĩa là bạn rời khỏi ván bài hiện tại.
 
 Bỏ bài không phải thoát thân miễn phí. Bạn phải đối mặt với ổ đạn bằng số đạn đã đặt trong ván đó. Nếu sống sót, bạn tiếp tục chơi ở ván sau.
 
-Ở quyết định đầu tiên của một ván bài, Bỏ bài thường không dùng được khi bạn vẫn chỉ có 1 viên đạn mở đầu. Nếu muốn rời ván ngay lúc đó, hãy dùng Bỏ non.
+Ở quyết định đầu tiên của một ván bài, nút Bỏ bài sẽ đổi thành Bỏ non khi bạn vẫn chỉ có 1 viên đạn mở đầu. Nếu bạn đã dùng Bỏ non trước đó trong trận, nút này vẫn hiện đúng ngữ cảnh và giải thích vì sao bạn không thể dùng lại.
 
 \*\*Bỏ non\*\*
 
@@ -124,6 +124,8 @@ Khi có người tất tay, vòng cược bình thường dừng lại. Mỗi ng
 \* \*\*Theo tất tay:\*\* nâng số đạn của mình lên 8 viên và tiếp tục tới so bài.
 \* \*\*Bỏ bài:\*\* rời khỏi ván và đối mặt với ổ đạn bằng số đạn hiện có.
 
+Bạn có thể theo tất tay bằng nút Theo hoặc nút Tất tay. Trong lúc phản ứng với tất tay, cả hai nút đều thực hiện cùng hành động Theo tất tay.
+
 Nếu mọi đối thủ đều bỏ bài, người tất tay thắng ván đó mà không cần so bài.
 
 \*\*So bài\*\*
@@ -154,7 +156,6 @@ Bạn có thể dùng các hành động đọc thông tin bất cứ lúc nào 
 \* \*\*Đọc sức mạnh tay bài:\*\* nghe ước lượng tay bài mạnh nhất hiện tại.
 \* \*\*Đọc bài chung:\*\* nghe các lá bài chung đã lật và còn bao nhiêu lá bài chung đang úp.
 \* \*\*Đọc tình hình bàn:\*\* nghe số ván bài, vòng cược, bài chung, lượt hiện tại, và trạng thái từng người.
-\* \*\*Đọc số lá bài:\*\* nghe mỗi người còn bao nhiêu lá bài riêng.
 \* \*\*Đọc rủi ro ổ đạn:\*\* nghe số đạn đã đặt và nguy cơ chết của từng người.
 \* \*\*Lượt của ai:\*\* nghe ai đang có lượt.
 \* \*\*Ai đang ở bàn:\*\* nghe danh sách người trong bàn.
@@ -172,15 +173,13 @@ Poker Tử Thần hiện dùng luật cố định. Chủ bàn không có tùy c
 \*\*Phím tắt\*\*
 
 \* \*\*C:\*\* Theo, hoặc Theo tất tay khi đang phản ứng với tất tay.
-\* \*\*F:\*\* Bỏ bài.
-\* \*\*Shift+F:\*\* Bỏ non.
+\* \*\*F:\*\* Bỏ bài, hoặc Bỏ non khi đó là ngữ cảnh bỏ bài hiện tại.
 \* \*\*D:\*\* Đổi bài.
-\* \*\*Shift+A:\*\* Tất tay.
+\* \*\*Shift+A:\*\* Tất tay, hoặc Theo tất tay khi đang phản ứng với tất tay.
 \* \*\*W:\*\* Đọc bài riêng.
 \* \*\*G:\*\* Đọc sức mạnh tay bài.
 \* \*\*E:\*\* Đọc bài chung.
 \* \*\*V:\*\* Đọc đầy đủ tình hình bàn.
-\* \*\*H:\*\* Đọc số lá bài.
 \* \*\*P:\*\* Đọc rủi ro ổ đạn.
 \* \*\*T:\*\* Kiểm tra lượt hiện tại.
 \* \*\*Ctrl+U:\*\* Nghe ai đang ở bàn.

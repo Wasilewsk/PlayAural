@@ -88,7 +88,7 @@ def bot_think(game: "DeadMansPokerGame", player: "DeadMansPokerPlayer") -> str |
         return "switch_card"
 
     if _should_use_coward_fold(game, player, profile):
-        return "coward_fold"
+        return "fold"
 
     if _should_all_in(game, player, profile):
         return "all_in"

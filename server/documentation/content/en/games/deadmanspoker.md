@@ -91,7 +91,7 @@ Fold means you leave the current hand.
 
 Folding does not protect you for free. You must face the revolver using the number of bullets you already committed in that hand. If you survive, you stay alive for the next hand.
 
-On your first decision of a hand, normal Fold is not available while you still have only the opening bullet committed. If you want to leave at that moment, use Coward's Fold.
+On your first decision of a hand, the Fold button changes into Coward's Fold while you still have only the opening bullet committed. If you have already used Coward's Fold earlier in the match, the same button stays in that context and tells you why you cannot use it again.
 
 \*\*Coward's Fold\*\*
 
@@ -124,6 +124,8 @@ When someone goes all-in, normal betting stops. Every other active player must c
 \* \*\*Match all-in:\*\* raise their own committed bullets to 8 and continue to showdown.
 \* \*\*Fold:\*\* leave the hand and face the revolver with their current bullets.
 
+You can match an all-in with either Call or All-in. Both buttons perform the same match-all-in response during this moment.
+
 If every opponent folds, the all-in player wins the hand without showdown.
 
 \*\*Showdown\*\*
@@ -154,7 +156,6 @@ Use the information actions whenever you need orientation:
 \* \*\*Read hand strength:\*\* hear your current best hand estimate.
 \* \*\*Read community cards:\*\* hear the revealed table cards and how many community cards are still face down.
 \* \*\*Read table:\*\* hear the hand number, betting round, community cards, current turn, and player states.
-\* \*\*Read card counts:\*\* hear how many private cards each player has.
 \* \*\*Read revolvers:\*\* hear each player's committed bullets and current death risk.
 \* \*\*Whose turn:\*\* hear the current turn.
 \* \*\*Who's at table:\*\* hear the table roster.
@@ -172,15 +173,13 @@ Dead Man's Poker currently uses fixed rules. The host has no game-specific optio
 \*\*Keyboard Shortcuts\*\*
 
 \* \*\*C:\*\* Call, or match all-in when responding to an all-in.
-\* \*\*F:\*\* Fold.
-\* \*\*Shift+F:\*\* Coward's Fold.
+\* \*\*F:\*\* Fold, or Coward's Fold when that is the current fold context.
 \* \*\*D:\*\* Switch card.
-\* \*\*Shift+A:\*\* All-in.
+\* \*\*Shift+A:\*\* All-in, or match all-in when responding to an all-in.
 \* \*\*W:\*\* Read your hand.
 \* \*\*G:\*\* Read your current hand strength.
 \* \*\*E:\*\* Read community cards.
 \* \*\*V:\*\* Read the full table status.
-\* \*\*H:\*\* Read card counts.
 \* \*\*P:\*\* Read revolver risk.
 \* \*\*T:\*\* Check whose turn it is.
 \* \*\*Ctrl+U:\*\* Hear who is at the table.

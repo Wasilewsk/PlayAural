@@ -162,6 +162,16 @@ def network_current_menu_item_ids(
     ]
 
 
+def status_texts(user: MockUser) -> list[str]:
+    items = user.get_current_menu_items("status_box") or []
+    return [getattr(item, "text", str(item)) for item in items]
+
+
+def status_ids(user: MockUser) -> list[str | None]:
+    items = user.get_current_menu_items("status_box") or []
+    return [getattr(item, "id", None) for item in items]
+
+
 def locale_keys(path: Path) -> set[str]:
     keys: set[str] = set()
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -493,15 +503,16 @@ def test_keybinds_use_active_state_and_do_not_collide_with_reserved_keys() -> No
         "ctrl+i",
         "ctrl+f1",
     }
-    game_keys = {"c", "f", "shift+f", "d", "shift+a", "w", "g", "e", "v", "h", "p"}
+    game_keys = {"c", "f", "d", "shift+a", "w", "g", "e", "v", "p"}
     assert game_keys.isdisjoint(reserved)
     for key in game_keys:
         assert key in game._keybinds
         assert all(binding.state == KeybindState.ACTIVE for binding in game._keybinds[key])
+    assert "shift+f" not in game._keybinds
+    assert "h" not in game._keybinds
     assert not any(binding.actions == ["all_in"] for binding in game._keybinds.get("r", []))
     assert any(binding.include_spectators for binding in game._keybinds["e"])
     assert any(binding.include_spectators for binding in game._keybinds["v"])
-    assert any(binding.include_spectators for binding in game._keybinds["h"])
     assert any(binding.include_spectators for binding in game._keybinds["p"])
 
 
@@ -618,6 +629,42 @@ def test_read_community_cards_reports_only_table_cards() -> None:
     assert "Current turn" not in text
 
 
+def test_read_table_and_revolvers_use_live_status_boxes() -> None:
+    game = make_game(2)
+    start_to_decision(game)
+    player = game.players[0]
+    user = game.get_user(player)
+    assert user is not None
+    user.clear_messages()
+
+    game.execute_action(player, "read_table")
+
+    table_texts = status_texts(user)
+    assert "status_box" in user.menus
+    assert status_ids(user)[:3] == ["hand", "community", "turn"]
+    assert user.menus["status_box"]["selection_id"] == "hand"
+    assert any("Hand" in text and "betting round" in text for text in table_texts)
+    assert any("Community:" in text for text in table_texts)
+    assert any(text.startswith("Player1:") for text in table_texts)
+    assert [message.type for message in user.messages] == ["show_menu"]
+
+    user.clear_messages()
+    game.execute_action(player, "read_revolvers")
+
+    revolver_texts = status_texts(user)
+    assert status_ids(user)[0] == "header"
+    assert user.menus["status_box"]["selection_id"] == "header"
+    assert revolver_texts[0] == "Revolver risk"
+    assert any(text.startswith("Player1:") for text in revolver_texts)
+    assert [message.type for message in user.messages] == ["show_menu"]
+
+    game.players[0].committed_bullets = 4
+    game.refresh_menus(player)
+    game.flush_menus()
+
+    assert any("4 bullets committed" in text for text in status_texts(user))
+
+
 def test_touch_turn_menu_does_not_duplicate_info_actions() -> None:
     game = make_touch_game(2)
     start_to_decision(game)
@@ -633,7 +680,6 @@ def test_touch_turn_menu_does_not_duplicate_info_actions() -> None:
         "read_community_cards",
         "read_hand_value",
         "read_table",
-        "read_card_counts",
         "read_revolvers",
     ]
     info_labels = [
@@ -641,10 +687,10 @@ def test_touch_turn_menu_does_not_duplicate_info_actions() -> None:
         Localization.get("en", "deadmanspoker-read-community-cards"),
         Localization.get("en", "deadmanspoker-read-hand-value"),
         Localization.get("en", "deadmanspoker-read-table"),
-        Localization.get("en", "deadmanspoker-read-card-counts"),
         Localization.get("en", "deadmanspoker-read-revolvers"),
     ]
 
+    assert "read_card_counts" not in item_ids
     for action_id in info_ids:
         assert item_ids.count(action_id) == 1
     for label in info_labels:
@@ -790,10 +836,9 @@ def test_switch_card_action_does_not_refresh_other_players() -> None:
 
     assert "action_input_menu" in player_user.menus
     assert turn_menu_updates(other_user) == []
-    assert menu_item_ids(other_user)[:5] == [
+    assert menu_item_ids(other_user)[:4] == [
         "call",
         "fold",
-        "coward_fold",
         "switch_card",
         "all_in",
     ]
@@ -816,10 +861,9 @@ def test_switch_phase_keeps_other_players_menu_stable_during_refresh() -> None:
     game.flush_menus()
     assert game.phase == PHASE_SWITCH
     baseline_ids = menu_item_ids(other_user)
-    assert baseline_ids[:5] == [
+    assert baseline_ids[:4] == [
         "call",
         "fold",
-        "coward_fold",
         "switch_card",
         "all_in",
     ]
@@ -850,14 +894,13 @@ def test_touch_switch_menu_keeps_primary_anchors_and_focuses_first_choice() -> N
     game.flush_menus()
 
     item_ids = menu_item_ids(player_user)
-    assert item_ids[:5] == [
+    assert item_ids[:4] == [
         "call",
         "fold",
-        "coward_fold",
         "switch_card",
         "all_in",
     ]
-    assert item_ids[5:8] == [
+    assert item_ids[4:7] == [
         "choose_switch_0",
         "choose_switch_1",
         "choose_switch_2",
@@ -878,10 +921,9 @@ def test_touch_switch_refreshes_do_not_send_redundant_non_actor_packets() -> Non
     other_user = game.get_user(other)
     assert isinstance(other_user, NetworkUser)
     baseline_ids = network_current_menu_item_ids(other_user)
-    assert baseline_ids[:5] == [
+    assert baseline_ids[:4] == [
         "call",
         "fold",
-        "coward_fold",
         "switch_card",
         "all_in",
     ]
@@ -932,19 +974,44 @@ def test_switch_card_resets_each_hand() -> None:
     assert all(not player.used_switch for player in game.players)
 
 
-def test_normal_fold_first_decision_requires_coward_fold() -> None:
+def test_fold_button_becomes_coward_fold_on_first_decision() -> None:
     game = make_game(2)
     start_to_decision(game)
     player = game.current_player
     assert player is not None
+    user = game.get_user(player)
+    assert user is not None
 
-    assert game._is_fold_enabled(player) == "deadmanspoker-fold-first-decision-use-coward"
+    assert game._is_fold_enabled(player) is None
     assert game._is_coward_fold_enabled(player) is None
-
-    # Fold stays visible (but disabled) alongside the coward's fold; turn actions
-    # remain visible regardless of whether they are currently enabled.
     assert game._is_fold_hidden(player) == Visibility.VISIBLE
-    assert game._is_coward_fold_hidden(player) == Visibility.VISIBLE
+    assert game._is_coward_fold_hidden(player) == Visibility.HIDDEN
+    assert game.get_all_visible_actions(player)[1].label == Localization.get(
+        user.locale,
+        "deadmanspoker-coward-fold",
+    )
+
+
+def test_fold_button_keeps_coward_context_after_coward_fold_is_used() -> None:
+    game = make_game(2)
+    start_to_decision(game)
+    player = game.current_player
+    assert player is not None
+    user = game.get_user(player)
+    assert user is not None
+    player.used_coward_fold = True
+    user.clear_messages()
+
+    assert game._is_fold_enabled(player) == "deadmanspoker-coward-used"
+    assert game.get_all_visible_actions(player)[1].label == Localization.get(
+        user.locale,
+        "deadmanspoker-coward-fold",
+    )
+
+    game.execute_action(player, "fold")
+
+    assert any("already used Coward's Fold" in text for text in speech_texts(user))
+    assert not player.folded_this_hand
 
 
 def test_all_in_is_blocked_until_flop() -> None:
@@ -968,7 +1035,7 @@ def test_coward_fold_is_one_use_and_only_risks_one_bullet(monkeypatch) -> None:
     assert player is not None
     monkeypatch.setattr(random, "random", lambda: 0.99)
 
-    game.execute_action(player, "coward_fold")
+    game.execute_action(player, "fold")
     assert advance_until(
         game,
         lambda: game.phase == PHASE_DECISION and not game.active_sequences and game.hand_number == 2,
@@ -978,6 +1045,7 @@ def test_coward_fold_is_one_use_and_only_risks_one_bullet(monkeypatch) -> None:
     assert player.used_coward_fold
     game.current_player = player
     assert game._is_coward_fold_enabled(player) == "deadmanspoker-coward-used"
+    assert game._is_fold_enabled(player) == "deadmanspoker-coward-used"
 
 
 def test_all_in_response_fold_can_award_uncontested_hand(monkeypatch) -> None:
@@ -1004,6 +1072,36 @@ def test_all_in_response_fold_can_award_uncontested_hand(monkeypatch) -> None:
     )
 
     assert initiator.hands_won == 1
+
+
+def test_all_in_button_matches_all_in_during_response(monkeypatch) -> None:
+    game = make_game(2)
+    start_to_decision(game)
+    advance_to_flop(game)
+    initiator = game.current_player
+    assert initiator is not None
+    monkeypatch.setattr(random, "random", lambda: 0.99)
+
+    game.execute_action(initiator, "all_in")
+    assert advance_until(
+        game,
+        lambda: game.phase == PHASE_ALL_IN_RESPONSE and not game.active_sequences,
+        max_ticks=1200,
+    )
+    responder = game.current_player
+    assert responder is not None and responder != initiator
+    committed_before = responder.committed_bullets
+    assert committed_before < MAX_BULLETS
+    assert game._is_call_enabled(responder) is None
+    assert game._is_all_in_enabled(responder) is None
+
+    game.execute_action(responder, "all_in")
+
+    assert responder.committed_bullets == MAX_BULLETS
+    assert responder.matched_all_in
+    assert responder.all_ins_matched == 1
+    assert initiator.all_ins_initiated == 1
+    assert game.all_in_initiator_id == initiator.id
 
 
 def test_all_in_places_added_bullets_together() -> None:

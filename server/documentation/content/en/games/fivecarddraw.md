@@ -1,130 +1,124 @@
-Five Card Draw
+\*\*Five Card Draw\*\*
 
+Five Card Draw is a classic poker game for 2 to 6 players. Each player receives five private cards and has one chance to exchange cards before the final betting round.
 
+The game reads your private cards only to you. Other players hear your betting actions and how many cards you exchange, but they do not hear which cards you hold or receive.
 
-Five Card Draw is one of the most classic and simple variants of poker. The goal is to make the best 5-card hand possible after one opportunity to trade cards.
+\*\*Goal\*\*
 
+Win all the chips at the table.
 
+You win chips in either of two ways:
 
-Objective
+\* Everyone else folds, leaving you as the only player in the hand.
+\* You reach showdown with the strongest five-card poker hand.
 
+The match ends when only one player has chips remaining.
 
+\*\*Poker Hand Rankings\*\*
 
-Win chips by having the best hand at the showdown or by betting enough to make other players fold.
+From strongest to weakest, poker hands are:
 
+1\. \*\*Royal flush:\*\* 10, jack, queen, king, and ace, all in the same suit.
+2\. \*\*Straight flush:\*\* five cards in sequence, all in the same suit.
+3\. \*\*Four of a kind:\*\* four cards of the same rank.
+4\. \*\*Full house:\*\* three cards of one rank and two cards of another rank.
+5\. \*\*Flush:\*\* five cards in the same suit, not in sequence.
+6\. \*\*Straight:\*\* five cards in sequence, not all in the same suit. An ace can be low in A-2-3-4-5.
+7\. \*\*Three of a kind:\*\* three cards of the same rank.
+8\. \*\*Two pair:\*\* two different pairs.
+9\. \*\*One pair:\*\* two cards of the same rank.
+10\. \*\*High card:\*\* no stronger combination. The highest card decides the hand.
 
+If two players have the same hand type, the ranks within the hand decide the winner. If the hands are exactly equal, the pot is split. Card suits never break a tie.
 
-Game Setup
+\*\*Starting a Hand\*\*
 
+At the start of every hand:
 
+\* The dealer position moves one seat clockwise.
+\* Every player with chips pays the ante into the pot.
+\* Each player receives five private cards.
+\* The first betting round begins with the first active player to the dealer's left.
 
-\* Players: 2 to 5.
+The ante is paid automatically. A player who has fewer chips than the ante puts in all remaining chips and is all in.
 
-\* Chips: Each player starts with a set amount of chips (Default: 20,000).
+\*\*Betting Actions\*\*
 
-\* Ante: A forced bet paid by all players before cards are dealt.
+During a betting round, the available actions depend on the current bet:
 
+\* \*\*Check:\*\* stay in the hand without adding chips when nobody has bet more than you.
+\* \*\*Call:\*\* add enough chips to match the current bet.
+\* \*\*Raise:\*\* call the current bet and increase it. Enter the amount you want to raise by, not the final total.
+\* \*\*All in:\*\* commit every remaining chip when the selected raise mode allows it.
+\* \*\*Fold:\*\* leave the current hand and give up any chips already committed to the pot.
 
+Betting continues until every player who can act has matched the current bet or folded. A player who runs out of chips stays in the hand but cannot bet again.
 
-Gameplay Steps
+When several players are all in for different amounts, the game creates a main pot and any required side pots automatically. A player can win only the pots that player contributed to.
 
+\*\*The Draw\*\*
 
+After the first betting round, every player who has not folded gets one draw, beginning with the first active player to the dealer's left.
 
-1\. Ante: Everyone pays the ante into the pot.
+Select the cards you want to exchange, then choose Draw cards. The game tells other players only how many cards you exchanged. Your replacement cards and final hand are read privately to you.
 
-2\. The Deal: Each player is dealt 5 cards face down.
+Under the standard draw rule, you may exchange up to three cards. You may also select no cards and stand pat, keeping all five cards.
 
-3\. First Betting Round: Players can Bet, Call, Raise, Check, or Fold based on their initial hand.
+The optional four-card rule lets you exchange four cards only when the one card you keep is an ace.
 
-4\. The Draw:
+\*\*Second Betting Round and Showdown\*\*
 
-  \* Players can choose to discard up to 3 cards, or up to 4 cards if keeping an Ace. They may also keep all cards, known as "standing pat".
+After everyone has drawn, the second betting round begins. The player who first opened the betting in round one acts first when still in the hand. If that player is no longer able to act, play continues from the next eligible seat. If everyone checked in round one, the first active player to the dealer's left acts first.
 
-  \* New cards are dealt to replace the discarded ones.
+If two or more players remain after betting, the game announces showdown and reveals their hands. The strongest hand wins each pot. Tied winners split the pot, with any indivisible extra chip awarded in table order after the dealer.
 
-5\. Second Betting Round: Another round of betting occurs after everyone has their final hand.
+If everyone but one player folds, that player wins the uncontested chips immediately and the game starts the next hand.
 
-6\. Showdown: If more than one player remains, hands are revealed. The player with the best 5-card poker hand wins the pot.
+\*\*Information Actions\*\*
 
+You can check public table information without spending your turn:
 
+\* \*\*Check pot:\*\* hear the total pot and any main or side pots.
+\* \*\*Amount to call:\*\* hear how many chips you need to call. Spectators and players no longer in the hand hear the current table bet instead.
+\* \*\*Minimum raise:\*\* hear the minimum and largest raise currently available to you.
+\* \*\*Players in hand:\*\* hear who has not folded.
+\* \*\*Who is the dealer:\*\* hear the current dealer position.
+\* \*\*Your position:\*\* hear how many seats you are from the dealer.
+\* \*\*Turn timer:\*\* hear the time remaining for the current decision.
+\* \*\*Read hand:\*\* hear your five private cards.
+\* \*\*Read hand strength:\*\* hear the current poker rank of your hand.
+\* \*\*Check scores:\*\* hear each player's remaining chips.
 
-Hand Rankings (Best to Worst)
+Spectators can use the public information actions but cannot read a player's private hand.
 
+\*\*Customizable Options\*\*
 
+\* \*\*Starting chips:\*\* each player's opening stack, from 100 to 1,000,000. Default: 20,000.
+\* \*\*Ante:\*\* the forced contribution at the start of each hand, from 0 to 1,000,000. Default: 100. It must be lower than the starting stack.
+\* \*\*Turn timer:\*\* 5, 10, 15, 20, 30, 45, 60, or 90 seconds, or Unlimited. Default: Unlimited.
+\* \*\*Raise mode:\*\* No limit, Pot limit, or Double pot limit. Default: No limit. Pot-based modes require an ante greater than 0 so the first betting round can open normally.
+\* \*\*Maximum raises per betting round:\*\* from 0 to 10. Zero means unlimited. Default: 0.
+\* \*\*Draw rule:\*\* exchange up to 3 cards, or allow 4 cards when keeping an ace. Default: Up to 3 cards.
 
-1\. Royal Flush
-
-2\. Straight Flush
-
-3\. Four of a Kind
-
-4\. Full House
-
-5\. Flush
-
-6\. Straight
-
-7\. Three of a Kind
-
-8\. Two Pair
-
-9\. One Pair
-
-10\. High Card
-
-
-
-Options \& Variants
-
-
-
-\* \*\*Raise Mode:\*\* No Limit (bet all chips anytime), Pot Limit (max raise = pot), or Double Pot (max raise = 2x pot).
-
-\* \*\*Starting Chips:\*\* Adjust the initial stack size (default 20,000).
-
-\* \*\*Ante:\*\* A forced bet paid by all players before dealing (default 100).
-
-\* \*\*Max Raises:\*\* Limit the number of raises per betting round (0 = unlimited, default 0).
-
-\* \*\*Turn Timer:\*\* Set a time limit for decisions.
-
-
-
-Keyboard Shortcuts
-
-
-
-Betting Actions
+\*\*Keyboard Shortcuts\*\*
 
 \* \*\*C:\*\* Check or Call.
-
 \* \*\*F:\*\* Fold.
-
 \* \*\*R:\*\* Raise.
-
-\* \*\*Shift+A:\*\* All-in.
-
-\* \*\*P:\*\* Check table status (pot size, current bets).
-
-\* \*\*H:\*\* Check players in hand.
-
-\* \*\*W:\*\* Read hand cards.
-
-\* \*\*G:\*\* Read hand strength.
-
-\* \*\*N:\*\* Check current bet to call.
-
-\* \*\*M:\*\* Check minimum raise amount.
-
-\* \*\*X:\*\* Check dealer position.
-
-\* \*\*Z:\*\* Check your position.
-
-
-
-Draw Phase Actions
-
-\* \*\*1-5:\*\* Select or Deselect cards to discard.
-
-\* \*\*D:\*\* Confirm to draw new cards replacing the selected ones.
-
+\* \*\*Shift+A:\*\* All in.
+\* \*\*1 through 5:\*\* select or deselect that card during the draw.
+\* \*\*D:\*\* exchange the selected cards or stand pat.
+\* \*\*W:\*\* read your hand.
+\* \*\*G:\*\* read your hand strength.
+\* \*\*P:\*\* check the pot.
+\* \*\*N:\*\* check the amount to call.
+\* \*\*M:\*\* check the available raise range.
+\* \*\*H:\*\* check players in the hand.
+\* \*\*X:\*\* check the dealer.
+\* \*\*Z:\*\* check your position.
+\* \*\*Shift+T:\*\* check the turn timer.
+\* \*\*S:\*\* check remaining chips.
+\* \*\*Shift+S:\*\* open detailed chip totals.
+\* \*\*T:\*\* check whose turn it is.
+\* \*\*Ctrl+U:\*\* hear who is at the table.

@@ -17,7 +17,7 @@ from ...game_utils.poker_pot import PokerPotManager
 from ...game_utils.poker_table import PokerTableState
 from ...game_utils.poker_timer import PokerTurnTimer
 from ...game_utils.poker_evaluator import best_hand, describe_hand, describe_partial_hand
-from ...game_utils.poker_actions import compute_pot_limit_caps, clamp_total_to_cap
+from ...game_utils.poker_actions import compute_pot_limit_caps
 from ...game_utils import poker_log
 from ...game_utils.poker_showdown import order_winners_by_button, format_showdown_lines
 from ...game_utils.poker_payout import resolve_pot
@@ -47,6 +47,14 @@ RAISE_MODE_LABELS = {
     "pot_limit": "poker-raise-pot-limit",
     "double_pot": "poker-raise-double-pot",
 }
+
+DRAW_LIMITS = ["three_cards", "four_with_ace"]
+DRAW_LIMIT_LABELS = {
+    "three_cards": "draw-limit-three-cards",
+    "four_with_ace": "draw-limit-four-with-ace",
+}
+
+BETTING_PHASES = {"bet1", "bet2"}
 
 
 @dataclass
@@ -113,6 +121,16 @@ class FiveCardDrawOptions(GameOptions):
             change_msg="draw-option-changed-max-raises",
         )
     )
+    draw_limit: str = option_field(
+        MenuOption(
+            choices=DRAW_LIMITS,
+            choice_labels=DRAW_LIMIT_LABELS,
+            default="three_cards",
+            label="draw-set-draw-limit",
+            prompt="draw-select-draw-limit",
+            change_msg="draw-option-changed-draw-limit",
+        )
+    )
 
 
 @dataclass
@@ -132,6 +150,7 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
     current_bet_round: int = 0
     action_log: list[tuple[str, dict]] = field(default_factory=list)
     last_showdown_winner_ids: set[str] = field(default_factory=set)
+    first_round_opener_id: str | None = None
     _next_hand_wait_ticks: int = 0
 
     def __post_init__(self):
@@ -161,7 +180,7 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
 
     @classmethod
     def get_max_players(cls) -> int:
-        return 5
+        return 6
 
     def create_player(self, player_id: str, name: str, is_bot: bool = False) -> FiveCardDrawPlayer:
         return FiveCardDrawPlayer(id=player_id, name=name, is_bot=is_bot, chips=0)
@@ -178,6 +197,8 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
                     },
                 )
             )
+        if self.options.ante == 0 and self.options.raise_mode != "no_limit":
+            errors.append(("draw-error-capped-mode-needs-ante", {"mode": self.options.raise_mode}))
         return errors
 
     # ==========================================================================
@@ -195,7 +216,7 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
     def _is_fold_enabled(self, player: Player) -> str | None:
         if self.phase == "draw":
             return "draw-fold-not-available"
-        if self.phase == "showdown" or self._next_hand_wait_ticks > 0:
+        if self.phase not in BETTING_PHASES or self._next_hand_wait_ticks > 0:
             return "poker-no-active-betting"
         return self._is_turn_action_enabled(player)
 
@@ -227,6 +248,7 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
                 handler="_action_call",
                 is_enabled="_is_bet_action_enabled",
                 is_hidden="_is_bet_action_hidden",
+                get_label="_get_call_label",
                 show_in_actions_menu=False,
             )
         )
@@ -245,7 +267,7 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
                 id="raise",
                 label=Localization.get(locale, "poker-raise"),
                 handler="_action_raise",
-                is_enabled="_is_bet_action_enabled",
+                is_enabled="_is_raise_enabled",
                 is_hidden="_is_bet_action_hidden",
                 input_request=EditboxInput(
                     prompt="poker-enter-raise",
@@ -260,7 +282,7 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
                 id="all_in",
                 label=Localization.get(locale, "poker-all-in"),
                 handler="_action_all_in",
-                is_enabled="_is_bet_action_enabled",
+                is_enabled="_is_all_in_enabled",
                 is_hidden="_is_bet_action_hidden",
                 show_in_actions_menu=False,
             )
@@ -508,22 +530,27 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
         self.phase = "deal"
         self.action_log = []
         self.current_bet_round = 0
+        self.first_round_opener_id = None
         self.pot_manager.reset()
         self.discard_pile = []
         self.deck, _ = DeckFactory.standard_deck()
         self.deck.shuffle()
 
-        active = [p for p in self.get_active_players() if p.chips > 0]
+        table_players = [
+            p for p in self.get_active_players() if isinstance(p, FiveCardDrawPlayer)
+        ]
+        active = [p for p in table_players if p.chips > 0]
+        active_ids = {p.id for p in active}
+        for p in table_players:
+            p.hand = []
+            p.folded = p.id not in active_ids
+            p.all_in = False
+            p.to_discard = set()
         if len(active) <= 1:
             self._end_game(active[0] if active else None)
             return
 
         self.table_state.advance_button([p.id for p in active])
-        for p in active:
-            p.hand = []
-            p.folded = False
-            p.all_in = False
-            p.to_discard = set()
 
         self.play_sound("game_cards/small_shuffle.ogg")
         self._post_ante(active)
@@ -532,7 +559,7 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
             user = self.get_user(p)
             if user:
                 user.speak_l("draw-dealt-cards", buffer="game", cards=read_cards(p.hand, user.locale))
-        self._start_betting_round(start_index=-1)
+        self._start_betting_round()
 
     def _post_ante(self, active: list[FiveCardDrawPlayer]) -> None:
         ante = self.options.ante
@@ -546,7 +573,11 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
                 p.all_in = True
             self.pot_manager.add_contribution(p.id, pay)
         self._sync_team_scores()
-        self.broadcast_l("draw-antes-posted", buffer="game", amount=ante)
+        self.broadcast_l(
+            "draw-antes-posted",
+            buffer="game",
+            amount=self.pot_manager.total_pot(),
+        )
 
     def _deal_cards(self, players: list[FiveCardDrawPlayer], count: int) -> None:
         if not players:
@@ -565,8 +596,9 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
         for p in players:
             p.hand = sort_cards(p.hand)
 
-    def _start_betting_round(self, start_index: int) -> None:
+    def _start_betting_round(self) -> None:
         self.current_bet_round += 1
+        self.phase = f"bet{self.current_bet_round}"
         active_ids = [p.id for p in self.get_active_players() if p.chips > 0 and not p.folded]
         order = [p.id for p in self.get_active_players() if p.id in active_ids]
         self.betting = PokerBettingRound(
@@ -576,9 +608,10 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
         if not order:
             self._showdown()
             return
-        if start_index < 0:
-            # default: left of button
-            start_index = (self.table_state.button_index + 1) % len(order)
+        if self.current_bet_round == 2 and self.first_round_opener_id:
+            start_index = self._turn_index_from_player(self.first_round_opener_id, order)
+        else:
+            start_index = self._turn_index_after_dealer(order)
         self._announce_betting_round()
         self._set_turn_by_index(start_index, order)
 
@@ -683,56 +716,84 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
         p = self._require_active_player(player)
         if not p or not self.betting:
             return
+        user = self.get_user(p)
         try:
             amount = int(amount_str)
         except ValueError:
-            user = self.get_user(p)
             if user:
-                user.speak_l("poker-enter-raise", buffer="game")
+                user.speak_l("draw-raise-invalid", buffer="game")
             return
         if amount <= 0:
-            user = self.get_user(p)
             if user:
-                user.speak_l("poker-enter-raise", buffer="game")
+                user.speak_l("draw-raise-invalid", buffer="game")
             return
         if not self.betting.can_raise():
-            user = self.get_user(p)
             if user:
-                user.speak_l("poker-raise-cap-reached", buffer="game")
+                user.speak_l(
+                    "draw-raise-cap-reached",
+                    buffer="game",
+                    count=self.options.max_raises,
+                )
             return
         min_raise = max(self.betting.last_raise_size, 1)
         if amount > p.chips:
-            user = self.get_user(p)
             if user:
-                user.speak_l("poker-raise-too-large", buffer="game")
+                user.speak_l(
+                    "draw-raise-over-stack",
+                    buffer="game",
+                    requested=amount,
+                    chips=p.chips,
+                )
             return
         if amount == p.chips:
             self._action_all_in(p, "all_in")
             return
         if amount < min_raise:
-            user = self.get_user(p)
             if user:
-                user.speak_l("poker-raise-too-small", buffer="game", amount=min_raise)
+                user.speak_l(
+                    "draw-raise-too-small",
+                    buffer="game",
+                    requested=amount,
+                    minimum=min_raise,
+                )
             return
         to_call = self.betting.amount_to_call(p.id)
         total = to_call + amount
-        if self.options.raise_mode != "no_limit":
-            caps = compute_pot_limit_caps(self.pot_manager.total_pot(), to_call, self.options.raise_mode)
-            total = clamp_total_to_cap(total, caps)
+        maximum = self._maximum_additional_bet(p)
+        if total > maximum and total <= p.chips:
+            if user:
+                user.speak_l(
+                    "draw-raise-over-limit",
+                    buffer="game",
+                    mode=self.options.raise_mode,
+                    requested=amount,
+                    maximum=max(0, maximum - to_call),
+                )
+            return
         if total > p.chips:
             total = p.chips
         if total < to_call + min_raise:
             # Treat short stack as all-in (does not reopen betting)
             self._action_all_in(p, "all_in")
             return
+        was_unopened = self.current_bet_round == 1 and self.betting.current_bet == 0
         p.chips -= total
         if p.chips == 0:
             p.all_in = True
         self.play_sound("game_3cardpoker/bet.ogg")
         self.pot_manager.add_contribution(p.id, total)
         self.betting.record_bet(p.id, total, is_raise=True)
-        poker_log.log_raise(self.action_log, p.name, total)
-        self.broadcast_personal_l(p, "poker-you-raise", "poker-player-raises", buffer="game", amount=total)
+        new_bet_total = self.betting.bets[p.id]
+        if was_unopened:
+            self.first_round_opener_id = p.id
+        poker_log.log_raise(self.action_log, p.name, new_bet_total)
+        self.broadcast_personal_l(
+            p,
+            "poker-you-raise",
+            "poker-player-raises",
+            buffer="game",
+            amount=new_bet_total,
+        )
         if p.all_in:
             self.broadcast_personal_l(p, "poker-you-all-in", "poker-player-all-in", buffer="game", amount=total)
         self._sync_team_scores()
@@ -744,10 +805,10 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
                 return "1"
             to_call = self.betting.amount_to_call(player.id)
             min_raise = max(self.betting.last_raise_size, 1)
-            max_raise = max(0, player.chips - to_call)
+            max_raise = max(0, self._maximum_additional_bet(player) - to_call)
             if max_raise < min_raise:
                 return str(min_raise)
-            desired = max(min_raise, min(100, player.chips // 3))
+            desired = max(min_raise, self.pot_manager.total_pot() // 2)
             amount = min(desired, max_raise)
             return str(amount)
         return "1"
@@ -761,14 +822,37 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
             return
         to_call = self.betting.amount_to_call(p.id)
         min_raise = max(self.betting.last_raise_size, 1)
-        pay = amount  # all-in always commits the full stack regardless of raise mode
+        pay = amount
+        raise_amount = pay - to_call
+        is_raise = raise_amount >= min_raise and pay > to_call
+        user = self.get_user(p)
+        if is_raise and not self.betting.can_raise():
+            if user:
+                user.speak_l(
+                    "draw-all-in-raise-cap-reached",
+                    buffer="game",
+                    count=self.options.max_raises,
+                )
+            return
+        maximum = self._maximum_additional_bet(p)
+        if pay > maximum:
+            if user:
+                user.speak_l(
+                    "draw-all-in-over-limit",
+                    buffer="game",
+                    mode=self.options.raise_mode,
+                    stack=pay,
+                    maximum=max(0, maximum - to_call),
+                )
+            return
+        was_unopened = self.current_bet_round == 1 and self.betting.current_bet == 0
         p.chips -= pay
         p.all_in = True
         self.play_sound("game_3cardpoker/bet.ogg")
         self.pot_manager.add_contribution(p.id, pay)
-        raise_amount = pay - to_call
-        is_raise = raise_amount >= min_raise and pay > to_call
         self.betting.record_bet(p.id, pay, is_raise=is_raise)
+        if was_unopened and is_raise:
+            self.first_round_opener_id = p.id
         poker_log.log_all_in(self.action_log, p.name, pay)
         self.broadcast_personal_l(p, "poker-you-all-in", "poker-player-all-in", buffer="game", amount=pay)
         self._sync_team_scores()
@@ -783,9 +867,17 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
             if user:
                 user.speak_l("draw-not-draw-phase", buffer="game")
             return
+        p.to_discard = {idx for idx in p.to_discard if 0 <= idx < len(p.hand)}
+        selection_error = self._discard_selection_error(p, p.to_discard)
+        if selection_error:
+            user = self.get_user(p)
+            if user:
+                key, kwargs = selection_error
+                user.speak_l(key, buffer="game", **kwargs)
+            return
         if not p.to_discard:
             self.broadcast_personal_l(p, "draw-you-stand-pat", "draw-player-stands-pat", buffer="game")
-            self._advance_after_draw(p)
+            self._advance_after_draw(p, direct_action=action_id == "draw_cards")
             return
         indices = sorted(p.to_discard)
         drawn_cards: list[Card] = []
@@ -800,12 +892,23 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
         p.hand = sort_cards(p.hand)
         self._play_draw_sounds(len(indices))
         user = self.get_user(p)
-        self.broadcast_l("draw-player-draws", buffer="game", exclude=p, player=p.name, count=len(indices))
+        self.broadcast_personal_l(
+            p,
+            "draw-you-draw",
+            "draw-player-draws",
+            buffer="game",
+            count=len(indices),
+        )
         if user and drawn_cards:
-            user.speak_l("draw-you-drew-cards", buffer="game", cards=read_cards(drawn_cards, user.locale))
+            user.speak_l(
+                "draw-you-drew-cards",
+                buffer="game",
+                count=len(drawn_cards),
+                cards=read_cards(drawn_cards, user.locale),
+            )
             user.speak_l("poker-your-hand", buffer="game", cards=read_cards(p.hand, user.locale))
         p.to_discard = set()
-        self._advance_after_draw(p)
+        self._advance_after_draw(p, direct_action=action_id == "draw_cards")
 
     def _action_toggle_discard(self, player: Player, action_id: str) -> None:
         p = self._require_active_player(player)
@@ -848,21 +951,24 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
 
     def _start_draw_phase(self) -> None:
         self.broadcast_l("draw-begin-draw", buffer="game")
-        self.turn_player_ids = [p.id for p in self.get_active_players() if not p.folded]
+        order = [p.id for p in self.get_active_players() if not p.folded]
+        start_index = self._turn_index_after_dealer(order)
+        self.turn_player_ids = order[start_index:] + order[:start_index]
         self.turn_index = 0
         self._start_turn()
 
-    def _advance_after_draw(self, player: FiveCardDrawPlayer) -> None:
+    def _advance_after_draw(self, player: FiveCardDrawPlayer, *, direct_action: bool = True) -> None:
         if self.current_player != player:
             return
         self.advance_turn(announce=False)
         if self.current_player is None or (
             self.current_player and self.current_player.id == self.turn_player_ids[0]
         ):
-            self.phase = "bet2"
-            self._start_betting_round(start_index=0)
+            self._start_betting_round()
         else:
             self._start_turn()
+        if direct_action:
+            self.request_menu_focus(player, "call")
 
     def _showdown(self) -> None:
         self.phase = "showdown"
@@ -972,6 +1078,7 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
 
     def _queue_new_hand(self) -> None:
         self._next_hand_wait_ticks = 100
+        self.refresh_menus()
 
     def _order_winners_by_button(self, winners: list[FiveCardDrawPlayer]) -> list[FiveCardDrawPlayer]:
         if len(winners) <= 1:
@@ -999,21 +1106,70 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
 
     def _action_check_bet(self, player: Player, action_id: str) -> None:
         user = self.get_user(player)
-        if not self.betting:
+        if not self.betting or self.phase not in BETTING_PHASES:
             if user:
                 user.speak_l("poker-no-active-betting", buffer="game")
             return
-        to_call = self.betting.amount_to_call(player.id)
         if user:
-            user.speak_l("poker-to-call", buffer="game", amount=to_call)
+            if (
+                player.is_spectator
+                or not isinstance(player, FiveCardDrawPlayer)
+                or player.folded
+                or player.all_in
+                or player.id not in self.betting.bets
+            ):
+                user.speak_l(
+                    "draw-current-bet",
+                    buffer="game",
+                    amount=self.betting.current_bet,
+                )
+            else:
+                user.speak_l(
+                    "poker-to-call",
+                    buffer="game",
+                    amount=self.betting.amount_to_call(player.id),
+                )
 
     def _action_check_min_raise(self, player: Player, action_id: str) -> None:
-        if not self.betting:
+        user = self.get_user(player)
+        if not self.betting or self.phase not in BETTING_PHASES:
+            if user:
+                user.speak_l("poker-no-active-betting", buffer="game")
+            return
+        if not self.betting.can_raise():
+            if user:
+                user.speak_l(
+                    "draw-raise-cap-reached",
+                    buffer="game",
+                    count=self.options.max_raises,
+                )
             return
         min_raise = max(self.betting.last_raise_size, 1)
-        user = self.get_user(player)
         if user:
-            user.speak_l("poker-min-raise", buffer="game", amount=min_raise)
+            if (
+                isinstance(player, FiveCardDrawPlayer)
+                and not player.folded
+                and not player.all_in
+                and player.id in self.betting.bets
+            ):
+                to_call = self.betting.amount_to_call(player.id)
+                maximum = max(0, self._maximum_additional_bet(player) - to_call)
+                if maximum >= min_raise:
+                    user.speak_l(
+                        "draw-raise-range",
+                        buffer="game",
+                        minimum=min_raise,
+                        maximum=maximum,
+                    )
+                else:
+                    user.speak_l(
+                        "draw-no-full-raise-available",
+                        buffer="game",
+                        to_call=to_call,
+                        chips=player.chips,
+                    )
+            else:
+                user.speak_l("poker-min-raise", buffer="game", amount=min_raise)
 
     def _action_check_hand_players(self, player: Player, action_id: str) -> None:
         user = self.get_user(player)
@@ -1087,6 +1243,8 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
         dealer_player = self.get_player_by_id(dealer_id) if dealer_id else None
         if dealer_player:
             user.speak_l("poker-dealer-is", buffer="game", player=dealer_player.name)
+        else:
+            user.speak_l("draw-dealer-unavailable", buffer="game")
 
     def _action_check_position(self, player: Player, action_id: str) -> None:
         user = self.get_user(player)
@@ -1094,6 +1252,7 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
             return
         active = [p for p in self.get_active_players() if p.chips > 0 or p.all_in]
         if not active:
+            user.speak_l("draw-position-unavailable", buffer="game")
             return
         dealer_id = self.table_state.get_button_id([p.id for p in active])
         order = [p.id for p in active]
@@ -1104,10 +1263,55 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
             else:
                 key = "poker-position-dealer-seat" if idx == 1 else "poker-position-dealer-seats"
                 user.speak_l(key, buffer="game", position=idx)
+        else:
+            user.speak_l("draw-position-unavailable", buffer="game")
 
     # ==========================================================================
     # Helpers
     # ==========================================================================
+    def _turn_index_after_dealer(self, order: list[str]) -> int:
+        dealer_id = self.table_state.button_player_id
+        return self._turn_index_from_player(dealer_id, order, include_player=False)
+
+    def _turn_index_from_player(
+        self,
+        player_id: str | None,
+        order: list[str],
+        *,
+        include_player: bool = True,
+    ) -> int:
+        if not order:
+            return 0
+        seating = [p.id for p in self.get_active_players()]
+        if not player_id or player_id not in seating:
+            return 0
+        start = seating.index(player_id) + (0 if include_player else 1)
+        for offset in range(len(seating)):
+            candidate = seating[(start + offset) % len(seating)]
+            if candidate in order:
+                return order.index(candidate)
+        return 0
+
+    def _maximum_additional_bet(self, player: FiveCardDrawPlayer) -> int:
+        if not self.betting or self.options.raise_mode == "no_limit":
+            return player.chips
+        to_call = self.betting.amount_to_call(player.id)
+        caps = compute_pot_limit_caps(
+            self.pot_manager.total_pot(),
+            to_call,
+            self.options.raise_mode,
+        )
+        if not caps:
+            return player.chips
+        return min(player.chips, caps.total_cap)
+
+    def _can_make_full_raise(self, player: FiveCardDrawPlayer) -> bool:
+        if not self.betting or not self.betting.can_raise():
+            return False
+        to_call = self.betting.amount_to_call(player.id)
+        min_raise = max(self.betting.last_raise_size, 1)
+        return self._maximum_additional_bet(player) >= to_call + min_raise
+
     def _active_betting_ids(self) -> set[str]:
         return {
             p.id
@@ -1135,22 +1339,67 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
     def _is_draw_hidden(self, player: Player) -> Visibility:
         if self.phase != "draw":
             return Visibility.HIDDEN
+        if self.current_player != player:
+            return Visibility.HIDDEN
         return self._is_turn_action_hidden(player)
 
     def _is_bet_action_enabled(self, player: Player) -> str | None:
         if self.phase == "draw":
             return "draw-not-betting"
-        if self.phase == "showdown" or self._next_hand_wait_ticks > 0:
+        if self.phase not in BETTING_PHASES or self._next_hand_wait_ticks > 0:
             return "poker-no-active-betting"
         return self._is_turn_action_enabled(player)
 
+    def _is_all_in_enabled(self, player: Player) -> str | None:
+        reason = self._is_bet_action_enabled(player)
+        if reason:
+            return reason
+        if not isinstance(player, FiveCardDrawPlayer) or not self.betting:
+            return "poker-no-active-betting"
+        to_call = self.betting.amount_to_call(player.id)
+        min_raise = max(self.betting.last_raise_size, 1)
+        is_full_raise = player.chips > to_call and player.chips - to_call >= min_raise
+        if is_full_raise and not self.betting.can_raise():
+            return "draw-all-in-unavailable-raise-cap"
+        if player.chips > self._maximum_additional_bet(player):
+            return "draw-all-in-unavailable-limit"
+        return None
+
+    def _is_raise_enabled(self, player: Player) -> str | None:
+        reason = self._is_bet_action_enabled(player)
+        if reason:
+            return reason
+        if not isinstance(player, FiveCardDrawPlayer) or not self.betting:
+            return "poker-no-active-betting"
+        if not self.betting.can_raise():
+            return "draw-raise-unavailable-cap"
+        if not self._can_make_full_raise(player):
+            return "draw-raise-unavailable-limit"
+        return None
+
     def _is_bet_action_hidden(self, player: Player) -> Visibility:
-        if self.phase == "draw":
-            return Visibility.HIDDEN
         p = player if isinstance(player, FiveCardDrawPlayer) else None
-        if not p or p.all_in or p.chips <= 0:
+        if not p or self.status != "playing" or p.is_spectator:
             return Visibility.HIDDEN
-        return self._is_turn_action_hidden(player)
+        if self.phase in BETTING_PHASES:
+            if self._next_hand_wait_ticks > 0:
+                return Visibility.VISIBLE
+            if p.folded:
+                return Visibility.HIDDEN
+            if p.all_in:
+                return Visibility.VISIBLE
+            if p.chips <= 0:
+                return Visibility.HIDDEN
+            return self._is_turn_action_hidden(player)
+        if self.phase == "draw":
+            return (
+                Visibility.HIDDEN
+                if self.current_player == player
+                else Visibility.VISIBLE
+            )
+        if self._next_hand_wait_ticks > 0 or self.phase == "showdown":
+            return Visibility.VISIBLE
+        return Visibility.HIDDEN
 
     def _is_discard_toggle_enabled(self, player: Player) -> str | None:
         if self.phase != "draw":
@@ -1164,6 +1413,8 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
 
     def _is_discard_toggle_hidden(self, player: Player) -> Visibility:
         if self.phase != "draw":
+            return Visibility.HIDDEN
+        if self.current_player != player:
             return Visibility.HIDDEN
         return self._is_turn_action_hidden(player)
 
@@ -1210,15 +1461,46 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
         locale = user.locale if user else "en"
         return Localization.get(locale, "draw-draw-cards-count", count=count)
 
+    def _get_call_label(self, player: Player, action_id: str) -> str:
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        if not self.betting or self.phase not in BETTING_PHASES:
+            return Localization.get(locale, "poker-call")
+        key = "poker-check" if self.betting.amount_to_call(player.id) == 0 else "poker-call"
+        return Localization.get(locale, key)
+
+    def _discard_selection_error(
+        self,
+        player: FiveCardDrawPlayer,
+        selection: set[int],
+    ) -> tuple[str, dict] | None:
+        if self.options.draw_limit != "four_with_ace" and len(selection) > 3:
+            return "draw-you-discard-limit", {"count": 3}
+        if len(selection) > 4:
+            return "draw-you-discard-limit", {"count": 4}
+        if len(selection) == 4:
+            keeps_ace = any(
+                card.rank == 1 and card_index not in selection
+                for card_index, card in enumerate(player.hand)
+            )
+            if not keeps_ace:
+                return "draw-four-requires-kept-ace", {}
+        return None
+
     def _set_discard(self, player: FiveCardDrawPlayer, idx: int, discard: bool) -> None:
         if discard:
-            max_discards = 4 if any(card.rank == 1 for card in player.hand) else 3
-            if len(player.to_discard) >= max_discards and idx not in player.to_discard:
-                user = self.get_user(player)
+            candidate = set(player.to_discard)
+            candidate.add(idx)
+            user = self.get_user(player)
+            selection_error = self._discard_selection_error(player, candidate)
+            if selection_error:
                 if user:
-                    user.speak_l("draw-you-discard-limit", buffer="game", count=max_discards)
+                    key, kwargs = selection_error
+                    user.speak_l(key, buffer="game", **kwargs)
                 return
-            player.to_discard.add(idx)
+            if idx in player.to_discard:
+                return
+            player.to_discard = candidate
         else:
             player.to_discard.discard(idx)
 
@@ -1252,9 +1534,9 @@ class FiveCardDrawGame(Game, TurnTimerMixin):
         if not isinstance(player, FiveCardDrawPlayer):
             return
         if self.phase == "draw":
-            self._action_draw_cards(player, "draw_cards")
+            self._action_draw_cards(player, "turn_timeout")
             return
-        self._action_fold(player, "fold")
+        self._action_fold(player, "turn_timeout")
 
     def _play_draw_sounds(self, count: int) -> None:
         delay_ticks = 0

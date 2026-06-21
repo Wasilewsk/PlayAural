@@ -10,7 +10,6 @@ deadmanspoker-read-hand = Đọc bài riêng
 deadmanspoker-read-community-cards = Đọc bài chung
 deadmanspoker-read-hand-value = Đọc sức mạnh tay bài
 deadmanspoker-read-table = Đọc tình hình bàn
-deadmanspoker-read-card-counts = Đọc số lá bài
 deadmanspoker-read-revolvers = Đọc rủi ro ổ đạn
 
 deadmanspoker-action-sequence-running = Hãy chờ diễn biến hiện tại kết thúc.
@@ -22,7 +21,6 @@ deadmanspoker-no-opponents = Không còn đối thủ nào trong ván bài này.
 deadmanspoker-already-matched-all-in = Bạn đã theo mức tất tay rồi.
 deadmanspoker-coward-used = Bạn đã dùng Bỏ non trong trận này.
 deadmanspoker-coward-first-decision-only = Bỏ non chỉ dùng được ở quyết định đầu tiên của một ván bài.
-deadmanspoker-fold-first-decision-use-coward = Bỏ bài thường không dùng được ở quyết định đầu tiên khi chỉ có 1 viên đạn. Chỉ Bỏ non mới rời ván được ở thời điểm đó.
 deadmanspoker-all-in-too-early = Tất tay chỉ dùng được từ vòng cược 2, sau khi ba lá bài chung đầu tiên đã được lật.
 deadmanspoker-switch-not-now = Lúc này bạn không thể đổi bài.
 deadmanspoker-switch-used = Bạn đã đổi bài trong ván này rồi.
@@ -92,9 +90,6 @@ deadmanspoker-status-active = còn trong ván
 deadmanspoker-status-folded = đã bỏ bài
 deadmanspoker-status-eliminated = đã gục
 deadmanspoker-status-waiting = đang chờ
-
-deadmanspoker-card-count-line = { $player }: còn { $count } lá.
-deadmanspoker-card-count-eliminated = { $player }: đã gục.
 
 deadmanspoker-revolvers-header = Rủi ro ổ đạn
 deadmanspoker-revolver-status = { $player }: đã đặt { $bullets } viên đạn; { $risk }.
