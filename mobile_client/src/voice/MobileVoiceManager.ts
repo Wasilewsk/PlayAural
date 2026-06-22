@@ -419,7 +419,7 @@ export class MobileVoiceManager {
     return {
       android: {
         preferredOutputList,
-        // Route through media volume without making voice chat the Android audio-focus owner.
+        // Keep LiveKit on Android's media route so microphone use does not collapse game audio to mono.
         audioTypeOptions: this.getAndroidMediaVoiceAudioOptions(liveKitNative),
       },
       ios: {

@@ -1,6 +1,6 @@
-import { Platform } from "react-native";
+import { NativeModules, Platform } from "react-native";
 
-type ForegroundServiceType = "mediaPlayback" | "microphone";
+type ForegroundServiceType = "dataSync" | "mediaPlayback" | "microphone";
 
 type ForegroundServiceConfig = {
   ServiceType: ForegroundServiceType;
@@ -27,6 +27,10 @@ type ForegroundServiceModule = {
   update: (config: ForegroundServiceConfig) => Promise<void>;
 };
 
+type PowerManagementNativeModule = {
+  setPartialWakeLockEnabled?: (enabled: boolean) => Promise<boolean>;
+};
+
 type SyncOptions = {
   message: string;
   serviceType: ForegroundServiceType;
@@ -34,9 +38,29 @@ type SyncOptions = {
 };
 
 const NOTIFICATION_ID = 44201;
+const powerManagementModule =
+  NativeModules.PlayAuralBatteryOptimization as PowerManagementNativeModule | undefined;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function setPartialWakeLockEnabled(enabled: boolean): Promise<void> {
+  if (Platform.OS !== "android") {
+    return;
+  }
+  try {
+    await powerManagementModule?.setPartialWakeLockEnabled?.(enabled);
+  } catch {
+    // Foreground service state is still useful if the wake lock bridge is unavailable.
+  }
+}
 
 class AndroidForegroundServiceManager {
   private activeSignature = "";
+  private activeServiceType: ForegroundServiceType | null = null;
   private initialized = false;
   private module: ForegroundServiceModule | null = null;
 
@@ -82,16 +106,25 @@ class AndroidForegroundServiceManager {
     };
     const signature = JSON.stringify(config);
     if (signature === this.activeSignature && this.module.is_running()) {
+      await setPartialWakeLockEnabled(true);
       return;
     }
 
     try {
-      if (this.module.is_running()) {
+      const running = this.module.is_running();
+      const serviceTypeChanged = running && this.activeServiceType !== options.serviceType;
+      if (running && serviceTypeChanged) {
+        await this.module.stop();
+        await delay(120);
+      }
+      if (running && !serviceTypeChanged) {
         await this.module.update(config);
       } else {
         await this.module.start(config);
       }
+      await setPartialWakeLockEnabled(true);
       this.activeSignature = signature;
+      this.activeServiceType = options.serviceType;
     } catch (error) {
       console.warn("PlayAural: foreground service sync failed.", error);
     }
@@ -99,10 +132,12 @@ class AndroidForegroundServiceManager {
 
   async stop(): Promise<void> {
     this.initialize();
+    await setPartialWakeLockEnabled(false);
     if (!this.module) {
       return;
     }
     this.activeSignature = "";
+    this.activeServiceType = null;
     if (!this.module.is_running()) {
       return;
     }

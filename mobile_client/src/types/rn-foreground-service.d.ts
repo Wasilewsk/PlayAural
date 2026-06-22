@@ -1,5 +1,5 @@
 declare module "@supersami/rn-foreground-service" {
-  type ForegroundServiceType = "mediaPlayback" | "microphone";
+  type ForegroundServiceType = "dataSync" | "mediaPlayback" | "microphone";
 
   type ForegroundServiceConfig = {
     ServiceType: ForegroundServiceType;

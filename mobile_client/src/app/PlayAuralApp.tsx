@@ -2,7 +2,16 @@ import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio as ExpoAudio } from "expo-av";
 import * as SecureStore from "expo-secure-store";
-import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ComponentType,
+  type MutableRefObject,
+} from "react";
 import {
   AccessibilityInfo,
   AppState,
@@ -22,6 +31,7 @@ import {
 } from "react-native";
 
 import { MobileAudioManager } from "../audio/MobileAudioManager";
+import { requestAndroidBatteryOptimizationExemptionOnce } from "../background/AndroidBatteryOptimization";
 import { androidForegroundService } from "../background/AndroidForegroundService";
 import { useSelfVoicingGestures } from "../gestures/useSelfVoicingGestures";
 import { bundledSoundVersion } from "../generated/soundManifest";
@@ -39,6 +49,8 @@ import type {
   PlayMusicPacket,
   PlaySoundPacket,
   RegisterResponsePacket,
+  RemoveEditboxPacket,
+  RemoveMenuPacket,
   RequestInputPacket,
   RequestPasswordResetResponsePacket,
   ServerPacket,
@@ -68,6 +80,11 @@ const CLIENT_SV_STORAGE_KEY = "playaural.mobile.selfVoicing";
 const CLIENT_MIC_PERMISSION_REQUESTED_STORAGE_KEY = "playaural.mobile.voiceMicPermissionRequested";
 const WEB_SCREEN_READER_SUPPORT = Platform.OS === "web";
 const NATIVE_FOCUS_DELAY_MS = 80;
+const NATIVE_SCREEN_READER_ANNOUNCEMENT_MIN_DELAY_MS = 900;
+const NATIVE_SCREEN_READER_ANNOUNCEMENT_MAX_DELAY_MS = 7000;
+const NATIVE_SCREEN_READER_ANNOUNCEMENT_CHAR_MS = 45;
+const NATIVE_SCREEN_READER_DUPLICATE_WINDOW_MS = 700;
+const NATIVE_FOCUS_RESET_GUARD_MS = 900;
 
 type ServerAuthResponseContext = "login" | "password_reset" | "register" | "reset_code";
 
@@ -122,6 +139,11 @@ type ScreenReaderAnnouncement = {
 };
 
 type AccessibilityFocusNode = Parameters<typeof findNodeHandle>[0] | { focus?: () => void };
+type AccessibilityOrderedViewProps = ComponentProps<typeof View> & {
+  experimental_accessibilityOrder?: string[];
+};
+
+const AccessibilityOrderedView = View as ComponentType<AccessibilityOrderedViewProps>;
 
 type FocusableMenuItem = {
   id?: string;
@@ -351,6 +373,48 @@ function formatMobileVoiceLabel(name: string, language: string, isDefault: boole
   return parts.join(", ");
 }
 
+function normalizePreferenceKey(key: string): string {
+  const normalizedBySyncKey: Record<string, string> = {
+    "mobile/tts_engine": "mobile_tts_engine",
+    "mobile/tts_rate": "mobile_tts_rate",
+    "mobile/tts_voice": "mobile_tts_voice",
+  };
+  const keyParts = key.split("/");
+  return normalizedBySyncKey[key] ?? keyParts[keyParts.length - 1];
+}
+
+function formatTextInputSpeech(
+  localization: Pick<MobileLocalization, "t">,
+  label: string,
+  value: string,
+  options?: { readOnly?: boolean; secure?: boolean },
+): string {
+  const trimmedValue = value.trim();
+  if (options?.secure) {
+    return value.length === 0
+      ? localization.t("text-input-secure-empty", { label })
+      : localization.t("text-input-secure-count", { count: value.length, label });
+  }
+  if (trimmedValue.length === 0) {
+    return localization.t(options?.readOnly ? "text-input-readonly-empty" : "text-input-empty", { label });
+  }
+  return localization.t(options?.readOnly ? "text-input-readonly-value" : "text-input-value", {
+    label,
+    value,
+  });
+}
+
+function estimateNativeScreenReaderAnnouncementDelay(text: string): number {
+  const estimated =
+    NATIVE_SCREEN_READER_ANNOUNCEMENT_MIN_DELAY_MS +
+    text.length * NATIVE_SCREEN_READER_ANNOUNCEMENT_CHAR_MS;
+  return clamp(
+    estimated,
+    NATIVE_SCREEN_READER_ANNOUNCEMENT_MIN_DELAY_MS,
+    NATIVE_SCREEN_READER_ANNOUNCEMENT_MAX_DELAY_MS,
+  );
+}
+
 function getGridVisualLabel(text: string, cellSize: number | null): string {
   if (cellSize !== null && cellSize < 10) {
     return "";
@@ -372,9 +436,7 @@ function extractPreferenceUpdates(packet: UpdatePreferencePacket | AuthorizeSucc
     return packet.preferences;
   }
   if ("key" in packet && packet.key) {
-    const keyParts = packet.key.split("/");
-    const normalizedKey = keyParts[keyParts.length - 1];
-    return { [normalizedKey]: packet.value };
+    return { [normalizePreferenceKey(packet.key)]: packet.value };
   }
   return {};
 }
@@ -474,6 +536,7 @@ export function PlayAuralApp() {
   });
   const voiceRequestedContextIdRef = useRef("");
   const voiceStateRef = useRef<MobileVoiceConnectionState>("disconnected");
+  const modeRef = useRef(mode);
   const voiceJoinPendingRef = useRef(false);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectWindowStartedAtRef = useRef<number | null>(null);
@@ -490,6 +553,18 @@ export function PlayAuralApp() {
   const nativeFocusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nativeTabTextInputFocusTimersRef = useRef(new Set<ReturnType<typeof setTimeout>>());
   const lastNativeFocusKeyRef = useRef<string | null>(null);
+  const pendingNativeAccessibilityFocusKeyRef = useRef<string | null>(null);
+  const pendingNativeAccessibilityFocusQueuedAtRef = useRef(0);
+  const nativeFocusTargetKeyRef = useRef<string | null>(null);
+  const nativeFocusTargetQueuedAtRef = useRef(0);
+  const nativeFocusTargetReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nativeScreenReaderModeRef = useRef(false);
+  const programmaticNativeFocusKeyRef = useRef<string | null>(null);
+  const programmaticNativeFocusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nativeScreenReaderAnnouncementQueueRef = useRef<string[]>([]);
+  const nativeScreenReaderAnnouncementTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nativeScreenReaderAnnouncementActiveRef = useRef(false);
+  const nativeScreenReaderLastAnnouncementRef = useRef({ at: 0, text: "" });
   const activeTextInputKeyRef = useRef<string | null>(activeTextInputKey);
   const longPressConsumedRef = useRef<string | null>(null);
   const longPressResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -524,6 +599,10 @@ export function PlayAuralApp() {
   useEffect(() => {
     inputStateRef.current = inputState;
   }, [inputState]);
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   useEffect(() => {
     lastPingStartedAtRef.current = lastPingStartedAt;
@@ -566,6 +645,9 @@ export function PlayAuralApp() {
 
   useEffect(() => {
     tts.setUiEnabled(selfVoicingEnabled);
+    if (!selfVoicingEnabled) {
+      tts.stop();
+    }
     lastPassiveUiSignatureRef.current = null;
   }, [selfVoicingEnabled, tts]);
 
@@ -599,10 +681,22 @@ export function PlayAuralApp() {
       clearTimeout(nativeFocusTimerRef.current);
       nativeFocusTimerRef.current = null;
     }
+    if (nativeFocusTargetReleaseTimerRef.current) {
+      clearTimeout(nativeFocusTargetReleaseTimerRef.current);
+      nativeFocusTargetReleaseTimerRef.current = null;
+    }
     nativeTabTextInputFocusTimersRef.current.forEach((timer) => {
       clearTimeout(timer);
     });
     nativeTabTextInputFocusTimersRef.current.clear();
+    if (programmaticNativeFocusTimerRef.current) {
+      clearTimeout(programmaticNativeFocusTimerRef.current);
+      programmaticNativeFocusTimerRef.current = null;
+    }
+    if (nativeScreenReaderAnnouncementTimerRef.current) {
+      clearTimeout(nativeScreenReaderAnnouncementTimerRef.current);
+      nativeScreenReaderAnnouncementTimerRef.current = null;
+    }
   }, []);
 
   const nativeScreenReaderMode = !selfVoicingEnabled && (screenReaderEnabled || WEB_SCREEN_READER_SUPPORT);
@@ -610,23 +704,174 @@ export function PlayAuralApp() {
   const selfVoicingKeyboardEnabled = selfVoicingEnabled && activeTextInputKey === null;
 
   useEffect(() => {
+    nativeScreenReaderModeRef.current = nativeScreenReaderMode;
     if (!nativeScreenReaderMode) {
       lastNativeFocusKeyRef.current = null;
+      pendingNativeAccessibilityFocusKeyRef.current = null;
+      nativeFocusTargetKeyRef.current = null;
+      if (nativeFocusTimerRef.current) {
+        clearTimeout(nativeFocusTimerRef.current);
+        nativeFocusTimerRef.current = null;
+      }
+      if (nativeFocusTargetReleaseTimerRef.current) {
+        clearTimeout(nativeFocusTargetReleaseTimerRef.current);
+        nativeFocusTargetReleaseTimerRef.current = null;
+      }
     }
   }, [nativeScreenReaderMode]);
 
-  const announceForNativeScreenReader = useCallback((text: string) => {
+  const postNativeScreenReaderAnnouncement = useCallback((text: string) => {
     if (!text) {
       return;
     }
-    setScreenReaderAnnouncement((current) => ({
-      id: current.id + 1,
-      text,
-    }));
-    if (Platform.OS !== "web") {
+    if (Platform.OS === "web") {
+      setScreenReaderAnnouncement((current) => ({
+        id: current.id + 1,
+        text,
+      }));
+    } else {
       AccessibilityInfo.announceForAccessibility(text);
     }
   }, []);
+
+  const clearNativeScreenReaderAnnouncementQueue = useCallback(() => {
+    nativeScreenReaderAnnouncementQueueRef.current = [];
+    nativeScreenReaderAnnouncementActiveRef.current = false;
+    if (nativeScreenReaderAnnouncementTimerRef.current) {
+      clearTimeout(nativeScreenReaderAnnouncementTimerRef.current);
+      nativeScreenReaderAnnouncementTimerRef.current = null;
+    }
+  }, []);
+
+  const processNativeScreenReaderAnnouncementQueue = useCallback(() => {
+    if (nativeScreenReaderAnnouncementActiveRef.current) {
+      return;
+    }
+
+    const next = nativeScreenReaderAnnouncementQueueRef.current.shift();
+    if (!next) {
+      return;
+    }
+
+    const now = Date.now();
+    const last = nativeScreenReaderLastAnnouncementRef.current;
+    if (
+      next === last.text &&
+      now - last.at < NATIVE_SCREEN_READER_DUPLICATE_WINDOW_MS
+    ) {
+      processNativeScreenReaderAnnouncementQueue();
+      return;
+    }
+
+    nativeScreenReaderLastAnnouncementRef.current = { at: now, text: next };
+    nativeScreenReaderAnnouncementActiveRef.current = true;
+    postNativeScreenReaderAnnouncement(next);
+
+    nativeScreenReaderAnnouncementTimerRef.current = setTimeout(() => {
+      nativeScreenReaderAnnouncementTimerRef.current = null;
+      nativeScreenReaderAnnouncementActiveRef.current = false;
+      processNativeScreenReaderAnnouncementQueue();
+    }, estimateNativeScreenReaderAnnouncementDelay(next));
+  }, [postNativeScreenReaderAnnouncement]);
+
+  const queueNativeScreenReaderAnnouncement = useCallback((text: string) => {
+    const cleanText = text.trim();
+    if (!cleanText) {
+      return;
+    }
+    nativeScreenReaderAnnouncementQueueRef.current.push(cleanText);
+    processNativeScreenReaderAnnouncementQueue();
+  }, [processNativeScreenReaderAnnouncementQueue]);
+
+  const announceForNativeScreenReader = useCallback((text: string) => {
+    clearNativeScreenReaderAnnouncementQueue();
+    postNativeScreenReaderAnnouncement(text);
+  }, [clearNativeScreenReaderAnnouncementQueue, postNativeScreenReaderAnnouncement]);
+
+  const clearScheduledNativeFocus = useCallback((key?: string | null) => {
+    if (!key || pendingNativeAccessibilityFocusKeyRef.current === key) {
+      pendingNativeAccessibilityFocusKeyRef.current = null;
+      pendingNativeAccessibilityFocusQueuedAtRef.current = 0;
+    }
+    if (!key || nativeFocusTargetKeyRef.current === key) {
+      nativeFocusTargetKeyRef.current = null;
+      nativeFocusTargetQueuedAtRef.current = 0;
+    }
+    if (nativeFocusTargetReleaseTimerRef.current) {
+      clearTimeout(nativeFocusTargetReleaseTimerRef.current);
+      nativeFocusTargetReleaseTimerRef.current = null;
+    }
+  }, []);
+
+  const queueNativeAccessibilityFocus = useCallback((key: string | null) => {
+    if (!key) {
+      return;
+    }
+    pendingNativeAccessibilityFocusKeyRef.current = key;
+    pendingNativeAccessibilityFocusQueuedAtRef.current = Date.now();
+  }, []);
+
+  const markNativeScreenReaderInteraction = useCallback((focusKey?: string | null) => {
+    if (!nativeScreenReaderMode) {
+      return;
+    }
+    if (focusKey) {
+      lastNativeFocusKeyRef.current = focusKey;
+      if (programmaticNativeFocusKeyRef.current === focusKey) {
+        programmaticNativeFocusKeyRef.current = null;
+        if (pendingNativeAccessibilityFocusKeyRef.current === focusKey) {
+          pendingNativeAccessibilityFocusKeyRef.current = null;
+          pendingNativeAccessibilityFocusQueuedAtRef.current = 0;
+        }
+        if (programmaticNativeFocusTimerRef.current) {
+          clearTimeout(programmaticNativeFocusTimerRef.current);
+          programmaticNativeFocusTimerRef.current = null;
+        }
+        return;
+      }
+    }
+    const scheduledFocusKey =
+      pendingNativeAccessibilityFocusKeyRef.current ?? nativeFocusTargetKeyRef.current;
+    const scheduledAt = pendingNativeAccessibilityFocusKeyRef.current
+      ? pendingNativeAccessibilityFocusQueuedAtRef.current
+      : nativeFocusTargetQueuedAtRef.current;
+    if (
+      focusKey &&
+      scheduledFocusKey &&
+      focusKey !== scheduledFocusKey &&
+      Date.now() - scheduledAt <= NATIVE_FOCUS_RESET_GUARD_MS
+    ) {
+      return;
+    }
+    pendingNativeAccessibilityFocusKeyRef.current = null;
+    pendingNativeAccessibilityFocusQueuedAtRef.current = 0;
+    nativeFocusTargetKeyRef.current = null;
+    nativeFocusTargetQueuedAtRef.current = 0;
+    if (nativeFocusTimerRef.current) {
+      clearTimeout(nativeFocusTimerRef.current);
+      nativeFocusTimerRef.current = null;
+    }
+    if (nativeFocusTargetReleaseTimerRef.current) {
+      clearTimeout(nativeFocusTargetReleaseTimerRef.current);
+      nativeFocusTargetReleaseTimerRef.current = null;
+    }
+    clearNativeScreenReaderAnnouncementQueue();
+  }, [clearNativeScreenReaderAnnouncementQueue, clearScheduledNativeFocus, nativeScreenReaderMode]);
+
+  const speakServerAnnouncement = useCallback(
+    (text: string, options?: { remember?: boolean }) => {
+      if (!text) {
+        return;
+      }
+      if (selfVoicingEnabled) {
+        tts.speakAnnouncement(text, options);
+        return;
+      }
+      tts.stop();
+      queueNativeScreenReaderAnnouncement(text);
+    },
+    [queueNativeScreenReaderAnnouncement, selfVoicingEnabled, tts],
+  );
 
   const registerAccessibilityNode = useCallback(
     (key: string, textInputRef?: MutableRefObject<TextInput | null>) =>
@@ -665,13 +910,24 @@ export function PlayAuralApp() {
     [],
   );
 
-  const moveNativeAccessibilityFocus = useCallback((key: string | null, attempt = 0) => {
+  const moveNativeAccessibilityFocus = useCallback((key: string | null, attempt = 0, options: { force?: boolean } = {}) => {
     if (!nativeScreenReaderMode || !key) {
       return;
     }
-    if (lastNativeFocusKeyRef.current === key) {
+    if (!options.force && lastNativeFocusKeyRef.current === key) {
       return;
     }
+
+    nativeFocusTargetKeyRef.current = key;
+    nativeFocusTargetQueuedAtRef.current = Date.now();
+    if (nativeFocusTargetReleaseTimerRef.current) {
+      clearTimeout(nativeFocusTargetReleaseTimerRef.current);
+    }
+    nativeFocusTargetReleaseTimerRef.current = setTimeout(() => {
+      if (nativeFocusTargetKeyRef.current === key) {
+        clearScheduledNativeFocus(key);
+      }
+    }, NATIVE_FOCUS_RESET_GUARD_MS);
 
     const node = accessibilityNodeRefs.current.get(key);
     if (!node) {
@@ -681,8 +937,10 @@ export function PlayAuralApp() {
         }
         nativeFocusTimerRef.current = setTimeout(() => {
           nativeFocusTimerRef.current = null;
-          moveNativeAccessibilityFocus(key, attempt + 1);
+          moveNativeAccessibilityFocus(key, attempt + 1, options);
         }, NATIVE_FOCUS_DELAY_MS);
+      } else {
+        clearScheduledNativeFocus(key);
       }
       return;
     }
@@ -701,10 +959,20 @@ export function PlayAuralApp() {
       }
       const reactTag = findNodeHandle(node as Parameters<typeof findNodeHandle>[0]);
       if (reactTag) {
+        programmaticNativeFocusKeyRef.current = key;
+        if (programmaticNativeFocusTimerRef.current) {
+          clearTimeout(programmaticNativeFocusTimerRef.current);
+        }
+        programmaticNativeFocusTimerRef.current = setTimeout(() => {
+          if (programmaticNativeFocusKeyRef.current === key) {
+            programmaticNativeFocusKeyRef.current = null;
+          }
+          programmaticNativeFocusTimerRef.current = null;
+        }, 600);
         AccessibilityInfo.setAccessibilityFocus(reactTag);
       }
     }, NATIVE_FOCUS_DELAY_MS);
-  }, [nativeScreenReaderMode]);
+  }, [clearScheduledNativeFocus, nativeScreenReaderMode]);
 
   const focusChatInputForNativeReader = useCallback(() => {
     if (!nativeScreenReaderMode) {
@@ -715,7 +983,7 @@ export function PlayAuralApp() {
       let timer: ReturnType<typeof setTimeout>;
       timer = setTimeout(() => {
         nativeTabTextInputFocusTimersRef.current.delete(timer);
-        moveNativeAccessibilityFocus("chat:input");
+        moveNativeAccessibilityFocus("chat:input", 0, { force: true });
         chatInputRef.current?.focus();
       }, delayMs);
       nativeTabTextInputFocusTimersRef.current.add(timer);
@@ -730,10 +998,11 @@ export function PlayAuralApp() {
   }, []);
 
   const handleTextInputFocus = useCallback((key: string, onFocus?: () => void) => {
+    markNativeScreenReaderInteraction(key);
     activeTextInputKeyRef.current = key;
     setActiveTextInputKey(key);
     onFocus?.();
-  }, []);
+  }, [markNativeScreenReaderInteraction]);
 
   const handleTextInputBlur = useCallback((key: string) => {
     setActiveTextInputKey((current) => {
@@ -791,7 +1060,7 @@ export function PlayAuralApp() {
     buffers.add(buffer, text);
     setHistoryRevision((value) => value + 1);
     if (speak && !buffers.isMuted(buffer)) {
-      tts.speakAnnouncement(text, { remember: false });
+      speakServerAnnouncement(text, { remember: false });
     }
   };
 
@@ -1120,6 +1389,7 @@ export function PlayAuralApp() {
       return;
     }
     tts.setUiEnabled(false);
+    tts.stop();
     announceForNativeScreenReader(message);
   }, [addHistoryMessage, announceForNativeScreenReader, localization, tts]);
 
@@ -1207,12 +1477,35 @@ export function PlayAuralApp() {
     }
   }, [announceInterfaceFeedback, ensureVoiceMicrophonePermission, localization]);
 
+  const requestInitialBatteryOptimizationPermission = useCallback(async () => {
+    if (Platform.OS !== "android") {
+      return;
+    }
+    try {
+      await requestAndroidBatteryOptimizationExemptionOnce(
+        localization,
+        announceInterfaceFeedback,
+      );
+    } catch {
+      // The prompt is best-effort; gameplay must not be blocked by settings failures.
+    }
+  }, [announceInterfaceFeedback, localization]);
+
   useEffect(() => {
     if (!storageReady) {
       return;
     }
-    void requestInitialVoicePermission();
-  }, [requestInitialVoicePermission, storageReady]);
+    let cancelled = false;
+    void (async () => {
+      await requestInitialVoicePermission();
+      if (!cancelled) {
+        await requestInitialBatteryOptimizationPermission();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [requestInitialBatteryOptimizationPermission, requestInitialVoicePermission, storageReady]);
 
   const leaveVoiceChat = useCallback((options?: {
     announce?: boolean;
@@ -1319,8 +1612,33 @@ export function PlayAuralApp() {
     buffers.add(buffer, text);
     setHistoryRevision((value) => value + 1);
     if (!packet.muted && !buffers.isMuted(buffer)) {
-      tts.speakAnnouncement(text);
+      speakServerAnnouncement(text);
     }
+  };
+
+  const handleRemoveMenuPacket = (packet: RemoveMenuPacket) => {
+    setMenuState((previous) => {
+      if (packet.menu_id && previous.menuId !== packet.menu_id) {
+        return previous;
+      }
+      transientTurnMenuAllowanceRef.current = null;
+      menuStateRef.current = defaultMenuState;
+      return defaultMenuState;
+    });
+  };
+
+  const handleRemoveEditboxPacket = (packet: RemoveEditboxPacket) => {
+    const currentInput = inputStateRef.current;
+    if (packet.input_id && currentInput?.inputId !== packet.input_id) {
+      return;
+    }
+    Keyboard.dismiss();
+    activeTextInputKeyRef.current = null;
+    inputStateRef.current = null;
+    setActiveTextInputKey((current) => (current === "input:field" ? null : current));
+    setInputState(null);
+    setInputValue("");
+    setInputOverlayFocus(0);
   };
 
   const applyMenuPacket = (packet: MenuPacket, overrideItems?: Array<string | MenuItemData>) => {
@@ -1332,6 +1650,14 @@ export function PlayAuralApp() {
     const itemIds = items.map((item) => item.id);
     const previous = menuStateRef.current;
     const incomingMenuId = packet.menu_id ?? previous.menuId;
+
+    if (packet.menu_id && packet.menu_id === previous.menuId && items.length === 0) {
+      transientTurnMenuAllowanceRef.current = null;
+      menuStateRef.current = defaultMenuState;
+      setMenuState(defaultMenuState);
+      return;
+    }
+
     const allowTurnMenuFromTransient =
       transientTurnMenuAllowanceRef.current !== null &&
       transientTurnMenuAllowanceRef.current === previous.menuId;
@@ -1351,6 +1677,7 @@ export function PlayAuralApp() {
     }
 
     const isSameMenuId = previous.menuId === (packet.menu_id ?? previous.menuId);
+    const serverRequestedFocus = typeof packet.position === "number" || typeof packet.selection_id === "string";
     let position = typeof packet.position === "number" ? packet.position : null;
 
     if (packet.selection_id && position === null) {
@@ -1398,6 +1725,15 @@ export function PlayAuralApp() {
       items,
       menuId: packet.menu_id ?? previous.menuId,
     };
+
+    const shouldFocusNativeMenu =
+      nativeScreenReaderModeRef.current &&
+      modeRef.current === "main" &&
+      items.length > 0 &&
+      (serverRequestedFocus || !isSameMenuId);
+    if (shouldFocusNativeMenu) {
+      queueNativeAccessibilityFocus(`menu:${nextMenuState.menuId}:${nextMenuState.focusIndex}`);
+    }
 
     menuStateRef.current = nextMenuState;
     setMenuState(nextMenuState);
@@ -1467,7 +1803,7 @@ export function PlayAuralApp() {
         chatSound = "notify.ogg";
       }
       void audio.playSound(chatSound);
-      tts.speakAnnouncement(message);
+      speakServerAnnouncement(message);
     }
   };
 
@@ -1574,8 +1910,12 @@ export function PlayAuralApp() {
     const shouldUsePlaybackService =
       !shouldUseMicrophoneService &&
       (hasVoiceSession || (appState !== "active" && (hasAudibleMusic || hasAudibleAmbience)));
+    const shouldUseGameplayService =
+      !shouldUseMicrophoneService &&
+      !shouldUsePlaybackService &&
+      connected;
 
-    if (!shouldUseMicrophoneService && !shouldUsePlaybackService) {
+    if (!shouldUseMicrophoneService && !shouldUsePlaybackService && !shouldUseGameplayService) {
       void androidForegroundService.stop();
       return;
     }
@@ -1584,19 +1924,28 @@ export function PlayAuralApp() {
       ? "background-service-voice-mic"
       : hasVoiceSession
         ? "background-service-voice"
-        : "background-service-audio";
+        : shouldUsePlaybackService
+          ? "background-service-audio"
+          : "background-service-gameplay";
 
     void androidForegroundService.sync({
       message: localization.t(messageKey),
-      serviceType: shouldUseMicrophoneService ? "microphone" : "mediaPlayback",
+      serviceType: shouldUseMicrophoneService
+        ? "microphone"
+        : shouldUsePlaybackService
+          ? "mediaPlayback"
+          : "dataSync",
       title: localization.t("background-service-title"),
     });
-  }, [appState, audio, currentAmbience, currentMusic, localization, voiceMicEnabled, voiceState]);
+  }, [appState, audio, connected, currentAmbience, currentMusic, localization, voiceMicEnabled, voiceState]);
 
   const exitApplication = useCallback(() => {
     disableAutoReconnect();
     const disconnectPromise = connectionRef.current?.disconnectAndWait(1500) ?? Promise.resolve();
-    void disconnectPromise.finally(() => {
+    void disconnectPromise.finally(async () => {
+      if (Platform.OS === "android") {
+        await androidForegroundService.stop();
+      }
       voice.shutdown();
       audio.shutdown();
       tts.stop();
@@ -1611,8 +1960,14 @@ export function PlayAuralApp() {
   }, [audio, disableAutoReconnect, tts, voice]);
 
   const resetToLoginScreen = useCallback((statusMessage: string, authMessage = statusMessage) => {
+    void androidForegroundService.stop();
     voice.shutdown();
     audio.shutdown();
+    Keyboard.dismiss();
+    activeTextInputKeyRef.current = null;
+    inputStateRef.current = null;
+    transientTurnMenuAllowanceRef.current = null;
+    setActiveTextInputKey(null);
     setCurrentMusic("");
     setCurrentAmbience("");
     setVoiceCapability({
@@ -1642,7 +1997,10 @@ export function PlayAuralApp() {
     }
     resetToLoginScreen(message);
     const disconnectPromise = connectionRef.current?.disconnectAndWait(1500) ?? Promise.resolve();
-    void disconnectPromise.finally(() => {
+    void disconnectPromise.finally(async () => {
+      if (Platform.OS === "android") {
+        await androidForegroundService.stop();
+      }
       tts.stop();
       if (Platform.OS === "android") {
         BackHandler.exitApp();
@@ -1811,9 +2169,14 @@ export function PlayAuralApp() {
             statusKey: "voice-chat-not-connected",
           });
           stopGameAudio(true);
+          Keyboard.dismiss();
+          activeTextInputKeyRef.current = null;
+          setActiveTextInputKey(null);
+          transientTurnMenuAllowanceRef.current = null;
           setMenuState(defaultMenuState);
           menuStateRef.current = defaultMenuState;
           setInputState(null);
+          inputStateRef.current = null;
           setInputValue("");
           return;
         }
@@ -1886,6 +2249,16 @@ export function PlayAuralApp() {
 
         if (packet.type === "menu" || packet.type === "update_menu") {
           handleMenuPacket(packet as MenuPacket);
+          return;
+        }
+
+        if (packet.type === "remove_menu") {
+          handleRemoveMenuPacket(packet as RemoveMenuPacket);
+          return;
+        }
+
+        if (packet.type === "remove_editbox") {
+          handleRemoveEditboxPacket(packet as RemoveEditboxPacket);
           return;
         }
 
@@ -2240,6 +2613,18 @@ export function PlayAuralApp() {
     })),
   ];
   const focusedChatItem = chatFocusItems[chatFocusIndex] ?? null;
+  const getChatFocusSpeechText = useCallback(
+    (item: ChatFocusItem | null): string | null => {
+      if (!item) {
+        return null;
+      }
+      if (item.kind === "input") {
+        return formatTextInputSpeech(localization, item.text, chatDraft);
+      }
+      return item.text;
+    },
+    [chatDraft, localization],
+  );
   const sendChatFocusIndex = chatFocusItems.findIndex((item) => item.kind === "send");
   const voiceJoinChatFocusIndex = chatFocusItems.findIndex((item) => item.kind === "voiceJoin");
   const voiceLeaveChatFocusIndex = chatFocusItems.findIndex((item) => item.kind === "voiceLeave");
@@ -2249,7 +2634,11 @@ export function PlayAuralApp() {
   const chatMessageFocusOffset = firstChatMessageFocusIndex >= 0 ? firstChatMessageFocusIndex : chatFocusItems.length;
   const inputOverlayButtonText = localization.t(inputState?.readOnly ? "input-close-button" : "input-submit-button");
   const focusedInputOverlayText =
-    inputState === null ? null : inputOverlayFocus === 0 ? inputState.prompt : inputOverlayButtonText;
+    inputState === null
+      ? null
+      : inputOverlayFocus === 0
+        ? formatTextInputSpeech(localization, inputState.prompt, inputValue, { readOnly: inputState.readOnly })
+        : inputOverlayButtonText;
   const shortcutItems: ShortcutItem[] = [
     { id: "options", text: localization.t("shortcut-options") },
     { id: "friends", text: localization.t("shortcut-friends") },
@@ -2373,6 +2762,48 @@ export function PlayAuralApp() {
   }, [appLocale, authMode, connected, localization, password, username]);
   const focusedAuthItem = authFocusableItems[authFocusIndex] ?? null;
 
+  const getAuthFocusSpeechText = useCallback(
+    (item: AuthFocusableItem | null): string | null => {
+      if (!item) {
+        return null;
+      }
+      switch (item.id) {
+        case "field-username":
+          return formatTextInputSpeech(localization, item.text, username);
+        case "field-password":
+          return formatTextInputSpeech(localization, item.text, password, { secure: true });
+        case "field-register-email":
+          return formatTextInputSpeech(localization, item.text, registerEmail);
+        case "field-register-confirm-password":
+          return formatTextInputSpeech(localization, item.text, registerConfirmPassword, { secure: true });
+        case "field-forgot-email":
+          return formatTextInputSpeech(localization, item.text, forgotEmail);
+        case "field-reset-email":
+          return formatTextInputSpeech(localization, item.text, resetEmail);
+        case "field-reset-code":
+          return formatTextInputSpeech(localization, item.text, resetCode);
+        case "field-reset-password":
+          return formatTextInputSpeech(localization, item.text, resetPassword, { secure: true });
+        case "field-reset-confirm-password":
+          return formatTextInputSpeech(localization, item.text, resetConfirmPassword, { secure: true });
+        default:
+          return item.text;
+      }
+    },
+    [
+      forgotEmail,
+      localization,
+      password,
+      registerConfirmPassword,
+      registerEmail,
+      resetCode,
+      resetConfirmPassword,
+      resetEmail,
+      resetPassword,
+      username,
+    ],
+  );
+
   useEffect(() => {
     if (!activeTextInputKey) {
       return;
@@ -2398,7 +2829,7 @@ export function PlayAuralApp() {
 
   const getCurrentUiFocusText = useCallback((): string | null => {
     if (!connected) {
-      return focusedAuthItem?.text ?? null;
+      return getAuthFocusSpeechText(focusedAuthItem);
     }
     if (dialogState && focusedDialogButton) {
       return focusedDialogButton.text;
@@ -2416,19 +2847,21 @@ export function PlayAuralApp() {
       return focusedHistoryMessage?.text ?? null;
     }
     if (mode === "chat") {
-      return focusedChatItem?.text ?? null;
+      return getChatFocusSpeechText(focusedChatItem);
     }
     return null;
   }, [
     connected,
     dialogState,
-    focusedAuthItem?.text,
+    focusedAuthItem,
     focusedDialogButton?.text,
     focusedHistoryMessage?.text,
     focusedChatItem?.text,
     focusedInputOverlayText,
     focusedMenuItem?.text,
     focusedShortcutItem?.text,
+    getAuthFocusSpeechText,
+    getChatFocusSpeechText,
     inputState,
     localization,
     menuState.items.length,
@@ -2438,7 +2871,7 @@ export function PlayAuralApp() {
   const getCurrentUiFocusSignature = useCallback((): string | null => {
     if (!connected) {
       return focusedAuthItem
-        ? `auth:${authMode}:${focusedAuthItem.id}:${focusedAuthItem.text}`
+        ? `auth:${authMode}:${focusedAuthItem.id}:${getAuthFocusSpeechText(focusedAuthItem)}`
         : null;
     }
     if (dialogState && focusedDialogButton) {
@@ -2461,7 +2894,7 @@ export function PlayAuralApp() {
       return `history:${historyIndex}:${focusedHistoryMessage.timestamp}:${focusedHistoryMessage.text}`;
     }
     if (mode === "chat" && focusedChatItem) {
-      return `chat:${chatFocusIndex}:${focusedChatItem.kind}:${focusedChatItem.text}`;
+      return `chat:${chatFocusIndex}:${focusedChatItem.kind}:${getChatFocusSpeechText(focusedChatItem)}`;
     }
     return null;
   }, [
@@ -2476,6 +2909,8 @@ export function PlayAuralApp() {
     focusedInputOverlayText,
     focusedMenuItem,
     focusedShortcutItem,
+    getAuthFocusSpeechText,
+    getChatFocusSpeechText,
     historyIndex,
     inputOverlayFocus,
     inputState,
@@ -2485,66 +2920,6 @@ export function PlayAuralApp() {
     menuState.menuId,
     mode,
     shortcutFocusIndex,
-  ]);
-
-  const getCurrentNativeFocusKey = useCallback((): string | null => {
-    if (!connected) {
-      return focusedAuthItem ? `auth:${focusedAuthItem.id}` : null;
-    }
-    if (dialogState && focusedDialogButton) {
-      return `dialog:${dialogState.id}:${focusedDialogButton.id}`;
-    }
-    if (inputState) {
-      return inputOverlayFocus === 0 ? "input:field" : "input:action";
-    }
-    if (mode === "main") {
-      return focusedMenuItem ? `menu:${menuState.menuId}:${menuState.focusIndex}` : null;
-    }
-    if (mode === "shortcuts" && focusedShortcutItem) {
-      return `shortcut:${focusedShortcutItem.id}`;
-    }
-    if (mode === "history") {
-      return "history:content";
-    }
-    if (mode === "chat") {
-      if (focusedChatItem?.kind === "input") {
-        return "chat:input";
-      }
-      if (focusedChatItem?.kind === "send") {
-        return "chat:send";
-      }
-      if (focusedChatItem?.kind === "voiceJoin") {
-        return "chat:voiceJoin";
-      }
-      if (focusedChatItem?.kind === "voiceLeave") {
-        return "chat:voiceLeave";
-      }
-      if (focusedChatItem?.kind === "voiceMic") {
-        return "chat:voiceMic";
-      }
-      if (focusedChatItem?.kind === "close") {
-        return "chat:close";
-      }
-      if (focusedChatItem?.kind === "message" && firstChatMessageFocusIndex >= 0) {
-        return `chat:message:${chatFocusIndex - firstChatMessageFocusIndex}`;
-      }
-    }
-    return null;
-  }, [
-    chatFocusIndex,
-    connected,
-    dialogState,
-    firstChatMessageFocusIndex,
-    focusedAuthItem,
-    focusedChatItem,
-    focusedDialogButton,
-    focusedMenuItem,
-    focusedShortcutItem,
-    inputOverlayFocus,
-    inputState,
-    menuState.focusIndex,
-    menuState.menuId,
-    mode,
   ]);
 
   useEffect(() => {
@@ -2595,13 +2970,19 @@ export function PlayAuralApp() {
     if (!nativeScreenReaderMode) {
       return;
     }
-    moveNativeAccessibilityFocus(getCurrentNativeFocusKey());
+    const pendingFocusKey = pendingNativeAccessibilityFocusKeyRef.current;
+    if (!pendingFocusKey) {
+      return;
+    }
+    if (nativeFocusTargetKeyRef.current === pendingFocusKey) {
+      return;
+    }
+    moveNativeAccessibilityFocus(pendingFocusKey, 0, { force: true });
   }, [
     authFocusIndex,
     chatFocusIndex,
     connected,
     dialogState,
-    getCurrentNativeFocusKey,
     historyIndex,
     inputOverlayFocus,
     inputState,
@@ -2645,11 +3026,15 @@ export function PlayAuralApp() {
     if (!dialogIntro) {
       return;
     }
+    if (!selfVoicingEnabled) {
+      announceForNativeScreenReader(dialogIntro);
+      return;
+    }
     tts.speakUi(dialogIntro, {
       interruptAnnouncement: true,
       interruptUi: true,
     });
-  }, [dialogState?.id]);
+  }, [announceForNativeScreenReader, dialogState?.id, selfVoicingEnabled, tts]);
 
   const focusAuthField = (action: AuthFocusableItem["action"]) => {
     if (action === "focus_username") {
@@ -2748,6 +3133,7 @@ export function PlayAuralApp() {
   const focusAuthItemById = (id: string) => {
     const nextIndex = authFocusableItems.findIndex((item) => item.id === id);
     if (nextIndex >= 0) {
+      markNativeScreenReaderInteraction(`auth:${id}`);
       setAuthFocusIndex(nextIndex);
     }
   };
@@ -2917,6 +3303,8 @@ export function PlayAuralApp() {
       setMode("main");
       moveNativeAccessibilityFocus(
         focusedMenuItem ? `menu:${menuState.menuId}:${menuState.focusIndex}` : null,
+        0,
+        { force: true },
       );
       if (previousMode !== "main") {
         announceForNativeScreenReader(localization.t("overlay-closed", {
@@ -2928,13 +3316,13 @@ export function PlayAuralApp() {
 
     if (nextMode === "shortcuts") {
       setShortcutFocusIndex(0);
-      moveNativeAccessibilityFocus(shortcutItems[0] ? `shortcut:${shortcutItems[0].id}` : null);
+      moveNativeAccessibilityFocus(shortcutItems[0] ? `shortcut:${shortcutItems[0].id}` : null, 0, { force: true });
     } else if (nextMode === "chat") {
       setChatFocusIndex(0);
       focusChatInputForNativeReader();
     } else if (nextMode === "history") {
       setHistoryIndex(0);
-      moveNativeAccessibilityFocus("history:content");
+      moveNativeAccessibilityFocus("history:content", 0, { force: true });
     }
 
     setMode(nextMode);
@@ -2942,9 +3330,7 @@ export function PlayAuralApp() {
   };
 
   const syncPreference = (key: string, value: boolean | number | string) => {
-    const keyParts = key.split("/");
-    const flatKey = keyParts[keyParts.length - 1];
-    applyPreferenceUpdates({ [flatKey]: value });
+    applyPreferenceUpdates({ [normalizePreferenceKey(key)]: value });
     if (connected) {
       connection?.send({
         key,
@@ -3020,6 +3406,7 @@ export function PlayAuralApp() {
   const focusMenuItemAt = (index: number) => {
     setMenuState((previous) => {
       const nextIndex = clamp(index, 0, Math.max(0, previous.items.length - 1));
+      markNativeScreenReaderInteraction(`menu:${previous.menuId}:${nextIndex}`);
       if (previous.focusIndex === nextIndex) {
         return previous;
       }
@@ -3111,7 +3498,7 @@ export function PlayAuralApp() {
     if (mode === "history") {
       if (focusedHistoryMessage) {
         playMenuActivateSound();
-        tts.speakUi(focusedHistoryMessage.text);
+        speakUserFocus(focusedHistoryMessage.text);
       }
       return;
     }
@@ -3190,7 +3577,11 @@ export function PlayAuralApp() {
       if (nextFocus !== inputOverlayFocus) {
         playMenuMoveSound();
       }
-      speakUserFocus(nextFocus === 0 ? inputState.prompt : inputOverlayButtonText);
+      speakUserFocus(
+        nextFocus === 0
+          ? formatTextInputSpeech(localization, inputState.prompt, inputValue, { readOnly: inputState.readOnly })
+          : inputOverlayButtonText,
+      );
       return;
     }
 
@@ -3203,7 +3594,7 @@ export function PlayAuralApp() {
       if (nextIndex !== authFocusIndex) {
         playMenuMoveSound();
       }
-      speakUserFocus(authFocusableItems[nextIndex]?.text);
+      speakUserFocus(getAuthFocusSpeechText(authFocusableItems[nextIndex] ?? null));
       return;
     }
 
@@ -3243,7 +3634,7 @@ export function PlayAuralApp() {
       if (nextIndex !== chatFocusIndex) {
         playMenuMoveSound();
       }
-      speakUserFocus(chatFocusItems[nextIndex]?.text);
+      speakUserFocus(getChatFocusSpeechText(chatFocusItems[nextIndex] ?? null));
       return;
     }
 
@@ -3289,7 +3680,11 @@ export function PlayAuralApp() {
       setInputOverlayFocus((current) => {
         const next: InputOverlayFocus = direction === "left" || direction === "up" ? 0 : 1;
         if (next !== current) {
-          speakUserFocus(next === 0 ? inputState.prompt : inputOverlayButtonText);
+          speakUserFocus(
+            next === 0
+              ? formatTextInputSpeech(localization, inputState.prompt, inputValue, { readOnly: inputState.readOnly })
+              : inputOverlayButtonText,
+          );
           playMenuMoveSound();
         }
         return next;
@@ -3304,7 +3699,7 @@ export function PlayAuralApp() {
         if (direction === "up" || direction === "left") {
           const next = Math.max(0, current - 1);
           if (next !== current) {
-            speakUserFocus(authFocusableItems[next]?.text);
+            speakUserFocus(getAuthFocusSpeechText(authFocusableItems[next] ?? null));
             playMenuMoveSound();
           }
           return next;
@@ -3312,7 +3707,7 @@ export function PlayAuralApp() {
         if (direction === "down" || direction === "right") {
           const next = Math.min(authFocusableItems.length - 1, current + 1);
           if (next !== current) {
-            speakUserFocus(authFocusableItems[next]?.text);
+            speakUserFocus(getAuthFocusSpeechText(authFocusableItems[next] ?? null));
             playMenuMoveSound();
           }
           return next;
@@ -3377,7 +3772,7 @@ export function PlayAuralApp() {
         if (direction === "up" || direction === "left") {
           const next = Math.max(0, current - 1);
           if (next !== current) {
-            speakUserFocus(chatFocusItems[next]?.text);
+            speakUserFocus(getChatFocusSpeechText(chatFocusItems[next] ?? null));
             playMenuMoveSound();
           }
           return next;
@@ -3385,7 +3780,7 @@ export function PlayAuralApp() {
         if (direction === "down" || direction === "right") {
           const next = Math.min(chatFocusItems.length - 1, current + 1);
           if (next !== current) {
-            speakUserFocus(chatFocusItems[next]?.text);
+            speakUserFocus(getChatFocusSpeechText(chatFocusItems[next] ?? null));
             playMenuMoveSound();
           }
           return next;
@@ -3535,6 +3930,7 @@ export function PlayAuralApp() {
     onDoubleTap: handlePrimaryActivate,
     onDoubleTapHold: handleModifiedActivate,
     onSingleFingerSwipe: handleDirectionalNavigation,
+    onSingleFingerSwipeHold: handleDirectionalNavigation,
     onThreeFingerSwipe: (direction) => {
       if (direction === "up") {
         handleBoundaryJump("top");
@@ -3544,7 +3940,6 @@ export function PlayAuralApp() {
         handleBoundaryJump("bottom");
       }
     },
-    onThreeFingerTap: handleRepeatLast,
     onThreeFingerTripleTap: toggleSelfVoicing,
     onTwoFingerSwipe: handleSystemSwipe,
     onTwoFingerTap: handleStopSpeech,
@@ -3690,65 +4085,23 @@ export function PlayAuralApp() {
       return;
     }
 
-    if (!connected) {
-      if (focusedAuthItem?.text) {
-        lastPassiveUiSignatureRef.current = focusSignature;
-        tts.speakUi(focusedAuthItem.text, focusSpeechOptions);
-      }
-      return;
-    }
-    if (dialogState && focusedDialogButton) {
+    const focusText = getCurrentUiFocusText();
+    if (focusText) {
       lastPassiveUiSignatureRef.current = focusSignature;
-      tts.speakUi(focusedDialogButton.text, focusSpeechOptions);
-      return;
-    }
-    if (inputState && focusedInputOverlayText) {
-      lastPassiveUiSignatureRef.current = focusSignature;
-      tts.speakUi(focusedInputOverlayText, focusSpeechOptions);
-      return;
-    }
-    if (mode === "main") {
-      if (focusedMenuItem?.text) {
-        lastPassiveUiSignatureRef.current = focusSignature;
-        tts.speakUi(focusedMenuItem.text, focusSpeechOptions);
-      } else if (menuState.items.length === 0) {
-        lastPassiveUiSignatureRef.current = focusSignature;
-        tts.speakUi(localization.t("menu-empty"), focusSpeechOptions);
-      }
-      return;
-    }
-    if (mode === "shortcuts" && focusedShortcutItem) {
-      lastPassiveUiSignatureRef.current = focusSignature;
-      tts.speakUi(focusedShortcutItem.text, focusSpeechOptions);
-      return;
-    }
-    if (mode === "history" && focusedHistoryMessage) {
-      lastPassiveUiSignatureRef.current = focusSignature;
-      tts.speakUi(focusedHistoryMessage.text, focusSpeechOptions);
-      return;
-    }
-    if (mode === "chat" && focusedChatItem) {
-      lastPassiveUiSignatureRef.current = focusSignature;
-      tts.speakUi(focusedChatItem.text, focusSpeechOptions);
+      tts.speakUi(focusText, focusSpeechOptions);
     }
   }, [
-    connected,
     selfVoicingEnabled,
     authFocusIndex,
+    chatDraft,
     dialogState,
-    focusedAuthItem?.text,
-    focusedDialogButton?.text,
-    focusedInputOverlayText,
+    getCurrentUiFocusText,
     inputState,
     mode,
     menuState.focusIndex,
     menuState.menuId,
-    focusedMenuItem?.text,
     historyIndex,
-    focusedHistoryMessage?.text,
-    focusedChatItem?.text,
     chatFocusIndex,
-    focusedShortcutItem?.text,
     shortcutFocusIndex,
     getCurrentUiFocusSignature,
   ]);
@@ -4210,7 +4563,7 @@ export function PlayAuralApp() {
           }}
           onSubmitEditing={submitChat}
           placeholder={localization.t("chat-placeholder")}
-          placeholderTextColor="#7f8a93"
+          placeholderTextColor="#b8c7d1"
           ref={registerAccessibilityNode("chat:input", chatInputRef)}
           showSoftInputOnFocus
           style={styles.input}
@@ -4227,6 +4580,7 @@ export function PlayAuralApp() {
             submitChat();
           }}
           onFocus={() => {
+            markNativeScreenReaderInteraction("chat:send");
             if (sendChatFocusIndex >= 0) {
               setChatFocusIndex(sendChatFocusIndex);
             }
@@ -4250,6 +4604,7 @@ export function PlayAuralApp() {
               leaveVoiceChat();
             }}
             onFocus={() => {
+              markNativeScreenReaderInteraction("chat:voiceLeave");
               if (voiceLeaveChatFocusIndex >= 0) {
                 setChatFocusIndex(voiceLeaveChatFocusIndex);
               }
@@ -4279,6 +4634,7 @@ export function PlayAuralApp() {
               joinVoiceChat();
             }}
             onFocus={() => {
+              markNativeScreenReaderInteraction("chat:voiceJoin");
               if (voiceJoinChatFocusIndex >= 0) {
                 setChatFocusIndex(voiceJoinChatFocusIndex);
               }
@@ -4311,6 +4667,7 @@ export function PlayAuralApp() {
               void toggleVoiceMicrophone();
             }}
             onFocus={() => {
+              markNativeScreenReaderInteraction("chat:voiceMic");
               if (voiceMicChatFocusIndex >= 0) {
                 setChatFocusIndex(voiceMicChatFocusIndex);
               }
@@ -4336,6 +4693,7 @@ export function PlayAuralApp() {
             closeOverlay();
           }}
           onFocus={() => {
+            markNativeScreenReaderInteraction("chat:close");
             if (closeChatFocusIndex >= 0) {
               setChatFocusIndex(closeChatFocusIndex);
             }
@@ -4365,9 +4723,11 @@ export function PlayAuralApp() {
             accessible
             key={`chat-${item.timestamp}-${index}`}
             onFocus={() => {
+              markNativeScreenReaderInteraction(`chat:message:${index}`);
               setChatFocusIndex(chatMessageFocusOffset + index);
             }}
             onPress={() => {
+              markNativeScreenReaderInteraction(`chat:message:${index}`);
               setChatFocusIndex(chatMessageFocusOffset + index);
               speakUserFocus(item.text);
             }}
@@ -4390,14 +4750,19 @@ export function PlayAuralApp() {
   const renderHistoryOverlay = () => (
     <View style={styles.panel}>
       <Text style={styles.panelTitle}>{localization.t("mode-history")}</Text>
-      <Text
+      <Pressable
         accessibilityLabel={focusedHistoryMessage?.text ?? localization.t("history-empty")}
+        accessibilityRole="text"
         accessible
+        onFocus={() => {
+          markNativeScreenReaderInteraction("history:content");
+        }}
         ref={registerAccessibilityNode("history:content")}
-        style={styles.historyText}
       >
-        {focusedHistoryMessage?.text ?? localization.t("history-empty")}
-      </Text>
+        <Text style={styles.historyText}>
+          {focusedHistoryMessage?.text ?? localization.t("history-empty")}
+        </Text>
+      </Pressable>
       <Text style={styles.helpText}>
         {historyMessages.length ? `${historyIndex + 1} / ${historyMessages.length}` : ""}
       </Text>
@@ -4415,9 +4780,11 @@ export function PlayAuralApp() {
             accessible
             key={item.id}
             onFocus={() => {
+              markNativeScreenReaderInteraction(`shortcut:${item.id}`);
               setShortcutFocusIndex(index);
             }}
             onPress={() => {
+              markNativeScreenReaderInteraction(`shortcut:${item.id}`);
               void audio.handleUserInteraction();
               setShortcutFocusIndex(index);
               playMenuActivateSound();
@@ -4460,6 +4827,7 @@ export function PlayAuralApp() {
                 accessible
                 key={`${dialogState.id}-${button.id}`}
                 onFocus={() => {
+                  markNativeScreenReaderInteraction(`dialog:${dialogState.id}:${button.id}`);
                   setDialogState((current) => current ? { ...current, focusIndex: index } : current);
                 }}
                 onPress={() => {
@@ -4555,7 +4923,7 @@ export function PlayAuralApp() {
                 handleTextInputBlur("auth:field-username");
               }}
               placeholder={localization.t("username")}
-              placeholderTextColor="#7f8a93"
+              placeholderTextColor="#b8c7d1"
               ref={registerAccessibilityNode("auth:field-username", usernameInputRef)}
               showSoftInputOnFocus
               style={styles.input}
@@ -4575,7 +4943,7 @@ export function PlayAuralApp() {
                 handleTextInputBlur("auth:field-password");
               }}
               placeholder={localization.t("password")}
-              placeholderTextColor="#7f8a93"
+              placeholderTextColor="#b8c7d1"
               ref={registerAccessibilityNode("auth:field-password", passwordInputRef)}
               secureTextEntry
               showSoftInputOnFocus
@@ -4643,7 +5011,7 @@ export function PlayAuralApp() {
                 handleTextInputBlur("auth:field-username");
               }}
               placeholder={localization.t("username")}
-              placeholderTextColor="#7f8a93"
+              placeholderTextColor="#b8c7d1"
               ref={registerAccessibilityNode("auth:field-username", usernameInputRef)}
               showSoftInputOnFocus
               style={styles.input}
@@ -4665,7 +5033,7 @@ export function PlayAuralApp() {
                 handleTextInputBlur("auth:field-register-email");
               }}
               placeholder={localization.t("auth-email")}
-              placeholderTextColor="#7f8a93"
+              placeholderTextColor="#b8c7d1"
               ref={registerAccessibilityNode("auth:field-register-email", registerEmailInputRef)}
               showSoftInputOnFocus
               style={styles.input}
@@ -4685,7 +5053,7 @@ export function PlayAuralApp() {
                 handleTextInputBlur("auth:field-password");
               }}
               placeholder={localization.t("password")}
-              placeholderTextColor="#7f8a93"
+              placeholderTextColor="#b8c7d1"
               ref={registerAccessibilityNode("auth:field-password", passwordInputRef)}
               secureTextEntry
               showSoftInputOnFocus
@@ -4706,7 +5074,7 @@ export function PlayAuralApp() {
                 handleTextInputBlur("auth:field-register-confirm-password");
               }}
               placeholder={localization.t("auth-confirm-password")}
-              placeholderTextColor="#7f8a93"
+              placeholderTextColor="#b8c7d1"
               ref={registerAccessibilityNode(
                 "auth:field-register-confirm-password",
                 registerConfirmPasswordInputRef,
@@ -4753,7 +5121,7 @@ export function PlayAuralApp() {
                 handleTextInputBlur("auth:field-forgot-email");
               }}
               placeholder={localization.t("auth-email")}
-              placeholderTextColor="#7f8a93"
+              placeholderTextColor="#b8c7d1"
               ref={registerAccessibilityNode("auth:field-forgot-email", forgotEmailInputRef)}
               showSoftInputOnFocus
               style={styles.input}
@@ -4796,7 +5164,7 @@ export function PlayAuralApp() {
                 handleTextInputBlur("auth:field-reset-email");
               }}
               placeholder={localization.t("auth-email")}
-              placeholderTextColor="#7f8a93"
+              placeholderTextColor="#b8c7d1"
               ref={registerAccessibilityNode("auth:field-reset-email", resetEmailInputRef)}
               showSoftInputOnFocus
               style={styles.input}
@@ -4817,7 +5185,7 @@ export function PlayAuralApp() {
                 handleTextInputBlur("auth:field-reset-code");
               }}
               placeholder={localization.t("auth-reset-code")}
-              placeholderTextColor="#7f8a93"
+              placeholderTextColor="#b8c7d1"
               ref={registerAccessibilityNode("auth:field-reset-code", resetCodeInputRef)}
               showSoftInputOnFocus
               style={styles.input}
@@ -4837,7 +5205,7 @@ export function PlayAuralApp() {
                 handleTextInputBlur("auth:field-reset-password");
               }}
               placeholder={localization.t("auth-new-password")}
-              placeholderTextColor="#7f8a93"
+              placeholderTextColor="#b8c7d1"
               ref={registerAccessibilityNode("auth:field-reset-password", resetPasswordInputRef)}
               secureTextEntry
               showSoftInputOnFocus
@@ -4858,7 +5226,7 @@ export function PlayAuralApp() {
                 handleTextInputBlur("auth:field-reset-confirm-password");
               }}
               placeholder={localization.t("auth-confirm-password")}
-              placeholderTextColor="#7f8a93"
+              placeholderTextColor="#b8c7d1"
               ref={registerAccessibilityNode(
                 "auth:field-reset-confirm-password",
                 resetConfirmPasswordInputRef,
@@ -4944,14 +5312,20 @@ export function PlayAuralApp() {
         collapsable={false}
         focusable
         importantForAccessibility="yes"
+        onFocus={() => {
+          markNativeScreenReaderInteraction("screen-reader:sv-toggle");
+        }}
         onPress={() => {
           void audio.handleUserInteraction();
           toggleSelfVoicing();
         }}
+        nativeID="playaural-sv-toggle"
         ref={registerAccessibilityNode("screen-reader:sv-toggle")}
         style={Platform.OS === "web" ? styles.screenReaderOnly : styles.nativeScreenReaderOnlyControl}
       >
-        <Text>{localization.t(selfVoicingEnabled ? "sv-toggle-button-off" : "sv-toggle-button-on")}</Text>
+        <Text style={styles.nativeSelfVoicingToggleText}>
+          {localization.t(selfVoicingEnabled ? "sv-toggle-button-off" : "sv-toggle-button-on")}
+        </Text>
       </Pressable>
     );
   };
@@ -4981,6 +5355,9 @@ export function PlayAuralApp() {
             accessibilityState={{ selected: mode === tab.id }}
             accessible
             key={tab.id}
+            onFocus={() => {
+              markNativeScreenReaderInteraction(`tab:${tab.id}`);
+            }}
             onPress={() => {
               openNativeTab(tab.id);
             }}
@@ -4999,14 +5376,19 @@ export function PlayAuralApp() {
   return (
     <SafeAreaView
       style={styles.safeArea}
-      {...gestures.panHandlers}
     >
-      <StatusBar style="light" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.container}
+      <AccessibilityOrderedView
+        experimental_accessibilityOrder={["playaural-sv-toggle", "playaural-content-root"]}
+        style={styles.rootAccessibilityContainer}
       >
         {renderScreenReaderOnlyControls()}
+        <StatusBar style="light" />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          nativeID="playaural-content-root"
+          style={styles.container}
+          {...gestures.panHandlers}
+        >
         {dialogState ? renderDialogOverlay() : inputState ? (
           <View style={styles.inputOverlayScreen}>
             <View style={styles.inputOverlayCard}>
@@ -5032,7 +5414,7 @@ export function PlayAuralApp() {
                     handleTextInputBlur("input:field");
                   }}
                   placeholder={inputState.prompt}
-                  placeholderTextColor="#7f8a93"
+                  placeholderTextColor="#b8c7d1"
                   ref={registerAccessibilityNode("input:field", inputOverlayInputRef)}
                   selectTextOnFocus
                   showSoftInputOnFocus={!inputState.readOnly}
@@ -5045,6 +5427,7 @@ export function PlayAuralApp() {
                 accessibilityRole="button"
                 accessible
                 onFocus={() => {
+                  markNativeScreenReaderInteraction("input:action");
                   setInputOverlayFocus(1);
                 }}
                 onPress={() => {
@@ -5078,23 +5461,29 @@ export function PlayAuralApp() {
               <Text style={styles.subtitle}>{localization.t("client-label", { value: "Mobile" })}</Text>
               <Text style={styles.subtitle}>{localization.t("build-label", { value: MOBILE_BUILD_STAMP })}</Text>
             </View>
-            <Text
-              accessibilityLiveRegion="polite"
-              key={`screen-reader-announcement-${screenReaderAnnouncement.id}`}
-              style={styles.screenReaderOnly}
-            >
-              {screenReaderAnnouncement.text}
-            </Text>
+            {Platform.OS === "web" ? (
+              <Text
+                accessibilityLiveRegion="polite"
+                key={`screen-reader-announcement-${screenReaderAnnouncement.id}`}
+                style={styles.screenReaderOnly}
+              >
+                {screenReaderAnnouncement.text}
+              </Text>
+            ) : null}
           </>
         )}
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </AccessibilityOrderedView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: {
-    backgroundColor: "#11161d",
+    backgroundColor: "#0b0f14",
+    flex: 1,
+  },
+  rootAccessibilityContainer: {
     flex: 1,
   },
   container: {
@@ -5112,21 +5501,36 @@ const styles = StyleSheet.create({
     width: 1,
   },
   nativeScreenReaderOnlyControl: {
-    height: 48,
-    opacity: 0.01,
-    position: "absolute",
-    right: 8,
-    top: 8,
-    width: 48,
-    zIndex: 10,
+    alignSelf: "stretch",
+    backgroundColor: "#173044",
+    borderColor: "#8fe5ff",
+    borderRadius: 10,
+    borderWidth: 2,
+    justifyContent: "center",
+    marginBottom: 4,
+    marginHorizontal: 16,
+    marginTop: 8,
+    minHeight: 48,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  nativeSelfVoicingToggleText: {
+    color: "#f6f7fb",
+    fontSize: 16,
+    fontWeight: "700",
+    lineHeight: 22,
+    textAlign: "center",
   },
   subtitle: {
-    color: "#b6c1ca",
-    fontSize: 14,
+    color: "#d0dae2",
+    fontSize: 15,
+    lineHeight: 21,
   },
   loginCard: {
-    backgroundColor: "#1a222d",
+    backgroundColor: "#18212b",
+    borderColor: "#3a4a5a",
     borderRadius: 14,
+    borderWidth: 1,
     gap: 10,
     padding: 14,
   },
@@ -5145,21 +5549,24 @@ const styles = StyleSheet.create({
     backgroundColor: "#3567e3",
   },
   authFocused: {
-    borderColor: "#7fd4ff",
-    borderWidth: 2,
+    borderColor: "#8fe5ff",
+    borderWidth: 3,
   },
   authFieldFocused: {
-    borderColor: "#7fd4ff",
+    borderColor: "#8fe5ff",
     borderRadius: 12,
-    borderWidth: 2,
+    borderWidth: 3,
     padding: 2,
   },
   input: {
     backgroundColor: "#0f141a",
-    borderColor: "#293746",
+    borderColor: "#5a6b7b",
     borderRadius: 10,
-    borderWidth: 1,
+    borderWidth: 2,
     color: "#f6f7fb",
+    fontSize: 16,
+    lineHeight: 22,
+    minHeight: 48,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
@@ -5175,6 +5582,7 @@ const styles = StyleSheet.create({
   button: {
     backgroundColor: "#3567e3",
     borderRadius: 10,
+    minHeight: 48,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
@@ -5187,22 +5595,28 @@ const styles = StyleSheet.create({
   buttonSecondary: {
     backgroundColor: "#32414d",
     borderRadius: 10,
+    minHeight: 48,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
   buttonDanger: {
     backgroundColor: "#a33b36",
     borderRadius: 10,
+    minHeight: 48,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
   buttonText: {
     color: "#f6f7fb",
+    fontSize: 16,
     fontWeight: "600",
+    lineHeight: 22,
   },
   panel: {
-    backgroundColor: "#1a222d",
+    backgroundColor: "#18212b",
+    borderColor: "#3a4a5a",
     borderRadius: 14,
+    borderWidth: 1,
     flex: 1,
     padding: 14,
   },
@@ -5234,18 +5648,19 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   menuItem: {
-    backgroundColor: "#11161d",
-    borderColor: "#263443",
+    backgroundColor: "#0f141a",
+    borderColor: "#3a4a5a",
     borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: 2,
     marginBottom: 8,
+    minHeight: 48,
     padding: 12,
   },
   gridMenuItem: {
     alignItems: "center",
-    backgroundColor: "#11161d",
-    borderColor: "#263443",
-    borderWidth: 1,
+    backgroundColor: "#0f141a",
+    borderColor: "#3a4a5a",
+    borderWidth: 2,
     justifyContent: "center",
     marginBottom: 0,
     overflow: "hidden",
@@ -5253,7 +5668,7 @@ const styles = StyleSheet.create({
   },
   gridMenuItemFocused: {
     backgroundColor: "#173044",
-    borderColor: "#7fd4ff",
+    borderColor: "#8fe5ff",
   },
   gridMenuRow: {
     flexDirection: "row",
@@ -5267,25 +5682,28 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
   },
   menuItemFocused: {
-    borderColor: "#7fd4ff",
-    borderWidth: 2,
+    borderColor: "#8fe5ff",
+    borderWidth: 3,
   },
   menuText: {
     color: "#f6f7fb",
     fontSize: 16,
+    lineHeight: 22,
   },
   gridMenuText: {
     includeFontPadding: false,
     textAlign: "center",
   },
   historyText: {
-    color: "#d8e0e6",
-    fontSize: 15,
+    color: "#e4edf4",
+    fontSize: 16,
+    lineHeight: 22,
     marginBottom: 8,
   },
   helpText: {
-    color: "#9dacb8",
-    fontSize: 12,
+    color: "#c6d3dc",
+    fontSize: 14,
+    lineHeight: 20,
     marginTop: 6,
   },
   inputOverlayScreen: {
@@ -5294,20 +5712,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   inputOverlayCard: {
-    backgroundColor: "#1b2430",
+    backgroundColor: "#18212b",
     borderColor: "#3567e3",
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: 2,
     gap: 12,
     maxWidth: 640,
     padding: 16,
     width: "100%",
   },
   dialogCard: {
-    backgroundColor: "#1b2430",
+    backgroundColor: "#18212b",
     borderColor: "#3567e3",
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: 2,
     gap: 14,
     maxWidth: 640,
     padding: 16,
@@ -5340,9 +5758,9 @@ const styles = StyleSheet.create({
   },
   nativeTab: {
     backgroundColor: "#32414d",
-    borderColor: "#263443",
+    borderColor: "#3a4a5a",
     borderRadius: 8,
-    borderWidth: 1,
+    borderWidth: 2,
     flexBasis: 0,
     flexGrow: 1,
     minHeight: 44,
@@ -5351,7 +5769,7 @@ const styles = StyleSheet.create({
   },
   nativeTabActive: {
     backgroundColor: "#3567e3",
-    borderColor: "#7fd4ff",
+    borderColor: "#8fe5ff",
   },
   nativeTabText: {
     color: "#f6f7fb",

@@ -7,7 +7,7 @@ export type MenuItemData = {
 };
 
 export type MenuPacket = {
-  type: "menu";
+  type: "menu" | "update_menu";
   menu_id?: string;
   items: Array<string | MenuItemData>;
   position?: number;
@@ -44,6 +44,16 @@ export type RequestInputPacket = {
   multiline?: boolean;
   read_only?: boolean;
   max_length?: number;
+};
+
+export type RemoveMenuPacket = {
+  type: "remove_menu";
+  menu_id?: string;
+};
+
+export type RemoveEditboxPacket = {
+  type: "remove_editbox";
+  input_id?: string;
 };
 
 export type AuthorizeSuccessPacket = {
@@ -209,6 +219,8 @@ export type ServerPacket =
   | PlaySoundPacket
   | PongPacket
   | RegisterResponsePacket
+  | RemoveEditboxPacket
+  | RemoveMenuPacket
   | RequestPasswordResetResponsePacket
   | RequestInputPacket
   | SpeakPacket
