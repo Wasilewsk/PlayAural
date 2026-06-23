@@ -1,47 +1,92 @@
 export function createA11y({ politeEl, assertiveEl }) {
+  const ANNOUNCEMENT_MUTATION_GAP_MS = 140;
+  const DUPLICATE_WINDOW_MS = 700;
   let announcementNonce = 0;
-  let latestPoliteId = 0;
-  let latestAssertiveId = 0;
-  let lastAnnouncementText = "";
-  let lastAnnouncementAt = 0;
+  const queues = new Map();
+
+  function queueFor(target) {
+    if (!target) {
+      return null;
+    }
+    if (!queues.has(target)) {
+      queues.set(target, {
+        active: false,
+        items: [],
+        lastAnnouncementAt: 0,
+        lastAnnouncementText: "",
+        timer: null,
+      });
+    }
+    return queues.get(target);
+  }
+
+  function normalize(text) {
+    return String(text)
+      .replace(/\s*\n+\s*/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
+  function processQueue(target, state) {
+    if (state.active) {
+      return;
+    }
+    let next = state.items.shift();
+    if (!next) {
+      return;
+    }
+
+    let now = performance.now();
+    while (next) {
+      now = performance.now();
+      if (
+        next.text !== state.lastAnnouncementText
+        || now - state.lastAnnouncementAt >= DUPLICATE_WINDOW_MS
+      ) {
+        break;
+      }
+      next = state.items.shift();
+    }
+    if (!next) {
+      return;
+    }
+
+    state.active = true;
+    state.lastAnnouncementText = next.text;
+    state.lastAnnouncementAt = now;
+    target.replaceChildren();
+
+    requestAnimationFrame(() => {
+      const span = document.createElement("span");
+      span.setAttribute("data-announce-id", String(next.id));
+      span.textContent = next.text;
+      target.replaceChildren(span);
+
+      state.timer = window.setTimeout(() => {
+        state.timer = null;
+        state.active = false;
+        processQueue(target, state);
+      }, ANNOUNCEMENT_MUTATION_GAP_MS);
+    });
+  }
 
   function announce(text, options = {}) {
     const { assertive = false } = options;
     const target = assertive ? assertiveEl : politeEl;
-    if (!target) {
+    const state = queueFor(target);
+    if (!target || !state) {
+      return;
+    }
+    const normalized = normalize(text);
+    if (!normalized) {
       return;
     }
     announcementNonce += 1;
-    const normalized = String(text)
-      .replace(/\s*\n+\s*/g, " ")
-      .replace(/\s{2,}/g, " ")
-      .trim();
-    const now = performance.now();
-    // VoiceOver can double-speak when identical live-region updates happen in quick succession.
-    if (normalized && normalized === lastAnnouncementText && now - lastAnnouncementAt < 700) {
-      return;
-    }
-    lastAnnouncementText = normalized;
-    lastAnnouncementAt = now;
-    const id = announcementNonce;
-    if (assertive) {
-      latestAssertiveId = id;
-    } else {
-      latestPoliteId = id;
-    }
-    requestAnimationFrame(() => {
-      if (assertive && id !== latestAssertiveId) {
-        return;
-      }
-      if (!assertive && id !== latestPoliteId) {
-        return;
-      }
-      // Reinsert as a fresh node so identical repeated text can still be announced.
-      const span = document.createElement("span");
-      span.setAttribute("data-announce-id", String(announcementNonce));
-      span.textContent = normalized;
-      target.replaceChildren(span);
+    state.items.push({
+      id: announcementNonce,
+      text: normalized,
     });
+    processQueue(target, state);
   }
 
   return { announce };

@@ -205,6 +205,11 @@ class WebSpeechManager {
     this.timeoutId = null;
     this.keepAliveId = null;
     this.currentUtterance = null;
+    this.activeText = "";
+    this.token = 0;
+    this.lastSpeechMode = null;
+    this.lastSpeechRate = null;
+    this.lastSpeechVoice = null;
 
     if (window.speechSynthesis) {
       this.refreshVoices();
@@ -218,9 +223,25 @@ class WebSpeechManager {
 
   applyPreferences() {
     const prefs = this.getPreferences();
+    const speechMode = prefs.speech_mode || "aria";
+    const speechRate = prefs.speech_rate;
+    const speechVoice = prefs.speech_voice || "";
+    const hasPreviousPrefs = this.lastSpeechMode !== null;
+    const speechSettingsChanged = hasPreviousPrefs && (
+      this.lastSpeechMode !== speechMode
+      || this.lastSpeechRate !== speechRate
+      || this.lastSpeechVoice !== speechVoice
+    );
+    this.lastSpeechMode = speechMode;
+    this.lastSpeechRate = speechRate;
+    this.lastSpeechVoice = speechVoice;
+
     this.updateTargetVoice();
-    if (prefs.speech_mode === "web_speech") {
+    if (speechMode === "web_speech") {
       this.startKeepAlive();
+      if (speechSettingsChanged) {
+        this.replayActiveSpeechForSettingsChange();
+      }
     } else {
       this.stopKeepAlive();
       this.cancel();
@@ -327,6 +348,31 @@ class WebSpeechManager {
     this.processQueue();
   }
 
+  speakNow(text) {
+    this.cancel();
+    this.speak(text);
+  }
+
+  finishUtterance(token) {
+    if (token !== this.token || !this.playing) {
+      return;
+    }
+    if (this.timeoutId) {
+      window.clearTimeout(this.timeoutId);
+      this.timeoutId = null;
+    }
+    this.playing = false;
+    this.currentUtterance = null;
+    this.activeText = "";
+    window.setTimeout(() => this.processQueue(), 0);
+  }
+
+  estimateSpeechTimeoutMs(text, rate) {
+    const effectiveRate = Math.max(0.2, Number(rate) || 1);
+    const estimated = 5000 + (String(text || "").length * 120) / effectiveRate;
+    return Math.max(6000, Math.min(120000, Math.ceil(estimated)));
+  }
+
   processQueue() {
     if (this.playing || !this.queue.length || !window.speechSynthesis) {
       return;
@@ -337,11 +383,12 @@ class WebSpeechManager {
       return;
     }
     this.playing = true;
+    this.activeText = text;
+    const token = ++this.token;
     try {
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
-      window.speechSynthesis.cancel();
     } catch {
       // Continue with a fresh utterance below.
     }
@@ -355,30 +402,37 @@ class WebSpeechManager {
       utterance.voice = this.targetVoice;
     }
 
-    const finish = () => {
-      if (this.timeoutId) {
-        window.clearTimeout(this.timeoutId);
-        this.timeoutId = null;
-      }
-      this.playing = false;
-      this.currentUtterance = null;
-      this.processQueue();
-    };
+    const finish = () => this.finishUtterance(token);
     utterance.onend = finish;
     utterance.onerror = finish;
     this.currentUtterance = utterance;
-    const estimated = Math.max(3500, (text.length * 180) / Math.max(0.2, utterance.rate) + 4000);
-    this.timeoutId = window.setTimeout(finish, estimated);
-    window.speechSynthesis.speak(utterance);
-    if (window.speechSynthesis.paused) {
-      window.speechSynthesis.resume();
+    this.timeoutId = window.setTimeout(() => {
+      if (token !== this.token || !this.playing) {
+        return;
+      }
+      try {
+        window.speechSynthesis.cancel();
+      } catch {
+        // Timeout recovery is best-effort.
+      }
+      this.finishUtterance(token);
+    }, this.estimateSpeechTimeoutMs(text, utterance.rate));
+    try {
+      window.speechSynthesis.speak(utterance);
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+    } catch {
+      this.finishUtterance(token);
     }
   }
 
   cancel() {
+    this.token += 1;
     this.queue = [];
     this.playing = false;
     this.currentUtterance = null;
+    this.activeText = "";
     if (this.timeoutId) {
       window.clearTimeout(this.timeoutId);
       this.timeoutId = null;
@@ -388,6 +442,29 @@ class WebSpeechManager {
     } catch {
       // Ignore engine reset failures.
     }
+  }
+
+  replayActiveSpeechForSettingsChange() {
+    if (!window.speechSynthesis || !this.playing || !this.activeText) {
+      return;
+    }
+    const active = this.activeText;
+    const pending = this.queue.slice();
+    this.token += 1;
+    this.queue = [active, ...pending];
+    this.playing = false;
+    this.currentUtterance = null;
+    this.activeText = "";
+    if (this.timeoutId) {
+      window.clearTimeout(this.timeoutId);
+      this.timeoutId = null;
+    }
+    try {
+      window.speechSynthesis.cancel();
+    } catch {
+      // Ignore engine reset failures.
+    }
+    this.processQueue();
   }
 
   startKeepAlive() {
@@ -2523,8 +2600,7 @@ class PlayAuralWebApp {
       this.audio.playSound({ name: "menuclick.ogg", volume: 50 });
     }
     if (this.preferences.speech_mode === "web_speech" && item?.text) {
-      this.webSpeech.cancel();
-      this.webSpeech.speak(item.text);
+      this.webSpeech.speakNow(item.text);
     }
   }
 
