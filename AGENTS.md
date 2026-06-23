@@ -12,7 +12,9 @@ It is GPL-licensed and has four first-party components:
 - `server/`: Python 3.11 asyncio WebSocket server, games, auth, tables,
   persistence, localization, ratings, voice authorization.
 - `client/`: Python wxPython desktop client with keyboard/screen-reader UX.
-- `web_client/`: vanilla JS PWA with ARIA, browser audio, and web TTS.
+- `web_client/`: modular vanilla JS PWA with ARIA live output, keyboard and
+  touch menu navigation, capped history buffers, browser audio/Web Speech, and
+  table voice chat.
 - `mobile_client/`: Expo/React Native/TypeScript Android-first touch and
   self-voicing client.
 
@@ -305,6 +307,13 @@ tokens, invites, moderation records, or similar data without this lifecycle.
 - Reconnect restoration and ghost cleanup must route through centralized restore
   code.
 - Web client must never use `innerHTML` with server-controlled content.
+- Web client code is modular: `game.js` is only the version/bootstrap entry;
+  runtime logic belongs in `app.js`, `store.js`, `network.js`, `audio.js`,
+  `a11y.js`, `keybinds.js`, `ui/`, and `locales/`.
+- Web menus must preserve desktop-style keyboard behavior, touch activation,
+  focus anchoring, bottom-ordered ARIA live regions, and capped/coalesced
+  history rendering. Server editbox packets choose single-line versus
+  multiline inputs through the `multiline` flag.
 - Web speech prefs are `speech_mode`, `speech_voice`, `speech_rate`.
 - Mobile speech prefs are `mobile_tts_engine`, `mobile_tts_voice`,
   `mobile_tts_rate`; unavailable synced voices/engines must fall back safely.

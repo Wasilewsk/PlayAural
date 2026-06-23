@@ -23,7 +23,7 @@ PlayAural is organized around the following components:
 
 - `server/` - Python async WebSocket game server with authentication, tables, persistence, moderation, localization, and game rules
 - `client/` - wxPython desktop client with keyboard-first screen reader UX, local sound playback, and integrated table voice chat
-- `web_client/` - Vanilla JavaScript PWA with browser TTS, touch-friendly menus, and integrated table voice chat
+- `web_client/` - Modular vanilla JavaScript PWA with ARIA live announcements, desktop-style keyboard navigation, touch-friendly menus, browser audio and Web Speech support, capped history buffers, localized UI strings, and integrated table voice chat
 - `mobile_client/` - Expo / React Native client with self-voicing gesture navigation, mobile audio, accessible text entry, and integrated table voice chat
 - `server/voice/` and `deployment/voice/` - voice authorization logic, deployment examples, and LiveKit-oriented server configuration
 
@@ -32,7 +32,7 @@ PlayAural is organized around the following components:
 PlayAural is designed so the full state of the platform can be followed without depending on visuals.
 
 - The desktop client supports keyboard-first play and screen readers.
-- The web client supports browser-based play with ARIA-friendly controls.
+- The web client supports browser-based play with ARIA live output, screen-reader-friendly menu focus, desktop-style shortcuts, touch controls, and browser speech or native screen-reader announcements.
 - The mobile client provides self-voicing navigation and gesture-driven interaction.
 - Game actions, chat, score changes, and outcomes are communicated through speech and sound.
 
@@ -69,9 +69,21 @@ PlayAural currently supports:
 
 - `server/` - server runtime, games, tests, docs, and deployment scripts
 - `client/` - desktop client source, sounds, locales, and packaging assets
-- `web_client/` - browser client source, service worker, locales, and static assets
+- `web_client/` - modular browser client source, service worker, split locale bundles, static assets, Web Audio/Web Speech handling, and table voice integration
 - `mobile_client/` - Expo application, mobile locales, sounds, build configuration, and voice integration
 - `deployment/` - deployment-specific configuration examples
+
+## Web Client
+
+The browser client is a standalone PWA served from `web_client/`.
+
+- `game.js` defines the web client version and bootstraps the runtime.
+- `app.js`, `store.js`, `network.js`, `audio.js`, `a11y.js`, and `keybinds.js` handle the client shell, WebSocket protocol, state, sound, speech, accessibility announcements, and keyboard commands.
+- `ui/menus.js` and `ui/history.js` render the active game menu and message history with stable focus, touch activation, capped buffers, and coalesced updates for mobile performance.
+- `locales/en.js` and `locales/vi.js` provide browser-client UI strings.
+- `sw.js` provides the PWA shell cache for offline startup assets.
+
+The web client uses the same server packets as the desktop and mobile clients. It supports single-line and multiline server input requests, browser Web Speech voice selection with a default voice option, ARIA live announcements at the end of the reading order, local sound/music/ambience playback, and LiveKit table voice chat authorized by the game server.
 
 ## Open Source
 

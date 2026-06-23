@@ -2463,16 +2463,30 @@ PlayAural Server
                 self._user_states[u.username] = {"menu": "voice_selection_menu"}
             self._nav_push(user, _show_voice_selection_menu)
 
-    async def _handle_voice_selection(self, user: NetworkUser, selection_id: str) -> None:
+    async def _handle_voice_selection(
+        self,
+        user: NetworkUser,
+        selection_id: str,
+        packet: dict | None = None,
+    ) -> None:
         """Handle voice selection override (Web only)."""
         if selection_id == "back":
             self._nav_back(user)
             return
 
-        # selection_id is the voice URI
-        user.preferences.speech_voice = selection_id
+        if selection_id in {"default", "placeholder"}:
+            voice_value = ""
+        elif selection_id.startswith("web_voice_"):
+            voice_value = str((packet or {}).get("selection_value") or "")
+            if not voice_value:
+                return
+        else:
+            # Legacy web clients sent the browser voice URI directly.
+            voice_value = selection_id
+
+        user.preferences.speech_voice = voice_value
         self._save_user_preferences(user)
-        self._sync_pref_to_client(user, "speech_voice", selection_id)
+        self._sync_pref_to_client(user, "speech_voice", voice_value)
         self._nav_back(user)
 
     def _show_mobile_speech_settings_menu(self, user: NetworkUser) -> None:
@@ -3364,7 +3378,7 @@ PlayAural Server
         elif current_menu == "speech_settings_menu":
             await self._handle_speech_settings_selection(user, selection_id)
         elif current_menu == "voice_selection_menu":
-            await self._handle_voice_selection(user, selection_id)
+            await self._handle_voice_selection(user, selection_id, packet)
         elif current_menu == "audio_input_device_menu":
             await self._handle_audio_input_device_selection(user, selection_id)
         elif current_menu == "mobile_speech_settings_menu":
@@ -8131,6 +8145,8 @@ PlayAural Server
         if packet_menu and packet_menu != current_menu:
             return False
         if not selection_id or selection_id == "back":
+            return True
+        if current_menu == "voice_selection_menu":
             return True
 
         menu_state = self._current_menu_state(user, current_menu)

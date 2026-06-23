@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 PlayAural is an audio-first multiplayer online gaming platform with four first-party components:
 - **`server/`** — Python async WebSocket server with game logic, auth, tables, persistence, localization, and ratings
 - **`client/`** — Python wxPython desktop client with screen reader-oriented keyboard UX
-- **`web_client/`** — Vanilla JS PWA web client with ARIA support and browser-based audio/TTS
+- **`web_client/`** — Modular vanilla JS PWA with ARIA live output, desktop-style keyboard navigation, touch menus, browser audio/Web Speech, capped history buffers, and table voice chat
 - **`mobile_client/`** — Expo / React Native / TypeScript mobile client with self-voicing gesture navigation
 
 PlayAural also supports table-scoped real-time voice chat. The game server authorizes access and tracks voice membership, while a separate LiveKit-based media service carries the actual audio stream.
@@ -550,15 +550,35 @@ Desktop rules:
 - the saved audio input device is desktop-only state; if a saved microphone is missing on the current machine, the client must fall back to the system default input device
 
 ### Web Client Architecture
-- **`web_client/game.js`** — main web client runtime
-- **`web_client/locales.js`** — client-side i18n strings
-- PWA/service-worker support
+- **`web_client/game.js`** — version marker and bootstrap entry that imports the modular runtime
+- **`web_client/app.js`** — main runtime, auth flow, packet dispatch, menu/input orchestration, speech preferences, playlists, and voice-chat coordination
+- **`web_client/store.js`** — UI state store for connection state, current menu, capped history buffers, pending input state, and server option data
+- **`web_client/network.js`** — WebSocket connection, packet validation, reconnect-safe send handling, and protocol dispatch boundaries
+- **`web_client/audio.js`** — browser audio engine for effects, music, ambience, volume/mute state, sound-pack versioning, effect preloading, and stale-effect protection
+- **`web_client/a11y.js`** — ARIA live announcer with polite/assertive regions and duplicate-announcement guards
+- **`web_client/keybinds.js`** — desktop-style keyboard shortcuts, menu navigation, grid movement, buffer controls, and global command routing
+- **`web_client/ui/menus.js`** — menu rendering, stable item identity, keyboard/touch selection, grid layout, type navigation, context actions, and iOS-friendly pointer activation
+- **`web_client/ui/history.js`** — capped/coalesced history rendering, buffer switching, screen-reader announcements, and mobile history presentation
+- **`web_client/locales/index.js`**, **`web_client/locales/en.js`**, and **`web_client/locales/vi.js`** — client-side locale loading and EN/VI UI strings
+- **`web_client/sw.js`** — PWA service worker and static shell cache
 
 Web rules:
 - never use `innerHTML` with server-controlled content
 - remember-me password storage is opt-in and controlled by `pa_remember`
-- TTS and reconnect cleanup must be complete on disconnect
+- TTS, Web Speech queues, playlists, voice chat, pending inputs, and reconnect
+  state must be cleaned up on disconnect
 - current client version is tracked in `web_client/game.js`
+- server `request_input` packets determine single-line versus multiline web
+  controls through `multiline`; single-line input submits with Enter, multiline
+  follows the desktop Enter behavior and still auto-selects default text
+- ARIA live regions belong at the bottom of the reading order, while game focus
+  remains bounded to menu/history/chat targets during play
+- history buffers are capped and render work is coalesced; do not reintroduce
+  unbounded per-message DOM rebuilds
+- Web Speech voice selection exposes a Default Voice option and stores browser
+  voice values through stable client-generated menu ids
+- menu selection sounds, typing sounds, and action sounds should preload when
+  possible and must not delay touch menu activation
 - table voice chat lives in the Chat area and must keep browser permission handling, ARIA announcements, and voice cleanup in sync with table lifecycle packets
 
 ### Mobile Client Architecture

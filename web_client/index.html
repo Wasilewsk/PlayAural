@@ -1,382 +1,240 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="PlayAural">
-    <meta name="format-detection" content="telephone=no">
-    <title>PlayAural Web</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="lang-selector.css">
-    <link rel="shortcut icon" href="icon.png" type="image/png">
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#4CAF50">
-    <link rel="apple-touch-icon" href="icon.png">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PlayAural">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>PlayAural Web</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="icon" href="icon.png">
+  <link rel="stylesheet" href="style.css">
 </head>
-
 <body class="recaptcha-hidden">
-    <script>
-        window.onerror = function (msg, url, line, col, error) {
-            let extra = "";
-            if (error && error.stack) extra = "\nStack: " + error.stack;
-            alert("Script Error: " + msg + "\nLine: " + line + "\nCol: " + col + extra + "\n\nPlease check the Console (F12) for more details.");
-
-            document.body.innerHTML += '<div style="color:red; background:white; padding:10px; border:1px solid red; margin:10px; z-index:9999; position:relative;">' +
-                "Script Error: " + msg + "<br>Line: " + line + "<br>URL: " + url + "</div>";
-            return false;
-        };
-    </script>
-    <script>
-        window.Game = window.Game || {
-            setLanguage() { },
-            showLogin() { },
-            showRegister() { },
-            autoLoginConnection() { },
-            removeAccount() { },
-            installPWA() { },
-            showLanding() { },
-            showForgotPassword() { },
-            sendChat() { },
-            showChatHistory() { },
-            showChatInput() { },
-            joinVoiceChat() { },
-            leaveVoiceChat() { },
-            toggleVoiceMic() { }
-        };
-    </script>
-
-    <!-- Screen Reader Announcers (dual regions for real-time game announcements) -->
-    <div id="sr-announcer-1" aria-live="polite" aria-atomic="true" class="sr-only"></div>
-    <div id="sr-announcer-2" aria-live="polite" aria-atomic="true" class="sr-only"></div>
-
-    <!-- Landing Screen -->
-    <div id="landing-screen" class="screen-container">
-        <div class="auth-box landing-content">
-            <h1 id="landing-title">Welcome to PlayAural Web</h1>
-
-            <div class="language-selector">
-                <button type="button" onclick="Game.setLanguage('en')" class="lang-btn">English</button>
-                <button type="button" onclick="Game.setLanguage('vi')" class="lang-btn">Tiếng Việt</button>
-            </div>
-
-            <p id="intro-text" class="intro-text" style="margin: 20px 0; line-height: 1.5;">
-                PlayAural is an audio-first online gaming platform designed for accessibility. Built on PlayPalace, it
-                offers a shared space for casual players to enjoy various card, dice, and adventure games together on
-                equal footing.
-            </p>
-
-            <!-- Default Actions (No saved session) -->
-            <div id="landing-actions" class="form-actions">
-                <button id="btn-show-login" onclick="Game.showLogin()">Login</button>
-                <button id="btn-show-register" class="secondary-btn" onclick="Game.showRegister()">Register</button>
-            </div>
-
-            <!-- Saved Session View (Hidden by default) -->
-            <div id="saved-session-view" class="hidden"
-                style="margin-top: 20px; border-top: 1px solid #444; padding-top: 20px;">
-                <p id="logged-in-as" style="margin-bottom: 15px; font-weight: bold; color: #4CAF50;">Logged in as: User
-                </p>
-                <button id="btn-play-now" onclick="Game.autoLoginConnection()">Play</button>
-                <button id="btn-remove-account" class="danger-btn" onclick="Game.removeAccount()"
-                    style="margin-top: 10px;">Remove Account</button>
-            </div>
+  <main id="app" class="app-shell">
+    <section id="auth-screen" class="auth-screen" aria-labelledby="auth-title">
+      <div class="auth-card panel">
+        <div class="brand-block">
+          <p class="eyebrow">PlayAural</p>
+          <h1 id="auth-title">PlayAural Web</h1>
+          <p id="auth-intro">Audio-first online games for everyone.</p>
         </div>
-        <!-- Footer / Install Section -->
-        <div id="landing-footer" style="margin-top: 40px; border-top: 1px solid #333; padding-top: 20px;">
 
-            <!-- PWA / Mobile Section -->
-            <div id="pwa-section">
-                <p id="mobile-hint" style="font-style: italic; color: #888; font-size: 0.9em;">
-                    For better experience on mobile...
-                </p>
-                <button id="btn-install-pwa" class="hidden" onclick="Game.installPWA()"
-                    style="background-color: #2196F3;">Install App</button>
-                <p id="install-instruction" class="hidden" style="color: #aaa; font-size: 0.9em;">
-                    To install: Tap Share -> Add to Home Screen
-                </p>
-            </div>
-
-            <!-- Windows Section -->
-            <div id="windows-section" style="margin-top: 20px;">
-                <p id="windows-hint" style="font-size: 0.9em; margin-bottom: 5px;">
-                    Web is optimized for mobile. On Windows, please use the desktop client.
-                </p>
-                <a id="btn-download-win"
-                    href="https://github.com/Daoductrung/PlayAural/releases/latest/download/PlayAural.zip"
-                    target="_blank" class="button"
-                    style="display: inline-block; text-decoration: none; background-color: #607d8b; color: white; padding: 10px 20px; border-radius: 4px; border: none; font-family: inherit; cursor: pointer;">
-                    Download for Windows
-                </a>
-            </div>
-
+        <div id="auth-controls" class="auth-toolbar row" aria-label="Client controls">
+          <label class="compact-field" for="language-select">
+            <span id="language-label">Language</span>
+            <select id="language-select">
+              <option value="en">English</option>
+              <option value="vi">Tiếng Việt</option>
+            </select>
+          </label>
+          <button id="btn-install-pwa" type="button" class="secondary" hidden>Install App</button>
         </div>
-    </div>
-    <!-- Login Screen -->
-    <div id="login-screen" class="screen-container hidden">
-        <div class="auth-box">
-            <h1 id="login-title">PlayAural Web</h1>
+        <p id="install-instruction" class="muted" hidden></p>
 
-            <form id="login-form">
-                <div class="form-group" style="display: none;">
-                    <label for="server-url" id="login-server-label">Server URL</label>
-                    <input type="text" id="server-url" value="wss://playaural.ddt.one:443" required autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="url" enterkeyhint="next">
-                </div>
-                <div class="form-group">
-                    <label for="username" id="login-username-label">Username</label>
-                    <input type="text" id="username" required autocomplete="username" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
-                </div>
-                <div class="form-group">
-                    <label for="password" id="login-password-label">Password</label>
-                    <input type="password" id="password" required autocomplete="current-password" enterkeyhint="go">
-                </div>
-
-                <div class="form-group checkbox-group" style="flex-direction: row; align-items: center; gap: 10px;">
-                    <input type="checkbox" id="chk-auto-login">
-                    <label for="chk-auto-login" id="label-auto-login" style="margin: 0;">Remember me</label>
-                </div>
-
-                <p id="login-status" class="status-message" aria-live="polite"></p>
-
-                <div class="form-actions">
-                    <button type="submit" id="btn-login">Connect & Login</button>
-                    <button type="button" class="text-btn" onclick="Game.showLanding()">Back</button>
-                </div>
-
-                <div style="margin-top: 15px; text-align: center;">
-                    <button type="button" id="btn-show-forgot-password" class="text-btn" style="font-size: 0.9em; text-decoration: underline;" onclick="Game.showForgotPassword()">Forgot Password?</button>
-                </div>
-            </form>
+        <div id="saved-session-view" class="saved-session" hidden>
+          <p id="saved-session-label"></p>
+          <div class="row">
+            <button id="btn-play-now" type="button">Play</button>
+            <button id="btn-remove-account" type="button" class="secondary">Remove Account</button>
+          </div>
         </div>
-    </div>
 
-    <!-- Forgot Password Screen -->
-    <div id="forgot-password-screen" class="screen-container hidden">
-        <div class="auth-box">
-            <h1 id="forgot-password-title">Forgot Password</h1>
-            <p id="forgot-password-prompt" style="margin-bottom: 15px;">Enter the email address associated with your account:</p>
-
-            <form id="forgot-password-form">
-                <div class="form-group">
-                    <label for="forgot-email" id="forgot-email-label" class="sr-only">Email</label>
-                    <input type="email" id="forgot-email" required autocomplete="email" placeholder="Email Address" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="email" enterkeyhint="send">
-                </div>
-
-                <p id="forgot-password-status" class="status-message" aria-live="polite"></p>
-
-                <div class="form-actions">
-                    <button type="submit" id="btn-send-reset-code">Send Code</button>
-                    <button type="button" class="text-btn" onclick="Game.showLogin()">Back</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Reset Password Screen -->
-    <div id="reset-password-screen" class="screen-container hidden">
-        <div class="auth-box">
-            <h1 id="reset-password-title">Reset Password</h1>
-            <p id="reset-code-instructions" style="margin-bottom: 15px;">An email with a 6-digit reset code has been sent to your address.</p>
-
-            <form id="reset-password-form">
-                <div class="form-group">
-                    <label for="reset-code" id="reset-code-label">6-Digit Reset Code</label>
-                    <input type="text" id="reset-code" required autocomplete="one-time-code" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
-                </div>
-                <div class="form-group">
-                    <label for="new-password" id="new-password-label">New Password</label>
-                    <input type="password" id="new-password" required autocomplete="new-password" enterkeyhint="next">
-                </div>
-                <div class="form-group">
-                    <label for="confirm-new-password" id="confirm-new-password-label">Confirm Password</label>
-                    <input type="password" id="confirm-new-password" required autocomplete="new-password" enterkeyhint="done">
-                </div>
-
-                <p id="reset-password-status" class="status-message" aria-live="polite"></p>
-
-                <div class="form-actions">
-                    <button type="submit" id="btn-submit-reset">Reset Password</button>
-                    <button type="button" class="text-btn" onclick="Game.showLogin()">Cancel</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Register Screen -->
-    <div id="register-screen" class="screen-container hidden">
-        <div class="auth-box">
-            <h1 id="reg-title">Create Account</h1>
-
-            <form id="register-form">
-                <div class="form-group" style="display: none;">
-                    <label for="reg-server-url" id="reg-server-label">Server URL</label>
-                    <input type="text" id="reg-server-url" value="wss://playaural.ddt.one:443" required autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="url" enterkeyhint="next">
-                </div>
-                <div class="form-group">
-                    <label for="reg-username" id="reg-username-label">Username</label>
-                    <input type="text" id="reg-username" required autocomplete="username" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
-                </div>
-                <div class="form-group">
-                    <label for="reg-password" id="reg-password-label">Password</label>
-                    <input type="password" id="reg-password" required autocomplete="new-password" enterkeyhint="next">
-                </div>
-                <div class="form-group">
-                    <label for="reg-password-confirm" id="label-confirm-password">Confirm Password</label>
-                    <input type="password" id="reg-password-confirm" required autocomplete="new-password" enterkeyhint="next">
-                </div>
-                <div class="form-group">
-                    <label for="reg-email" id="reg-email-label">Email</label>
-                    <input type="email" id="reg-email" required autocomplete="email" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="email" enterkeyhint="done">
-                </div>
-
-                <p id="register-status" class="status-message" aria-live="polite"></p>
-
-                <div class="form-actions">
-                    <button type="submit" id="btn-register">Register</button>
-                    <button type="button" id="btn-goto-login" class="secondary-btn" onclick="Game.showLogin()">Go to
-                        Login</button>
-                    <button type="button" class="text-btn" onclick="Game.showLanding()">Back</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Client Options Modal -->
-    <!-- Client Options Modal Removed -->
-    <div id="game-screen" class="hidden">
-        <header>
-            <h2 id="game-title">Main Menu</h2>
-            <div class="header-actions">
-                <div id="connection-status" role="status" aria-live="polite"></div>
-            </div>
-        </header>
-
-        <!-- Navigation Tabs -->
-        <nav class="tabs" role="tablist">
-            <button id="tab-menu" class="tab-btn active" role="tab" aria-selected="true"
-                aria-controls="content-menu">Menu</button>
-            <button id="tab-chat" class="tab-btn" role="tab" aria-selected="false"
-                aria-controls="content-chat">Chat</button>
-            <button id="tab-players" class="tab-btn" role="tab" aria-selected="false"
-                aria-controls="content-players">Shortcuts</button>
-            <button id="tab-history" class="tab-btn" role="tab" aria-selected="false"
-                aria-controls="content-history">History</button>
+        <nav id="account-actions-nav" class="auth-nav" aria-label="Account actions">
+          <button id="btn-show-login" type="button" class="auth-nav-btn active">Login</button>
+          <button id="btn-show-register" type="button" class="auth-nav-btn">Register</button>
+          <button id="btn-show-forgot-password" type="button" class="auth-nav-btn">Forgot Password?</button>
         </nav>
 
-        <main>
-            <!-- Menu Tab Content -->
-            <div id="content-menu" class="tab-content" role="tabpanel" aria-labelledby="tab-menu">
-                <!-- Web Actions Container (Sticky Top Left) -->
-                <div id="web-actions-container" class="web-actions-area"></div>
+        <section id="login-panel" class="auth-panel">
+          <form id="login-form">
+            <label for="username" id="login-username-label">Username</label>
+            <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
 
-                <div id="menu-area" role="menu" aria-label="Game Menu" tabindex="-1">
-                    <!-- Menu items injected here -->
-                </div>
+            <label for="password" id="login-password-label">Password</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+            <label class="check-row" for="chk-auto-login">
+              <input id="chk-auto-login" type="checkbox">
+              <span id="label-auto-login">Remember me</span>
+            </label>
+
+            <button id="login-btn" type="submit">Connect & Login</button>
+            <p id="login-status" class="status" role="status" aria-live="polite"></p>
+          </form>
+        </section>
+
+        <section id="register-panel" class="auth-panel" hidden>
+          <form id="register-form">
+            <label for="reg-username" id="reg-username-label">Username</label>
+            <input id="reg-username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+
+            <label for="reg-email" id="reg-email-label">Email</label>
+            <input id="reg-email" type="email" autocomplete="email" required>
+
+            <label for="reg-password" id="reg-password-label">Password</label>
+            <input id="reg-password" type="password" autocomplete="new-password" required>
+
+            <label for="reg-password-confirm" id="label-confirm-password">Confirm Password</label>
+            <input id="reg-password-confirm" type="password" autocomplete="new-password" required>
+
+            <button id="btn-register" type="submit">Register</button>
+            <p id="register-status" class="status" role="status" aria-live="polite"></p>
+          </form>
+        </section>
+
+        <section id="forgot-panel" class="auth-panel" hidden>
+          <form id="forgot-password-form">
+            <p id="forgot-password-prompt">Enter the email address associated with your account.</p>
+            <label for="forgot-email" id="forgot-email-label">Email</label>
+            <input id="forgot-email" type="email" autocomplete="email" required>
+            <button id="btn-send-reset-code" type="submit">Send Code</button>
+            <p id="forgot-password-status" class="status" role="status" aria-live="polite"></p>
+          </form>
+        </section>
+
+        <section id="reset-panel" class="auth-panel" hidden>
+          <form id="reset-password-form">
+            <h2 id="reset-password-title">Reset Password</h2>
+            <p id="reset-code-instructions"></p>
+            <label for="reset-code" id="reset-code-label">Reset code</label>
+            <input id="reset-code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
+            <label for="new-password" id="new-password-label">New Password</label>
+            <input id="new-password" type="password" autocomplete="new-password" required>
+            <label for="confirm-new-password" id="confirm-new-password-label">Confirm Password</label>
+            <input id="confirm-new-password" type="password" autocomplete="new-password" required>
+            <button id="btn-submit-reset" type="submit">Reset Password</button>
+            <p id="reset-password-status" class="status" role="status" aria-live="polite"></p>
+          </form>
+        </section>
+      </div>
+    </section>
+
+    <section id="game-screen" class="game-screen" hidden aria-label="PlayAural game client">
+      <div id="game-shell" class="game-grid">
+        <section class="panel menu-panel" aria-labelledby="menu-heading">
+          <div class="panel-heading row">
+            <h2 id="menu-heading">Menu</h2>
+            <button id="actions-btn" type="button" class="secondary actions-btn" hidden>Actions</button>
+          </div>
+          <ul id="menu-list" class="menu-list" tabindex="0" aria-label="Game menu"></ul>
+          <div id="inline-input" class="inline-input" hidden>
+            <label id="inline-input-prompt" for="inline-input-text"></label>
+            <input
+              id="inline-input-text"
+              type="text"
+              autocomplete="off"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+              enterkeyhint="done"
+            >
+            <textarea
+              id="inline-input-value"
+              rows="6"
+              autocomplete="off"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+              enterkeyhint="done"
+              hidden
+            ></textarea>
+            <div class="row">
+              <button id="inline-input-submit" type="button">Submit</button>
+              <button id="inline-input-cancel" type="button" class="secondary">Cancel</button>
             </div>
+          </div>
+        </section>
 
-            <!-- Chat Tab Content -->
+        <section class="panel history-panel" aria-labelledby="history-heading">
+          <div class="history-header">
+            <button id="history-toggle" class="history-toggle-title" type="button" aria-expanded="true">
+              <h2 id="history-heading">History</h2>
+            </button>
+            <label for="history-buffer" class="compact-field">
+              <span id="history-buffer-label">Buffer</span>
+              <select id="history-buffer">
+                <option id="buffer-option-all" value="all">All</option>
+                <option id="buffer-option-chat" value="chat">Chat</option>
+                <option id="buffer-option-game" value="game">Game</option>
+                <option id="buffer-option-system" value="system">System</option>
+                <option id="buffer-option-misc" value="misc">Misc</option>
+              </select>
+            </label>
+          </div>
+          <div id="history-content">
+            <textarea id="history" class="history" readonly aria-label="Message history"></textarea>
+            <div id="history-log" class="history-log" tabindex="0" aria-label="Message history log"></div>
+          </div>
+        </section>
+      </div>
 
-            <div id="content-chat" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-chat">
-                <!-- View 1: Input (Default) -->
-                <div id="chat-input-view">
-                    <section id="voice-chat-controls" class="voice-chat-controls">
-                        <div class="voice-chat-buttons">
-                            <button type="button" id="btn-voice-join" class="secondary-btn"
-                                onclick="Game.joinVoiceChat()">Join Voice Chat</button>
-                            <button type="button" id="btn-voice-leave" class="secondary-btn hidden"
-                                onclick="Game.leaveVoiceChat()">Leave Voice Chat</button>
-                            <button type="button" id="btn-voice-mic" class="secondary-btn hidden"
-                                onclick="Game.toggleVoiceMic()">Turn On Mic</button>
-                        </div>
-                        <div id="voice-chat-status" class="voice-chat-status">Voice Chat not connected.</div>
-                        <div id="voice-chat-audio" class="voice-chat-audio" aria-hidden="true"></div>
-                    </section>
-                    <form id="chat-form" onsubmit="return false;">
-                        <input type="text" id="chat-input" placeholder="Type a message..." aria-label="Chat Message"
-                            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="send">
-                        <button type="button" id="btn-chat-send" onclick="Game.sendChat()">Send</button>
-                    </form>
-                    <button type="button" id="btn-view-history" class="secondary-btn"
-                        onclick="Game.showChatHistory()">View Chat History</button>
-                </div>
-
-                <!-- View 2: History (Hidden) -->
-                <div id="chat-history-view" class="hidden">
-                    <button type="button" id="btn-back-to-input" class="secondary-btn"
-                        onclick="Game.showChatInput()">Back to Input</button>
-                    <!-- Removed aria-live to prevent focus jumping/conflicts as requested -->
-                    <div id="chat-history" class="log-container"></div>
-                </div>
-            </div>
-
-            <!-- Shortcuts Tab Content -->
-            <div id="content-players" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-players">
-                <h2 id="players-title">Shortcuts</h2>
-                <div class="player-actions">
-                    <button id="btn-list-online" class="primary-btn">Read Online Players</button>
-                    <button id="btn-list-online-games" class="secondary-btn">List Players with Games</button>
-                    <button id="btn-open-friends" class="secondary-btn">Open Friends</button>
-                    <button id="btn-open-options" class="secondary-btn">Open Options</button>
-                    <button id="btn-check-ping" class="secondary-btn">Check Ping</button>
-                </div>
-                <div id="player-list-area" class="log-container" aria-live="polite">
-                    <p id="players-instruction">Click a button above to view online players.</p>
-                </div>
-            </div>
-
-            <!-- History Tab Content -->
-            <div id="content-history" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-history">
-                <h2 id="history-title">TTS History</h2>
-                <div id="tts-history-log" class="log-container" tabindex="-1">
-                    <!-- TTS history injected here -->
-                </div>
-            </div>
-
-
-        </main>
-    </div>
-
-    <!-- Game Actions Modal -->
-    <dialog id="actions-modal" class="modal">
-        <div class="modal-content">
-            <h2 id="modal-title">Actions</h2>
-            <div id="modal-menu-area" class="modal-menu" role="menu">
-                <!-- Modal menu items injected here -->
-            </div>
-            <div class="modal-actions">
-                <button id="btn-close-modal" class="secondary-btn">Close</button>
-            </div>
+      <section class="panel chat-panel" aria-labelledby="chat-heading">
+        <h2 id="chat-heading">Chat and Voice</h2>
+        <form id="chat-form" class="chat-form">
+          <label for="chat-input" id="chat-input-label">Chat Message</label>
+          <div class="row chat-row">
+            <input id="chat-input" type="text" autocomplete="off" placeholder="Type a message...">
+            <button id="btn-chat-send" type="submit">Send</button>
+          </div>
+        </form>
+        <div class="voice-card" aria-labelledby="voice-chat-heading">
+          <h3 id="voice-chat-heading">Voice Chat</h3>
+          <div class="row">
+            <button id="btn-voice-join" type="button">Join Voice Chat</button>
+            <button id="btn-voice-leave" type="button" class="secondary" hidden>Leave Voice Chat</button>
+            <button id="btn-voice-mic" type="button" class="secondary" aria-pressed="false" hidden>Turn On Mic</button>
+          </div>
+          <p id="voice-chat-status" class="status" role="status" aria-live="polite">Voice Chat not connected.</p>
+          <div id="voice-chat-audio" aria-hidden="true"></div>
         </div>
-    </dialog>
+      </section>
 
-    <script src="locales.js"></script>
-    <script src="vendor/livekit-client.umd.js"></script>
-    <script src="game.js"></script>
-    <script>
-        // reCAPTCHA v3 — loaded only when a real site key is configured.
-        // Replace this placeholder with your production key before launch.
-        if (false && typeof RECAPTCHA_SITE_KEY !== 'undefined' && RECAPTCHA_SITE_KEY) {
-            const s = document.createElement('script');
-            s.src = 'https://www.google.com/recaptcha/api.js?render=' + RECAPTCHA_SITE_KEY;
-            s.async = true;
-            document.head.appendChild(s);
-        }
-    </script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
-                    .then(registration => {
-                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                    }, err => {
-                        console.log('ServiceWorker registration failed: ', err);
-                    });
-            });
-        }
-    </script>
+      <section id="audio-panel" class="panel audio-panel" aria-label="Audio controls">
+        <div class="row volume-controls">
+          <label for="sound-volume"><span id="audio-sound-label">Sound</span> <output id="sound-volume-value">100%</output></label>
+          <input id="sound-volume" type="range" min="10" max="100" step="1">
+          <label for="music-volume"><span id="audio-music-label">Music</span> <output id="music-volume-value">10%</output></label>
+          <input id="music-volume" type="range" min="0" max="100" step="1">
+          <label for="ambience-volume"><span id="audio-ambience-label">Ambience</span> <output id="ambience-volume-value">20%</output></label>
+          <input id="ambience-volume" type="range" min="0" max="100" step="1">
+          <label for="voice-volume"><span id="audio-voice-label">Voice</span> <output id="voice-volume-value">80%</output></label>
+          <input id="voice-volume" type="range" min="10" max="100" step="1">
+          <label class="check-row" for="audio-mute">
+            <input id="audio-mute" type="checkbox">
+            <span id="audio-mute-label">Mute browser audio</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="panel shortcuts-panel" aria-labelledby="shortcuts-heading">
+        <h2 id="shortcuts-heading">Shortcuts</h2>
+        <div class="row">
+          <button id="btn-list-online" type="button" class="secondary">Read Online Players</button>
+          <button id="btn-list-online-games" type="button" class="secondary">List Players with Games</button>
+          <button id="btn-open-friends" type="button" class="secondary">Open Friends</button>
+          <button id="btn-open-options" type="button" class="secondary">Open Options</button>
+          <button id="btn-check-ping" type="button" class="secondary">Check Ping</button>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div id="live-polite" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <div id="live-assertive" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+
+  <script src="vendor/livekit-client.umd.js"></script>
+  <script type="module" src="game.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
 </body>
-
 </html>
