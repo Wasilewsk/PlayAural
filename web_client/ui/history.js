@@ -6,6 +6,8 @@ export function createHistoryView({
   historyToggleEl,
   bufferSelectEl,
   a11y,
+  initialMutedBuffers = [],
+  onMutedBuffersChange = () => {},
   localize = (key, params = {}) => {
     let value = String(key || "");
     for (const [name, raw] of Object.entries(params || {})) {
@@ -23,9 +25,45 @@ export function createHistoryView({
   let renderedLogValue = "";
   let renderScheduled = false;
 
+  setMutedBuffers(initialMutedBuffers, { notify: false });
+
   function ensureBufferPosition(bufferName) {
     if (!Object.hasOwn(bufferPositions, bufferName)) {
       bufferPositions[bufferName] = 0;
+    }
+  }
+
+  function normalizeBufferName(bufferName) {
+    if (bufferName === "chats") {
+      return "chat";
+    }
+    return String(bufferName || "misc");
+  }
+
+  function isBufferDirectlyMuted(bufferName) {
+    return mutedBuffers.has(normalizeBufferName(bufferName));
+  }
+
+  function isBufferMuted(bufferName) {
+    const name = normalizeBufferName(bufferName);
+    return mutedBuffers.has("all") || mutedBuffers.has(name);
+  }
+
+  function getMutedBuffers() {
+    return Array.from(mutedBuffers).sort();
+  }
+
+  function setMutedBuffers(bufferNames, { notify = false } = {}) {
+    mutedBuffers.clear();
+    for (const bufferName of Array.isArray(bufferNames) ? bufferNames : []) {
+      const normalized = normalizeBufferName(bufferName);
+      if (normalized) {
+        mutedBuffers.add(normalized);
+      }
+    }
+    render();
+    if (notify) {
+      onMutedBuffersChange(getMutedBuffers());
     }
   }
 
@@ -50,7 +88,8 @@ export function createHistoryView({
       name,
       count: lines.length,
       position,
-      muted: mutedBuffers.has(name),
+      muted: isBufferDirectlyMuted(name),
+      effectivelyMuted: isBufferMuted(name),
     };
   }
 
@@ -93,7 +132,7 @@ export function createHistoryView({
       ensureBufferPosition(name);
     }
     const bufferName = store.state.historyBuffer;
-    const lines = store.state.historyBuffers[bufferName] || [];
+    const lines = isBufferMuted(bufferName) ? [] : (store.state.historyBuffers[bufferName] || []);
     if (bufferSelectEl && bufferSelectEl.value !== bufferName) {
       bufferSelectEl.value = bufferName;
     }
@@ -155,11 +194,14 @@ export function createHistoryView({
       assertive = false,
     } = options;
 
-    store.addHistory(buffer, text);
-    const incomingBufferMuted = mutedBuffers.has(buffer);
+    const normalizedBuffer = normalizeBufferName(buffer);
+    const incomingBufferMuted = isBufferMuted(normalizedBuffer);
+    const sourceDirectlyMuted = normalizedBuffer !== "all" && isBufferDirectlyMuted(normalizedBuffer);
+    store.addHistory(normalizedBuffer, text, { includeAll: !sourceDirectlyMuted });
     if (announce && !incomingBufferMuted) {
       a11y.announce(text, { assertive });
     }
+    return !incomingBufferMuted;
   }
 
   function switchBuffer({ step = 0, boundary = null } = {}) {
@@ -209,6 +251,8 @@ export function createHistoryView({
     } else {
       mutedBuffers.add(info.name);
     }
+    render();
+    onMutedBuffersChange(getMutedBuffers());
     const status = localize(mutedBuffers.has(info.name) ? "buffer-status-muted" : "buffer-status-unmuted");
     a11y.announce(localize("main-buffer-status", {
       name: localizeBufferName(info.name),
@@ -234,6 +278,9 @@ export function createHistoryView({
 
   return {
     addEntry,
+    isBufferMuted,
+    getMutedBuffers,
+    setMutedBuffers,
     render,
     previousBuffer() {
       switchBuffer({ step: -1 });

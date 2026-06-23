@@ -32,6 +32,16 @@ function clampNumber(value, min, max, fallback = min) {
   return Math.max(min, Math.min(max, number));
 }
 
+function snapNumberToStep(value, min, max, fallback = min, step = 1) {
+  const bounded = clampNumber(value, min, max, fallback);
+  const parsedStep = Number(step);
+  if (!Number.isFinite(parsedStep) || parsedStep <= 1) {
+    return Math.round(bounded);
+  }
+  const snapped = Math.round((bounded - min) / parsedStep) * parsedStep + min;
+  return clampNumber(snapped, min, max, fallback);
+}
+
 function safeJsonParse(value, fallback) {
   try {
     return JSON.parse(value);
@@ -846,6 +856,7 @@ class PlayAuralWebApp {
       speech_mode: "aria",
       speech_rate: 100,
       speech_voice: "",
+      muted_buffers: [],
     };
     this.webSpeech = new WebSpeechManager({ getPreferences: () => this.preferences });
     this.elements = this.collectElements();
@@ -889,6 +900,10 @@ class PlayAuralWebApp {
       historyToggleEl: this.elements.historyToggle,
       bufferSelectEl: this.elements.historyBuffer,
       a11y: this.a11y,
+      onMutedBuffersChange: (buffers) => {
+        this.preferences.muted_buffers = buffers;
+        this.saveLocalConfig();
+      },
       localize: (key, params) => Localization.get(key, params),
       localizeBufferName: (name) => this.localizeBufferName(name),
     });
@@ -1057,25 +1072,17 @@ class PlayAuralWebApp {
     this.elements.voiceMicBtn?.addEventListener("click", () => this.voice.toggleMic());
     this.elements.listOnlineBtn?.addEventListener("click", () => this.sendListOnline(false));
     this.elements.listOnlineGamesBtn?.addEventListener("click", () => this.sendListOnline(true));
-    this.elements.openFriendsBtn?.addEventListener("click", () => {
-      if (this.send({ type: "open_friends_hub" })) {
-        this.speak(Localization.get("requesting-friends-hub"), { buffer: "system" });
-      }
-    });
-    this.elements.openOptionsBtn?.addEventListener("click", () => {
-      if (this.send({ type: "open_options" })) {
-        this.speak(Localization.get("requesting-options"), { buffer: "system" });
-      }
-    });
+    this.elements.openFriendsBtn?.addEventListener("click", () => this.openFriendsHub());
+    this.elements.openOptionsBtn?.addEventListener("click", () => this.openOptionsMenu());
     this.elements.checkPingBtn?.addEventListener("click", () => this.sendPing());
     this.elements.installBtn?.addEventListener("click", () => this.installPwa());
     this.elements.audioMute?.addEventListener("change", () => {
       this.audio.setMuted(this.elements.audioMute.checked);
     });
-    this.bindVolumeControl(this.elements.soundVolume, "audio/sound_volume", "sound_volume", 10, 100);
-    this.bindVolumeControl(this.elements.musicVolume, "audio/music_volume", "music_volume", 0, 100);
-    this.bindVolumeControl(this.elements.ambienceVolume, "audio/ambience_volume", "ambience_volume", 0, 100);
-    this.bindVolumeControl(this.elements.voiceVolume, "audio/voice_volume", "voice_volume", 10, 100);
+    this.bindVolumeControl(this.elements.soundVolume, "audio/sound_volume", "sound_volume", 10, 100, 10);
+    this.bindVolumeControl(this.elements.musicVolume, "audio/music_volume", "music_volume", 0, 100, 10);
+    this.bindVolumeControl(this.elements.ambienceVolume, "audio/ambience_volume", "ambience_volume", 0, 100, 10);
+    this.bindVolumeControl(this.elements.voiceVolume, "audio/voice_volume", "voice_volume", 10, 100, 10);
 
     installKeybinds({
       store: this.store,
@@ -1089,6 +1096,12 @@ class PlayAuralWebApp {
       sendEscape: () => this.sendEscape(),
       sendListOnline: () => this.sendListOnline(false),
       sendListOnlineWithGames: () => this.sendListOnline(true),
+      onFocusMenu: () => this.focusMenu(),
+      onFocusChat: () => this.focusChat(),
+      onFocusVoice: () => this.focusVoiceControls(),
+      onFocusHistory: () => this.focusHistory(),
+      onOpenFriends: () => this.openFriendsHub(),
+      onOpenOptions: () => this.openOptionsMenu(),
       onPreviousBuffer: () => this.historyView.previousBuffer(),
       onNextBuffer: () => this.historyView.nextBuffer(),
       onFirstBuffer: () => this.historyView.firstBuffer(),
@@ -1098,10 +1111,12 @@ class PlayAuralWebApp {
       onOldestMessage: () => this.historyView.oldestMessage(),
       onNewestMessage: () => this.historyView.newestMessage(),
       onToggleBufferMute: () => this.historyView.toggleCurrentBufferMute(),
-      onAmbienceDown: () => this.adjustVolumePreference("ambience_volume", "audio/ambience_volume", -5, 0, 100),
-      onAmbienceUp: () => this.adjustVolumePreference("ambience_volume", "audio/ambience_volume", 5, 0, 100),
-      onMusicDown: () => this.adjustVolumePreference("music_volume", "audio/music_volume", -5, 0, 100),
-      onMusicUp: () => this.adjustVolumePreference("music_volume", "audio/music_volume", 5, 0, 100),
+      onToggleTableChat: () => this.toggleChatMute("table"),
+      onToggleGlobalChat: () => this.toggleChatMute("global"),
+      onAmbienceDown: () => this.adjustVolumePreference("ambience_volume", "audio/ambience_volume", -10, 0, 100, 10),
+      onAmbienceUp: () => this.adjustVolumePreference("ambience_volume", "audio/ambience_volume", 10, 0, 100, 10),
+      onMusicDown: () => this.adjustVolumePreference("music_volume", "audio/music_volume", -10, 0, 100, 10),
+      onMusicUp: () => this.adjustVolumePreference("music_volume", "audio/music_volume", 10, 0, 100, 10),
       onPing: () => this.sendPing(),
       isModalOpen: () => Boolean(!this.elements.inlineInput?.hidden),
       a11y: this.a11y,
@@ -1197,19 +1212,61 @@ class PlayAuralWebApp {
     }, true);
   }
 
-  bindVolumeControl(element, serverKey, flatKey, min, max) {
+  isVisibleFocusTarget(element) {
+    return Boolean(
+      element
+      && !element.hidden
+      && typeof element.focus === "function"
+      && element.getClientRects().length > 0
+    );
+  }
+
+  focusMenu() {
+    if (!this.elements.gameScreen?.hidden) {
+      this.menuView.focusSelection();
+    }
+  }
+
+  focusChat() {
+    if (this.isVisibleFocusTarget(this.elements.chatInput)) {
+      this.elements.chatInput.focus({ preventScroll: true });
+    }
+  }
+
+  focusVoiceControls() {
+    const target = [
+      this.elements.voiceMicBtn,
+      this.elements.voiceJoinBtn,
+      this.elements.voiceLeaveBtn,
+    ].find((element) => this.isVisibleFocusTarget(element) && !element.disabled);
+    target?.focus({ preventScroll: true });
+  }
+
+  focusHistory() {
+    const target = [
+      this.elements.history,
+      this.elements.historyLog,
+      this.elements.historyToggle,
+    ].find((element) => this.isVisibleFocusTarget(element));
+    target?.focus({ preventScroll: true });
+  }
+
+  bindVolumeControl(element, serverKey, flatKey, min, max, step = 1) {
     if (!element) {
       return;
     }
     element.min = String(min);
     element.max = String(max);
+    element.step = String(step);
     element.addEventListener("input", () => {
-      const value = clampNumber(element.value, min, max, this.preferences[flatKey] ?? max);
+      const value = snapNumberToStep(element.value, min, max, this.preferences[flatKey] ?? max, step);
+      element.value = String(value);
       this.preferences[flatKey] = value;
       this.applyPreferences();
     });
     element.addEventListener("change", () => {
-      const value = clampNumber(element.value, min, max, this.preferences[flatKey] ?? max);
+      const value = snapNumberToStep(element.value, min, max, this.preferences[flatKey] ?? max, step);
+      element.value = String(value);
       this.preferences[flatKey] = value;
       this.applyPreferences();
       this.saveLocalConfig();
@@ -1219,15 +1276,22 @@ class PlayAuralWebApp {
     });
   }
 
-  adjustVolumePreference(flatKey, serverKey, delta, min, max) {
-    const value = clampNumber((this.preferences[flatKey] ?? max) + delta, min, max, max);
+  adjustVolumePreference(flatKey, serverKey, delta, min, max, step = 1) {
+    const current = snapNumberToStep(this.preferences[flatKey] ?? max, min, max, max, step);
+    const value = snapNumberToStep(current + delta, min, max, current, step);
     this.preferences[flatKey] = value;
     this.applyPreferences();
     this.saveLocalConfig();
     if (this.isConnected()) {
       this.send({ type: "set_preference", key: serverKey, value });
     }
-    this.speak(`${value}%`, { buffer: "system", noHistory: true });
+    const messageKey = flatKey === "ambience_volume"
+      ? "main-ambience-volume"
+      : flatKey === "music_volume"
+        ? "main-music-volume"
+        : "";
+    const message = messageKey ? Localization.get(messageKey, { value }) : `${value}%`;
+    this.speak(message, { buffer: "system", noHistory: true });
   }
 
   applyLocalization() {
@@ -1371,6 +1435,7 @@ class PlayAuralWebApp {
     const config = safeJsonParse(storageGet(CONFIG_KEY), {});
     this.lastUrl = this.getServerUrl();
     this.preferences = { ...this.preferences, ...(config.preferences || {}) };
+    this.historyView?.setMutedBuffers(this.preferences.muted_buffers || []);
     if (config.lastUsername && this.elements.username) {
       this.elements.username.value = config.lastUsername;
     }
@@ -1462,10 +1527,10 @@ class PlayAuralWebApp {
   }
 
   applyPreferences() {
-    const soundVolume = clampNumber(this.preferences.sound_volume, 10, 100, 100);
-    const musicVolume = clampNumber(this.preferences.music_volume, 0, 100, 10);
-    const ambienceVolume = clampNumber(this.preferences.ambience_volume, 0, 100, 20);
-    const voiceVolume = clampNumber(this.preferences.voice_volume, 10, 100, 80);
+    const soundVolume = snapNumberToStep(this.preferences.sound_volume, 10, 100, 100, 10);
+    const musicVolume = snapNumberToStep(this.preferences.music_volume, 0, 100, 10, 10);
+    const ambienceVolume = snapNumberToStep(this.preferences.ambience_volume, 0, 100, 20, 10);
+    const voiceVolume = snapNumberToStep(this.preferences.voice_volume, 10, 100, 80, 10);
     this.preferences.sound_volume = soundVolume;
     this.preferences.music_volume = musicVolume;
     this.preferences.ambience_volume = ambienceVolume;
@@ -1822,10 +1887,12 @@ class PlayAuralWebApp {
     if (!text) {
       return;
     }
+    const normalizedBuffer = normalizeBuffer(buffer);
+    let outputAllowed = !this.historyView.isBufferMuted(normalizedBuffer);
     if (!noHistory) {
-      this.historyView.addEntry(text, { buffer: normalizeBuffer(buffer), announce: false });
+      outputAllowed = this.historyView.addEntry(text, { buffer: normalizedBuffer, announce: false });
     }
-    if (muted) {
+    if (muted || !outputAllowed) {
       return;
     }
     if (this.preferences.speech_mode === "web_speech") {
@@ -2085,8 +2152,8 @@ class PlayAuralWebApp {
     }
 
     const display = `${prefix}: ${packet.message || ""}`;
-    this.historyView.addEntry(display, { buffer: "chat", announce: false });
-    if (shouldSpeak) {
+    const outputAllowed = this.historyView.addEntry(display, { buffer: "chat", announce: false });
+    if (shouldSpeak && outputAllowed) {
       this.audio.playSound({ name: soundName });
       this.speak(speakText, { buffer: "chat", noHistory: true });
     }
@@ -2584,6 +2651,18 @@ class PlayAuralWebApp {
     this.speak(includeGames ? "requesting-game-list" : "requesting-player-list", { buffer: "system" });
   }
 
+  openFriendsHub() {
+    if (this.send({ type: "open_friends_hub" })) {
+      this.speak(Localization.get("requesting-friends-hub"), { buffer: "system" });
+    }
+  }
+
+  openOptionsMenu() {
+    if (this.send({ type: "open_options" })) {
+      this.speak(Localization.get("requesting-options"), { buffer: "system" });
+    }
+  }
+
   sendPing() {
     if (!this.isConnected()) {
       return;
@@ -2591,6 +2670,23 @@ class PlayAuralWebApp {
     this.pingStart = Date.now();
     this.audio.playSound({ name: "pingstart.ogg" });
     this.send({ type: "ping" });
+  }
+
+  toggleChatMute(scope) {
+    if (!this.isConnected()) {
+      return;
+    }
+    const isGlobal = scope === "global";
+    const flatKey = isGlobal ? "mute_global_chat" : "mute_table_chat";
+    const serverKey = isGlobal ? "social/mute_global_chat" : "social/mute_table_chat";
+    const nextValue = this.preferences[flatKey] !== true;
+    this.preferences[flatKey] = nextValue;
+    this.saveLocalConfig();
+    this.send({ type: "set_preference", key: serverKey, value: nextValue });
+    const messageKey = isGlobal
+      ? (nextValue ? "main-global-chat-muted" : "main-global-chat-unmuted")
+      : (nextValue ? "main-table-chat-muted" : "main-table-chat-unmuted");
+    this.speak(messageKey, { buffer: "system", noHistory: true });
   }
 
   handlePong() {
@@ -2617,6 +2713,9 @@ class PlayAuralWebApp {
       updates[flatKey] = packet.value;
     }
     this.applyPreferences();
+    if (updates.muted_buffers !== undefined) {
+      this.historyView.setMutedBuffers(updates.muted_buffers || []);
+    }
     if (updates.speech_voice !== undefined || updates.speech_mode !== undefined || updates.speech_rate !== undefined) {
       this.webSpeech.applyPreferences();
     }

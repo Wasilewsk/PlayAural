@@ -69,10 +69,10 @@ export function createStore() {
       Object.assign(state.currentMenu, menuPatch);
       notify();
     },
-    addHistory(buffer, text) {
+    addHistory(buffer, text, options = {}) {
       const normalized = normalizeHistoryBuffer(buffer);
       pushCapped(state.historyBuffers[normalized], text);
-      if (normalized !== "all") {
+      if (normalized !== "all" && options.includeAll !== false) {
         pushCapped(state.historyBuffers.all, text);
       }
       notify();

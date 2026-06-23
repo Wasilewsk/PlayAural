@@ -54,6 +54,12 @@ export function installKeybinds({
   sendKeybind,
   sendListOnline,
   sendListOnlineWithGames,
+  onFocusMenu,
+  onFocusChat,
+  onFocusVoice,
+  onFocusHistory,
+  onOpenFriends,
+  onOpenOptions,
   onPreviousBuffer,
   onNextBuffer,
   onFirstBuffer,
@@ -63,6 +69,8 @@ export function installKeybinds({
   onOldestMessage,
   onNewestMessage,
   onToggleBufferMute,
+  onToggleTableChat,
+  onToggleGlobalChat,
   onAmbienceDown,
   onAmbienceUp,
   onMusicDown,
@@ -81,6 +89,51 @@ export function installKeybinds({
     const editing = isEditableTarget(activeElement);
     const menuFocused = activeElement === menuView.getElement();
     const connected = store.state.connection.authenticated;
+
+    if (
+      connected
+      && event.altKey
+      && !event.ctrlKey
+      && !event.shiftKey
+      && !event.metaKey
+    ) {
+      const altKey = event.key.toLowerCase();
+      if (altKey === "m") {
+        event.preventDefault();
+        onFocusMenu?.();
+        return;
+      }
+      if (altKey === "c") {
+        event.preventDefault();
+        onFocusChat?.();
+        return;
+      }
+      if (altKey === "v") {
+        event.preventDefault();
+        onFocusVoice?.();
+        return;
+      }
+      if (altKey === "h") {
+        event.preventDefault();
+        onFocusHistory?.();
+        return;
+      }
+      if (altKey === "p") {
+        event.preventDefault();
+        onPing?.();
+        return;
+      }
+      if (altKey === "f") {
+        event.preventDefault();
+        onOpenFriends?.();
+        return;
+      }
+      if (altKey === "o") {
+        event.preventDefault();
+        onOpenOptions?.();
+        return;
+      }
+    }
 
     if (
       connected
@@ -131,22 +184,31 @@ export function installKeybinds({
         onToggleBufferMute?.();
         return;
       }
-      if (event.key === "F7") {
+      if (event.key === "F6") {
+        event.preventDefault();
+        if (event.shiftKey) {
+          onToggleGlobalChat?.();
+        } else {
+          onToggleTableChat?.();
+        }
+        return;
+      }
+      if (event.key === "F7" && !event.shiftKey) {
         event.preventDefault();
         onAmbienceDown?.();
         return;
       }
-      if (event.key === "F8") {
+      if (event.key === "F8" && !event.shiftKey) {
         event.preventDefault();
         onAmbienceUp?.();
         return;
       }
-      if (event.key === "F9") {
+      if (event.key === "F9" && !event.shiftKey) {
         event.preventDefault();
         onMusicDown?.();
         return;
       }
-      if (event.key === "F10") {
+      if (event.key === "F10" && !event.shiftKey) {
         event.preventDefault();
         onMusicUp?.();
         return;
