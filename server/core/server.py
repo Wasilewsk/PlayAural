@@ -190,7 +190,7 @@ class Server:
         "ban_custom_reason_input", "mute_custom_reason_input",
         "host_management_menu", "host_invite_menu", "host_pass_menu",
         "host_kick_menu", "host_kick_ban_menu", HOST_RESTART_CONFIRM_MENU,
-        "table_invite_prompt",
+        "table_invite_prompt", "game_over",
     }
 
     # Subset of GLOBAL_SYSTEM_MENUS: menus that are transient overlays shown
@@ -3101,6 +3101,21 @@ PlayAural Server
         self._user_states[user.username] = {"menu": "in_game", "table_id": table_id}
         user.set_table_context(table_id)
 
+    def _set_game_over_state(self, user: NetworkUser, table_id: str) -> None:
+        self._user_states[user.username] = {
+            "menu": "game_over",
+            "table_id": table_id,
+        }
+        user.set_table_context(table_id)
+
+    def _clear_game_over_state(self, user: NetworkUser, table_id: str) -> None:
+        state = self._user_states.get(user.username, {})
+        if state.get("menu") != "game_over":
+            return
+        if state.get("table_id") and state.get("table_id") != table_id:
+            return
+        self._set_in_game_state(user, table_id)
+
     async def _handle_voice_presence(self, client: ClientConnection, packet: dict) -> None:
         user = self._users.get(client.username)
         if not user:
@@ -3445,6 +3460,21 @@ PlayAural Server
                     table.game.handle_event(player, packet)
                     self._maybe_run_deferred_navigation(user)
                     self._maybe_show_deferred_table_invite(user)
+            return
+
+        if current_menu == "game_over" or menu_id == "game_over":
+            if menu_id != "game_over":
+                return
+            table_id = state.get("table_id")
+            table = (
+                self._tables.get_table(table_id)
+                if table_id
+                else self._tables.find_user_table(username)
+            )
+            if table and table.game:
+                player = table.game.get_player_by_id(user.uuid)
+                if player:
+                    table.game.handle_event(player, packet)
             return
 
         # Check if user is in a table - delegate to game ONLY if it's a table-specific menu
@@ -8002,6 +8032,27 @@ PlayAural Server
                 table,
                 focus_id=frame.get("_game_return_focus_id"),
             )
+            return
+        if menu == "game_over":
+            table_id = frame.get("table_id")
+            table = (
+                self._tables.get_table(table_id)
+                if table_id
+                else self._tables.find_user_table(username)
+            )
+            game = table.game if table else None
+            player = game.get_player_by_id(user.uuid) if game else None
+            result = getattr(game, "_last_game_result", None) if game else None
+            is_open = False
+            if game and player and hasattr(game, "_is_end_screen_open_for_player"):
+                is_open = game._is_end_screen_open_for_player(player)
+            if game and player and result and is_open and hasattr(game, "_show_end_screen_to_player"):
+                game._show_end_screen_to_player(player, result, mark_open=False)
+                if username in self._user_states:
+                    self._user_states[username]["_stack"] = stack
+                    self._restore_menu_focus(user, frame)
+            else:
+                self._return_to_game(user, table)
             return
         if menu in self.IN_GAME_OVERLAY_MENUS:
             table_id = frame.get("table_id")

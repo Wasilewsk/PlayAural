@@ -154,6 +154,20 @@ class GameResultMixin:
         for player in self.players:
             self._show_end_screen_to_player(player, result)
 
+    def _set_end_screen_server_state(self, user: "User") -> None:
+        """Tell the server that this user's active UI is the post-game screen."""
+        server = getattr(getattr(self, "_table", None), "_server", None)
+        table_id = getattr(getattr(self, "_table", None), "table_id", None)
+        if server is not None and table_id and hasattr(server, "_set_game_over_state"):
+            server._set_game_over_state(user, table_id)
+
+    def _clear_end_screen_server_state(self, user: "User") -> None:
+        """Clear the server's post-game UI state for this user."""
+        server = getattr(getattr(self, "_table", None), "_server", None)
+        table_id = getattr(getattr(self, "_table", None), "table_id", None)
+        if server is not None and table_id and hasattr(server, "_clear_game_over_state"):
+            server._clear_game_over_state(user, table_id)
+
     def _show_end_screen_to_player(
         self,
         player: "Player",
@@ -185,7 +199,7 @@ class GameResultMixin:
                     id="return_to_table",
                 )
             )
-            # game_over menu will be handled by the NEW game instance's EventHandlingMixin
+            # game_over selections are routed through EventHandlingMixin.
             user.show_menu(
                 "game_over",
                 items,
@@ -193,22 +207,8 @@ class GameResultMixin:
                 escape_behavior=EscapeBehavior.SELECT_LAST,
             )
 
-            # Bug 2 fix: If the player had a global overlay open (e.g. friends_hub_menu,
-            # online_users, options_menu) when the game ended, _user_states still points
-            # to that overlay.  The client now shows "game_over" but the server routes
-            # all button presses to the overlay handler — so buttons are unresponsive.
-            # Clear any overlay state so the server correctly routes game_over selections.
-            server = getattr(getattr(self, "_table", None), "_server", None)
-            if server is not None:
-                state = server._user_states.get(user.username, {})
-                if state.get("menu") in server.GLOBAL_SYSTEM_MENUS:
-                    table_id = getattr(getattr(self, "_table", None), "table_id", None)
-                    server._user_states[user.username] = {
-                        "menu": "in_game",
-                        "table_id": table_id,
-                    }
-                    # Also clear any actions-menu-open flag so rebuild guards don't block
-                    self._actions_menu_open.discard(player.id)
+            self._set_end_screen_server_state(user)
+            self._actions_menu_open.discard(player.id)
 
     def _is_end_screen_open_for_player(self, player: "Player") -> bool:
         """Return whether this player's post-game screen is still active."""
@@ -237,10 +237,16 @@ class GameResultMixin:
     def _restore_end_screen_if_open(self, player: "Player") -> bool:
         """Repaint the player's own end screen and block unrelated menu refreshes."""
         if not self._is_end_screen_open_for_player(player):
+            user = self.get_user(player)
+            if user:
+                self._clear_end_screen_server_state(user)
             return False
         result = self._last_game_result
         if result is None:
             self._discard_end_screen_player_id(player.id)
+            user = self.get_user(player)
+            if user:
+                self._clear_end_screen_server_state(user)
             return False
         self._show_end_screen_to_player(player, result, mark_open=False)
         return True
@@ -251,6 +257,7 @@ class GameResultMixin:
         user = self.get_user(player)
         if user:
             user.remove_menu("game_over")
+            self._clear_end_screen_server_state(user)
 
     def _dismiss_all_end_screens(self) -> None:
         """Dismiss every active post-game screen, used when a new game starts."""
@@ -263,6 +270,7 @@ class GameResultMixin:
             user = self.get_user(player) if player else None
             if user:
                 user.remove_menu("game_over")
+                self._clear_end_screen_server_state(user)
 
     def _export_end_screen_state(self) -> dict[str, Any]:
         """Return runtime end-screen state for transfer to a fresh lobby game."""

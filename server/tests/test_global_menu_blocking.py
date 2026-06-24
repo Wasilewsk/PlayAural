@@ -99,6 +99,99 @@ async def test_options_submenu_blocks_game_menu_rebuild_while_playing() -> None:
 
 
 @pytest.mark.asyncio
+async def test_game_over_interrupts_global_menu_and_remains_responsive() -> None:
+    server, host, _guest, table, game, _host_player = _make_playing_game_server()
+    try:
+        await server._handle_open_options(SimpleNamespace(username=host.username))
+        await server._handle_menu(
+            SimpleNamespace(username=host.username),
+            {
+                "type": "menu",
+                "menu_id": "options_menu",
+                "selection_id": "options_audio",
+            },
+        )
+        assert server._user_states[host.username]["menu"] == "options_audio_submenu"
+
+        host.clear_messages()
+        game.finish_game()
+        assert table.game is not game
+        assert server._user_states[host.username] == {
+            "menu": "game_over",
+            "table_id": table.table_id,
+        }
+        assert "game_over" in host.menus
+
+        original_typing_sounds = host.preferences.play_typing_sounds
+        await server._handle_menu(
+            SimpleNamespace(username=host.username),
+            {
+                "type": "menu",
+                "menu_id": "options_audio_submenu",
+                "selection_id": "play_typing_sounds",
+            },
+        )
+        assert host.preferences.play_typing_sounds is original_typing_sounds
+        assert server._user_states[host.username]["menu"] == "game_over"
+
+        host.clear_messages()
+        await server._handle_menu(
+            SimpleNamespace(username=host.username),
+            {
+                "type": "menu",
+                "menu_id": "game_over",
+                "selection_id": "return_to_table",
+            },
+        )
+        assert server._user_states[host.username] == {
+            "menu": "in_game",
+            "table_id": table.table_id,
+        }
+        assert "game_over" not in host.menus
+        assert "turn_menu" in host.menus
+    finally:
+        server._db.close()
+
+
+@pytest.mark.asyncio
+async def test_game_over_leave_from_interrupted_global_menu_routes_to_table() -> None:
+    server, host, _guest, table, game, _host_player = _make_playing_game_server()
+    try:
+        await server._handle_open_options(SimpleNamespace(username=host.username))
+        assert server._user_states[host.username]["menu"] == "options_menu"
+
+        game.finish_game()
+        assert server._user_states[host.username]["menu"] == "game_over"
+
+        await server._handle_menu(
+            SimpleNamespace(username=host.username),
+            {
+                "type": "menu",
+                "menu_id": "game_over",
+                "selection_id": "leave_game",
+            },
+        )
+        assert server._user_states[host.username] == {
+            "menu": "in_game",
+            "table_id": table.table_id,
+        }
+        assert "leave_game_confirm" in host.menus
+
+        await server._handle_menu(
+            SimpleNamespace(username=host.username),
+            {
+                "type": "menu",
+                "menu_id": "leave_game_confirm",
+                "selection_id": "yes",
+            },
+        )
+        assert table.get_user(host.username) is None
+        assert server._user_states[host.username]["menu"] == "main_menu"
+    finally:
+        server._db.close()
+
+
+@pytest.mark.asyncio
 async def test_open_options_is_idempotent_inside_options_flow() -> None:
     server, host, _guest, _table, _game, _host_player = _make_playing_game_server()
     try:
