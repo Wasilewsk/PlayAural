@@ -1,5 +1,37 @@
 Nhật ký thay đổi
 
+Thứ Năm 25 Tháng Sáu 2026
+
+Cập nhật máy chủ:
+
+Luồng chơi poker mượt hơn trong Poker Rút năm lá, Poker Texas Hold'em và Poker Tử Thần. Sau khi đổi bài hoặc giữ nguyên bài, tiêu điểm quay về menu hành động chính; người chơi đã hết chip được xem như khán giả thay vì còn thấy hành động của ván bài; Poker Tử Thần dùng một nút Bỏ bài / Bỏ non theo ngữ cảnh; các lượt Theo tất tay xử lý nhất quán hơn; và Đọc tình hình bàn / Đọc rủi ro ổ đạn dùng màn hình trạng thái trực tiếp hiện đại.
+
+Trạng thái hiện diện và màn hình kết thúc ván rõ hơn. Danh sách bạn bè và danh sách người chơi giờ phân biệt người đang ở menu chính với người đang ngồi chờ tại bàn, và màn hình kết quả cuối ván là riêng của từng người. Khi bạn đóng kết quả, màn hình của người khác không bị đóng theo; người vào hoặc rời bàn không làm mất màn hình kết quả của bạn; và màn hình vẫn tự đóng khi ván mới bắt đầu.
+
+Quản lý bàn dễ dùng hơn cho chủ bàn. Sau khi mời bạn bè, chuyển chủ bàn, đuổi người chơi, hoặc đuổi và cấm, danh sách liên quan sẽ tự làm mới và vẫn mở để chủ bàn tiếp tục thao tác mà không phải mở lại menu.
+
+Màn hình kết thúc ván giờ vẫn phản hồi bình thường nếu ván kết thúc khi bạn đang mở menu khác, chẳng hạn Bạn bè hoặc Tùy chỉnh.
+
+Cập nhật ứng dụng di động:
+
+Ứng dụng di động ổn định hơn khi chạy nền. Kết nối game vẫn được giữ khi bạn thu nhỏ ứng dụng hoặc tắt màn hình, và micro trong trò chuyện thoại tiếp tục truyền âm trong nền trên những thiết bị trước đây thường ngừng sau vài giây.
+
+Âm thanh và khả năng truy cập trên di động được tinh chỉnh thêm. Trò chuyện thoại không còn ép âm thanh trò chơi thành mono, cử chỉ tự đọc đáng tin cậy hơn, ô nhập liệu đọc nội dung tốt hơn, thay đổi giọng đọc và tốc độ đọc áp dụng ngay lập tức, và phần chỉnh tốc độ đọc giờ dùng menu rõ ràng giống các mục âm lượng.
+
+Chế độ TalkBack ổn định hơn khi tắt chế độ tự đọc. Thông báo từ máy chủ được xử lý gần giống phiên bản web hơn, tiêu điểm menu được giữ trong menu đang mở, và các trò xúc xắc như Farkle giờ đưa tiêu điểm đúng tới lựa chọn ghi điểm thay vì nhảy về nút bật/tắt tự đọc.
+
+Cập nhật phiên bản web:
+
+Phiên bản web đã được nâng cấp thành một ứng dụng PlayAural đầy đủ hơn. Trải nghiệm bàn phím giống phần mềm máy tính hơn, bố cục cảm ứng và di động tốt hơn, màn hình đăng nhập và tài khoản rõ hơn, trò chuyện thoại ổn định hơn, hỗ trợ khôi phục mật khẩu và CAPTCHA, nhật ký được giữ mượt hơn, và giao diện dễ nhìn hơn cho người thị lực kém.
+
+Menu trên web giờ hoạt động gần hơn với phần mềm máy tính. Phím Tab chuyển vòng giữa menu, nhật ký và trò chuyện; Escape hoạt động trong nhiều menu hơn; lời nhắc nhập liệu dùng ô một dòng hoặc nhiều dòng đúng ngữ cảnh; âm thanh gõ chữ và âm thanh menu nhất quán hơn; F4 có thể tắt tiếng bộ đệm hiện tại; và phím chỉnh âm lượng nhạc / môi trường đã hoạt động.
+
+Đầu ra cho trình đọc màn hình trên web đáng tin cậy hơn. ARIA live và Web Speech không còn bỏ sót thông báo, phím đọc bộ đệm hoạt động trong chế độ Web Speech, phần chọn giọng nói rõ hơn trên nhiều hệ điều hành, và menu tốc độ đọc hỗ trợ dải tốc độ hữu ích hơn.
+
+Phiên bản web giờ thử kết nối lại trong tối đa 30 giây khi mạng hoặc máy chủ bị gián đoạn, rồi thông báo rõ ràng nếu không thể kết nối lại.
+
+Bản dịch và thông báo kết nối trên web rõ hơn bằng tiếng Anh và tiếng Việt, và trình duyệt Android giờ được nhận diện là Android thay vì Linux trong danh sách người chơi trực tuyến.
+
 Chủ Nhật 21 Tháng Sáu 2026
 
 Cập nhật máy chủ:

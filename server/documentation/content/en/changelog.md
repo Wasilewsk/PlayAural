@@ -1,5 +1,37 @@
 Changelog
 
+Thursday 25 June 2026
+
+Server Updates:
+
+Poker table flow is smoother in Five Card Draw, Texas Hold'em, and Dead Man's Poker. Draw and stand-pat choices now return you to the main action menu, busted players are treated like spectators instead of seeing hand actions, Dead Man's Poker uses one contextual Fold button, all-in calls behave consistently, and Read table / Read revolvers now open modern live status screens.
+
+Player location and post-game screens are clearer. Friends and player lists now distinguish people in the main lobby from people waiting at a table, and each player's end-of-game screen is now their own. Closing your results no longer closes someone else's, new joins or leaves do not dismiss your results, and the screen still closes automatically when a new game starts.
+
+Host Management is easier for hosts. After inviting a friend, passing host, kicking, or kicking and banning, the related list refreshes and stays open so hosts can continue managing the table without reopening the menu.
+
+Game-over screens now stay responsive even if you were in another menu, such as Friends or Options, when the match ended.
+
+Mobile Client Updates:
+
+The mobile app is more reliable in the background. The game connection stays alive when the app is minimized or the screen is off, and voice chat microphones keep transmitting in the background on devices that previously stopped after a few seconds.
+
+Mobile audio and accessibility have been polished. Voice chat no longer forces game audio into mono, self-voicing gestures are more reliable, edit boxes read their contents better, TTS voice and speed changes apply immediately, and the speech speed control now uses the same clear menu style as volume controls.
+
+TalkBack mode is steadier when self-voicing is off. Server announcements are handled more like the web version, menu focus stays inside the active menu, and dice games such as Farkle now land on the correct scoring choice instead of bouncing to the self-voicing toggle.
+
+Web Client Updates:
+
+The web version has been rebuilt into a fuller PlayAural client. It now has stronger desktop-style keyboard navigation, better touch and mobile layout, clearer login and account screens, improved voice chat handling, password recovery, CAPTCHA support, stable history buffers, and a more polished low-vision interface.
+
+Web menus now behave more like the desktop client. Tab cycles through the menu, history, and chat; Escape works from more menus; input prompts use single-line or multiline fields appropriately; typing sounds and menu sounds are more consistent; F4 can mute the current buffer; and music / ambience volume shortcuts now work.
+
+Screen reader output on the web is more dependable. ARIA live and Web Speech announcements no longer skip messages, buffer reading shortcuts work in Web Speech mode, voice selection is clearer across operating systems, and the speech speed menu supports a wider useful range.
+
+The web version now tries to reconnect for up to 30 seconds when the network or server drops, then gives a clear message if it cannot reconnect.
+
+Web localization and connection messages are clearer in English and Vietnamese, and Android browsers are now identified as Android instead of Linux in the online players list.
+
 Sunday 21 June 2026
 
 Server Updates:
