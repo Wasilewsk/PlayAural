@@ -65,6 +65,43 @@ def test_online_users_menu_formats_game_names() -> None:
     assert "Alice (User, Desktop, English): Main menu" in texts
 
 
+def test_client_platform_sanitizer_bounds_untrusted_display_text() -> None:
+    sanitized = Server._sanitize_client_platform("<Windows>\n<script>AMD64</script>" * 3)
+    assert sanitized.startswith("Windows scriptAMD64/script")
+    assert "<" not in sanitized
+    assert ">" not in sanitized
+    assert "\n" not in sanitized
+    assert len(sanitized) == 40
+
+
+def test_online_users_menu_includes_first_party_client_platforms() -> None:
+    server = _make_server()
+    viewer = MockUser("Viewer")
+    desktop = MockUser("DesktopPlayer")
+    web = MockUser("WebPlayer")
+    mobile = MockUser("MobilePlayer")
+
+    desktop.client_type = "python"
+    desktop.client_platform = "Windows 11 AMD64"
+    web.client_type = "web"
+    web.client_platform = "Windows"
+    mobile.client_type = "mobile"
+    mobile.client_platform = "Android 16 (API 36)"
+    server._users = {
+        "Viewer": viewer,
+        "DesktopPlayer": desktop,
+        "WebPlayer": web,
+        "MobilePlayer": mobile,
+    }
+
+    server._show_online_users_menu(viewer)
+
+    texts = _menu_texts(viewer, "online_users")
+    assert "DesktopPlayer (User, Desktop (Windows 11 AMD64), English): Main menu" in texts
+    assert "WebPlayer (User, Web (Windows), English): Main menu" in texts
+    assert "MobilePlayer (User, Mobile (Android 16 (API 36)), English): Main menu" in texts
+
+
 def test_online_users_menu_distinguishes_playing_and_spectating() -> None:
     server = _make_server()
     viewer = MockUser("Viewer")

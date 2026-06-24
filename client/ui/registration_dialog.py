@@ -11,6 +11,7 @@ import os
 
 # Ensure we can import localization
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from client_info import client_auth_metadata
 from localization import Localization
 from ssl_utils import make_ssl_context
 
@@ -184,12 +185,12 @@ class RegistrationDialog(wx.Dialog):
                 await ws.send(
                     json.dumps(
                         {
+                            **client_auth_metadata(),
                             "type": "register",
                             "username": username,
                             "password": password,
                             "email": email,
                             "locale": Localization._locale,
-                            "client": "python",
                         }
                     )
                 )

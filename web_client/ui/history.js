@@ -6,6 +6,7 @@ export function createHistoryView({
   historyToggleEl,
   bufferSelectEl,
   a11y,
+  announceFeedback = (text, options = {}) => a11y?.announce(text, options),
   initialMutedBuffers = [],
   onMutedBuffersChange = () => {},
   localize = (key, params = {}) => {
@@ -97,11 +98,11 @@ export function createHistoryView({
   function announceBufferInfo() {
     const info = getCurrentBufferInfo();
     const status = info.muted ? `, ${localize("buffer-status-muted")}` : "";
-    a11y.announce(localize("main-buffer-info", {
+    announceFeedback(localize("main-buffer-info", {
       name: localizeBufferName(info.name),
       status,
       count: info.count,
-    }), { assertive: true });
+    }), { assertive: true, interrupt: true });
   }
 
   function getCurrentItemText() {
@@ -121,9 +122,9 @@ export function createHistoryView({
   function announceCurrentItem() {
     const text = getCurrentItemText();
     if (text) {
-      a11y.announce(text, { assertive: true });
+      announceFeedback(text, { assertive: true, interrupt: true });
     } else {
-      a11y.announce(localize("main-buffer-empty"), { assertive: true });
+      announceFeedback(localize("main-buffer-empty"), { assertive: true, interrupt: true });
     }
   }
 
@@ -207,7 +208,7 @@ export function createHistoryView({
     const sourceDirectlyMuted = normalizedBuffer !== "all" && isBufferDirectlyMuted(normalizedBuffer);
     store.addHistory(normalizedBuffer, text, { includeAll: !sourceDirectlyMuted });
     if (announce && !incomingBufferMuted) {
-      a11y.announce(text, { assertive });
+      a11y?.announce(text, { assertive });
     }
     return !incomingBufferMuted;
   }
@@ -262,10 +263,10 @@ export function createHistoryView({
     render();
     onMutedBuffersChange(getMutedBuffers());
     const status = localize(mutedBuffers.has(info.name) ? "buffer-status-muted" : "buffer-status-unmuted");
-    a11y.announce(localize("main-buffer-status", {
+    announceFeedback(localize("main-buffer-status", {
       name: localizeBufferName(info.name),
       status,
-    }), { assertive: true });
+    }), { assertive: true, interrupt: true });
   }
 
   if (bufferSelectEl) {

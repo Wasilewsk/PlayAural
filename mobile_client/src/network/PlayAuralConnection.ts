@@ -1,4 +1,5 @@
 import type { ClientPacket, ServerPacket } from "./packets";
+import { clientAuthMetadata } from "./clientInfo";
 
 type ConnectionHandlers = {
   onClose?: (reason?: string) => void;
@@ -26,7 +27,7 @@ export class PlayAuralConnection {
       }
       this.handlers.onOpen?.();
       this.send({
-        client: "mobile",
+        ...clientAuthMetadata(),
         password,
         type: "authorize",
         username,

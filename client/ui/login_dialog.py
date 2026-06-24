@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config_manager import ConfigManager
 from auth_error_messages import get_login_failure_message
+from client_info import client_auth_metadata
 from localization import Localization
 from ssl_utils import make_ssl_context
 
@@ -367,10 +368,10 @@ class LoginDialog(wx.Dialog):
                 await ws.send(
                     json.dumps(
                         {
+                            **client_auth_metadata(),
                             "type": "request_password_reset",
                             "email": email,
                             "locale": Localization._locale,
-                            "client": "python",
                         }
                     )
                 )
@@ -521,12 +522,12 @@ class LoginDialog(wx.Dialog):
                 await ws.send(
                     json.dumps(
                         {
+                            **client_auth_metadata(),
                             "type": "submit_reset_code",
                             "email": email,
                             "code": code,
                             "new_password": new_password,
                             "locale": Localization._locale,
-                            "client": "python",
                         }
                     )
                 )
@@ -672,11 +673,11 @@ class LoginDialog(wx.Dialog):
              async with websockets.connect(self.server_url, ssl=make_ssl_context(self.server_url)) as ws:
                 # Send authorize
                 await ws.send(json.dumps({
+                    **client_auth_metadata(),
                     "type": "authorize",
                     "username": username,
                     "password": password,
                     "version": self.version,
-                    "client": "python",
                 }))
                 
                 # Wait for response

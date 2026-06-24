@@ -578,8 +578,33 @@ PlayAural Server
 
         If the packet doesn't specify a client type, treat it as ``python``.
         """
-        client_type = str(packet.get("client", "python")).strip().lower()
+        client_type = str(
+            packet.get("client", packet.get("client_type", "python"))
+        ).strip().lower()
+        if client_type == "desktop":
+            client_type = "python"
         return client_type or "python"
+
+    @staticmethod
+    def _sanitize_client_platform(value: object) -> str:
+        """Return a short, safe runtime platform label supplied by a client."""
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        safe_chars = []
+        for char in text:
+            if char.isalnum() or char in {" ", ".", "-", "_", "/", "+", "(", ")"}:
+                safe_chars.append(char)
+            elif char.isspace():
+                safe_chars.append(" ")
+        sanitized = " ".join("".join(safe_chars).split())
+        return sanitized[:40]
+
+    def _get_auth_client_platform(self, packet: dict) -> str:
+        """Return sanitized optional platform metadata for online presence."""
+        return self._sanitize_client_platform(
+            packet.get("platform", packet.get("client_platform", ""))
+        )
 
     async def _verify_captcha_if_required(
         self, client: ClientConnection, packet: dict
@@ -675,6 +700,7 @@ PlayAural Server
         username = packet.get("username", "")
         password = packet.get("password", "")
         client_type = self._get_auth_client_type(packet)
+        client_platform = self._get_auth_client_platform(packet)
 
         # Rate limit check (brute force protection)
         if not self._rate_limiter.is_login_allowed(client.ip_address):
@@ -779,7 +805,13 @@ PlayAural Server
             except (json.JSONDecodeError, KeyError):
                 pass  # Use defaults on error
         user = NetworkUser(
-            canonical_username, locale, client, client_type=client_type, uuid=user_uuid, preferences=preferences,
+            canonical_username,
+            locale,
+            client,
+            client_type=client_type,
+            client_platform=client_platform,
+            uuid=user_uuid,
+            preferences=preferences,
             trust_level=trust_level, approved=is_approved
         )
         self._users[canonical_username] = user
@@ -7328,6 +7360,14 @@ PlayAural Server
         # Fallback if key missing
         if client_text == client_key:
              client_text = client_type.capitalize()
+        client_platform = getattr(user, "client_platform", "")
+        if client_platform:
+            client_text = Localization.get(
+                locale,
+                "client-type-with-platform",
+                client=client_text,
+                platform=client_platform,
+            )
         
         return role_text, client_text
 

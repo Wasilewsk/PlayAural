@@ -33,6 +33,7 @@ class NetworkUser(User):
         locale: str,
         connection: "ClientConnection",
         client_type: str = "python",  # Default to python client for legacy compatibility
+        client_platform: str = "",
         uuid: str | None = None,
         preferences: UserPreferences | None = None,
         trust_level: int = 1,
@@ -43,6 +44,7 @@ class NetworkUser(User):
         self._locale = locale
         self._connection = connection
         self._client_type = client_type
+        self._client_platform = client_platform
         self._preferences = preferences or UserPreferences()
         self._trust_level = trust_level
         self._approved = approved
@@ -73,6 +75,10 @@ class NetworkUser(User):
     @property
     def client_type(self) -> str:
         return self._client_type
+
+    @property
+    def client_platform(self) -> str:
+        return self._client_platform
 
     def set_locale(self, locale: str) -> None:
         """Set the user's locale."""

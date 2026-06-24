@@ -143,6 +143,7 @@ user-role-user = Người dùng
 client-type-web = Web
 client-type-python = Máy tính
 client-type-mobile = Di động
+client-type-with-platform = { $client } ({ $platform })
 online-user-full-entry = { $username } ({ $role }, { $client }, { $language }): { $status }
 online-user-actions-title = Hành động cho { $username }
 user-not-online-anymore = Người dùng này không còn trực tuyến.

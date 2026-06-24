@@ -6,6 +6,7 @@ import threading
 import traceback
 import wx
 import websockets
+from client_info import client_auth_metadata
 from ssl_utils import make_ssl_context
 
 
@@ -107,11 +108,11 @@ class NetworkManager:
                 await websocket.send(
                     json.dumps(
                         {
+                            **client_auth_metadata(),
                             "type": "authorize",
                             "username": username,
                             "password": password,
                             "version": client_version,
-                            "client": "python",
                         }
                     )
                 )

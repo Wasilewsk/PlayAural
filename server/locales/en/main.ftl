@@ -143,6 +143,7 @@ user-role-user = User
 client-type-web = Web
 client-type-python = Desktop
 client-type-mobile = Mobile
+client-type-with-platform = { $client } ({ $platform })
 online-user-full-entry = { $username } ({ $role }, { $client }, { $language }): { $status }
 online-user-actions-title = Actions for { $username }
 user-not-online-anymore = This user is no longer online.

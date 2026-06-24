@@ -37,6 +37,7 @@ import { useSelfVoicingGestures } from "../gestures/useSelfVoicingGestures";
 import { bundledSoundVersion } from "../generated/soundManifest";
 import { MobileLocalization } from "../i18n/localization";
 import { PlayAuralConnection } from "../network/PlayAuralConnection";
+import { clientAuthMetadata } from "../network/clientInfo";
 import type {
   AuthorizeSuccessPacket,
   ChatPacket,
@@ -4297,7 +4298,7 @@ export function PlayAuralApp() {
     }
     await requestAuthFlow(
       {
-        client: "mobile",
+        ...clientAuthMetadata(),
         email: registerEmail.trim(),
         locale: appLocale,
         password,
@@ -4317,7 +4318,7 @@ export function PlayAuralApp() {
     }
     await requestAuthFlow(
       {
-        client: "mobile",
+        ...clientAuthMetadata(),
         email: forgotEmail.trim(),
         locale: appLocale,
         type: "request_password_reset",
@@ -4341,7 +4342,7 @@ export function PlayAuralApp() {
     }
     await requestAuthFlow(
       {
-        client: "mobile",
+        ...clientAuthMetadata(),
         code: resetCode.trim(),
         email: resetEmail.trim(),
         locale: appLocale,

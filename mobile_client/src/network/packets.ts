@@ -241,6 +241,7 @@ export type AuthorizePacket = {
   password: string;
   version: string;
   client: "mobile";
+  platform?: string;
 };
 
 export type RegisterPacket = {
@@ -251,6 +252,7 @@ export type RegisterPacket = {
   email: string;
   bio?: string;
   client: "mobile";
+  platform?: string;
 };
 
 export type RequestPasswordResetPacket = {
@@ -258,6 +260,7 @@ export type RequestPasswordResetPacket = {
   email: string;
   locale: string;
   client: "mobile";
+  platform?: string;
 };
 
 export type SubmitResetCodePacket = {
@@ -267,6 +270,7 @@ export type SubmitResetCodePacket = {
   new_password: string;
   locale: string;
   client: "mobile";
+  platform?: string;
 };
 
 export type MenuSelectionPacket = {

@@ -23,6 +23,12 @@ const RECONNECT_WINDOW_MS = 30000;
 const RECONNECT_INITIAL_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 10000;
 const SERVER_RESTART_RECONNECT_DELAY_MS = 3000;
+const WEB_SPEECH_PREF_MIN = 10;
+const WEB_SPEECH_PREF_NORMAL = 100;
+const WEB_SPEECH_PREF_MAX = 300;
+const WEB_SPEECH_RATE_MIN = 0.1;
+const WEB_SPEECH_RATE_NORMAL = 1;
+const WEB_SPEECH_RATE_MAX = 10;
 const RECAPTCHA_SITE_KEY = String(
   window.PLAYAURAL_RECAPTCHA_SITE_KEY || window.RECAPTCHA_SITE_KEY || "",
 ).trim();
@@ -67,6 +73,60 @@ function normalizeBuffer(buffer) {
     return buffer;
   }
   return "misc";
+}
+
+function webSpeechRateFromPreference(value) {
+  const pref = clampNumber(value, WEB_SPEECH_PREF_MIN, WEB_SPEECH_PREF_MAX, WEB_SPEECH_PREF_NORMAL);
+  if (pref <= WEB_SPEECH_PREF_NORMAL) {
+    return clampNumber(pref / WEB_SPEECH_PREF_NORMAL, WEB_SPEECH_RATE_MIN, WEB_SPEECH_RATE_NORMAL, WEB_SPEECH_RATE_NORMAL);
+  }
+  const ratio = (pref - WEB_SPEECH_PREF_NORMAL) / (WEB_SPEECH_PREF_MAX - WEB_SPEECH_PREF_NORMAL);
+  return clampNumber(
+    WEB_SPEECH_RATE_NORMAL + ratio * (WEB_SPEECH_RATE_MAX - WEB_SPEECH_RATE_NORMAL),
+    WEB_SPEECH_RATE_MIN,
+    WEB_SPEECH_RATE_MAX,
+    WEB_SPEECH_RATE_NORMAL,
+  );
+}
+
+function detectClientPlatform() {
+  const nav = window.navigator || {};
+  const userAgentDataPlatform = String(nav.userAgentData?.platform || "").trim();
+  const platform = String(userAgentDataPlatform || nav.platform || "").trim();
+  const userAgent = String(nav.userAgent || "");
+  const maxTouchPoints = Number(nav.maxTouchPoints || 0);
+  const probe = `${platform} ${userAgent}`.toLowerCase();
+
+  if (/android/.test(probe)) {
+    return "Android";
+  }
+  if (/iphone|ipod/.test(probe)) {
+    return "iOS";
+  }
+  if (/ipad/.test(probe) || (platform === "MacIntel" && maxTouchPoints > 1)) {
+    return "iPadOS";
+  }
+  if (/windows|win32|win64|wow64/.test(probe)) {
+    return "Windows";
+  }
+  if (/macintosh|mac os|macintel|macppc|mac68k/.test(probe)) {
+    return "macOS";
+  }
+  if (/cros/.test(probe)) {
+    return "ChromeOS";
+  }
+  if (/linux|x11/.test(probe)) {
+    return "Linux";
+  }
+  return platform || "";
+}
+
+function clientAuthMetadata() {
+  const platform = detectClientPlatform();
+  return {
+    client: "web",
+    ...(platform ? { platform } : {}),
+  };
 }
 
 function storageGet(key, remember = true) {
@@ -210,14 +270,21 @@ class WebSpeechManager {
     this.lastSpeechMode = null;
     this.lastSpeechRate = null;
     this.lastSpeechVoice = null;
+    this.voiceSignature = "";
+    this.voiceRefreshTimers = [];
 
     if (window.speechSynthesis) {
       this.refreshVoices();
-      window.speechSynthesis.onvoiceschanged = () => {
+      const handleVoicesChanged = () => {
         this.refreshVoices();
         this.updateTargetVoice();
         this.onVoicesChanged?.();
       };
+      if (typeof window.speechSynthesis.addEventListener === "function") {
+        window.speechSynthesis.addEventListener("voiceschanged", handleVoicesChanged);
+      } else {
+        window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
+      }
     }
   }
 
@@ -261,8 +328,63 @@ class WebSpeechManager {
   }
 
   refreshVoices() {
-    this.voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    const uniqueVoices = [];
+    const seen = new Set();
+    for (const voice of voices) {
+      const key = [
+        voice.voiceURI || "",
+        voice.name || "",
+        voice.lang || "",
+        voice.localService ? "local" : "remote",
+        voice.default ? "default" : "",
+      ].join("|");
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      uniqueVoices.push(voice);
+    }
+    this.voices = uniqueVoices;
+    this.voiceSignature = uniqueVoices
+      .map((voice) => [
+        this.voiceValue(voice),
+        voice.name || "",
+        voice.lang || "",
+        voice.default ? "default" : "",
+      ].join("|"))
+      .join("\u001f");
     return this.voices.slice();
+  }
+
+  clearVoiceRefreshTimers() {
+    for (const timer of this.voiceRefreshTimers) {
+      window.clearTimeout(timer);
+    }
+    this.voiceRefreshTimers = [];
+  }
+
+  requestVoiceRefresh() {
+    if (!window.speechSynthesis) {
+      return [];
+    }
+    this.clearVoiceRefreshTimers();
+    const run = () => {
+      const before = this.voiceSignature;
+      const voices = this.refreshVoices();
+      this.updateTargetVoice();
+      if (this.voiceSignature !== before) {
+        this.onVoicesChanged?.();
+      }
+      return voices;
+    };
+    const voices = run();
+    this.warmUp();
+    for (const delay of [100, 350, 800, 1500, 3000]) {
+      const timer = window.setTimeout(run, delay);
+      this.voiceRefreshTimers.push(timer);
+    }
+    return voices;
   }
 
   voiceValue(voice) {
@@ -395,9 +517,8 @@ class WebSpeechManager {
 
     const utterance = new SpeechSynthesisUtterance(text);
     const prefs = this.getPreferences();
-    const rate = clampNumber(prefs.speech_rate, 10, 1000, 100) / 100;
-    utterance.rate = clampNumber(rate, 0.1, 10, 1);
-    utterance.lang = Localization.locale || "en";
+    utterance.rate = webSpeechRateFromPreference(prefs.speech_rate);
+    utterance.lang = this.targetVoice?.lang || Localization.locale || "en";
     if (this.targetVoice) {
       utterance.voice = this.targetVoice;
     }
@@ -991,6 +1112,7 @@ class PlayAuralWebApp {
       historyToggleEl: this.elements.historyToggle,
       bufferSelectEl: this.elements.historyBuffer,
       a11y: this.a11y,
+      announceFeedback: (text, options = {}) => this.announceInterface(text, options),
       onMutedBuffersChange: (buffers) => {
         this.preferences.muted_buffers = buffers;
         this.saveLocalConfig();
@@ -1732,11 +1854,11 @@ class PlayAuralWebApp {
       return;
     }
     const packet = {
+      ...clientAuthMetadata(),
       type: "authorize",
       username,
       password,
       version: CLIENT_VERSION,
-      client: "web",
     };
     if (captcha.token) {
       packet.captcha_token = captcha.token;
@@ -1775,12 +1897,12 @@ class PlayAuralWebApp {
       return;
     }
     const packet = {
+      ...clientAuthMetadata(),
       type: "register",
       username,
       password,
       email,
       locale: Localization.locale,
-      client: "web",
     };
     if (captcha.token) {
       packet.captcha_token = captcha.token;
@@ -2021,11 +2143,11 @@ class PlayAuralWebApp {
     this.network.connect({
       serverUrl: this.lastUrl,
       authPacket: {
+        ...clientAuthMetadata(),
         type: "authorize",
         username: this.lastUser,
         password: this.lastPass,
         version: CLIENT_VERSION,
-        client: "web",
       },
     });
     this.reconnectDelayMs = Math.min(
@@ -2082,6 +2204,27 @@ class PlayAuralWebApp {
 
   send(packet) {
     return this.network.send(packet);
+  }
+
+  announceInterface(textOrKey, options = {}) {
+    const {
+      params = {},
+      assertive = false,
+      interrupt = false,
+    } = options;
+    const text = Localization.has(textOrKey) ? Localization.get(textOrKey, params) : String(textOrKey || "");
+    if (!text) {
+      return;
+    }
+    if (this.preferences.speech_mode === "web_speech") {
+      if (interrupt) {
+        this.webSpeech.speakNow(text);
+      } else {
+        this.webSpeech.speak(text);
+      }
+    } else {
+      this.a11y.announce(text, { assertive });
+    }
   }
 
   speak(textOrKey, options = {}) {
@@ -2419,10 +2562,45 @@ class PlayAuralWebApp {
     });
   }
 
+  voiceLanguageLabel(lang) {
+    const code = String(lang || "").trim();
+    if (!code) {
+      return "";
+    }
+    try {
+      const displayNames = new Intl.DisplayNames([Localization.locale || "en"], { type: "language" });
+      const label = displayNames.of(code);
+      if (label && label.toLowerCase() !== code.toLowerCase()) {
+        return `${label} (${code})`;
+      }
+    } catch {
+      // Older browsers may not support Intl.DisplayNames for BCP-47 tags.
+    }
+    return code;
+  }
+
+  stableVoiceItemId(voice, usedIds) {
+    const source = this.webSpeech.voiceValue(voice) || `${voice.name || ""}|${voice.lang || ""}`;
+    let hash = 0;
+    for (let index = 0; index < source.length; index += 1) {
+      hash = ((hash << 5) - hash + source.charCodeAt(index)) | 0;
+    }
+    const base = `web_voice_${Math.abs(hash).toString(36)}`;
+    let id = base;
+    let suffix = 2;
+    while (usedIds.has(id)) {
+      id = `${base}_${suffix}`;
+      suffix += 1;
+    }
+    usedIds.add(id);
+    return id;
+  }
+
   voiceLabel(voice) {
     const parts = [voice.name || Localization.get("default-voice")];
-    if (voice.lang) {
-      parts.push(voice.lang);
+    const language = this.voiceLanguageLabel(voice.lang);
+    if (language) {
+      parts.push(language);
     }
     if (voice.default) {
       parts.push(Localization.get("default-voice"));
@@ -2432,16 +2610,17 @@ class PlayAuralWebApp {
 
   buildVoiceSelectionItems() {
     const voices = this.webSpeech.getVoices();
+    const usedIds = new Set(["default", "back"]);
     const items = [{
       text: Localization.get("default-voice"),
       id: "default",
       sound: "",
       selectionValue: "",
     }];
-    for (const [index, voice] of voices.entries()) {
+    for (const voice of voices) {
       items.push({
         text: this.voiceLabel(voice),
-        id: `web_voice_${index}`,
+        id: this.stableVoiceItemId(voice, usedIds),
         sound: "",
         selectionValue: this.webSpeech.voiceValue(voice),
       });
@@ -2471,12 +2650,8 @@ class PlayAuralWebApp {
     this.hideInlineInput();
     let items = this.normalizeMenuItems(packet.items);
     if (packet.menu_id === "voice_selection_menu") {
-      this.webSpeech.refreshVoices();
+      this.webSpeech.requestVoiceRefresh();
       items = this.buildVoiceSelectionItems();
-      window.setTimeout(() => {
-        this.webSpeech.refreshVoices();
-        this.refreshVoiceSelectionMenuIfOpen();
-      }, 350);
     }
 
     this.webActionsItem = null;
