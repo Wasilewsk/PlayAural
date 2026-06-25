@@ -61,6 +61,8 @@ VOICE_CHAT_LEAVE_SOUND = "voice_leave.ogg"
 VOICE_JOIN_AUTHORIZATION_WINDOW_SECONDS = 120
 HOST_RESTART_CONFIRM_MENU = "host_restart_confirm_menu"
 FRIEND_REMOVE_CONFIRM_MENU = "friend_remove_confirm_menu"
+TABLE_MEMBERS_MENU = "table_members_menu"
+TABLE_MEMBER_ACTIONS_MENU = "table_member_actions_menu"
 OPTIONS_MENU_IDS = frozenset(
     {
         "options_menu",
@@ -191,6 +193,7 @@ class Server:
         "ban_custom_reason_input", "mute_custom_reason_input",
         "host_management_menu", "host_invite_menu", "host_pass_menu",
         "host_kick_menu", "host_kick_ban_menu", HOST_RESTART_CONFIRM_MENU,
+        TABLE_MEMBERS_MENU, TABLE_MEMBER_ACTIONS_MENU,
         "table_invite_prompt", "game_over",
     }
 
@@ -203,6 +206,7 @@ class Server:
     IN_GAME_OVERLAY_MENUS = {
         "host_management_menu", "host_invite_menu", "host_pass_menu",
         "host_kick_menu", "host_kick_ban_menu", HOST_RESTART_CONFIRM_MENU,
+        TABLE_MEMBERS_MENU, TABLE_MEMBER_ACTIONS_MENU,
     }
 
     def __init__(
@@ -1863,26 +1867,14 @@ PlayAural Server
         """Called when a user logs in or disconnects to refresh social menus."""
         for username, user in self._users.items():
             state = self._user_states.get(username, {})
-            current_menu = state.get("menu")
-            if current_menu == "friends_list_menu":
-                items = self._get_friends_list_menu_items(user)
-                user.update_menu("friends_list_menu", items)
-            elif current_menu == "online_users":
-                items = self._get_online_users_menu_items(user)
-                user.update_menu("online_users", items)
-            elif current_menu == "host_invite_menu":
-                table_id = state.get("table_id")
-                table = self._tables.get_table(table_id)
-                if table:
-                    items = self._get_host_invite_menu_items(user, table)
-                    user.update_menu("host_invite_menu", items)
+            self._refresh_social_presence_menu(user, state)
+            self._refresh_table_presence_menu(user, state)
 
     def on_friend_requests_changed(self, target_uuid: str) -> None:
         """Called when friend requests are sent, accepted, or declined to refresh UI."""
-        # We need to find the user by UUID to update their menu
         for username, user in self._users.items():
+            state = self._user_states.get(username, {})
             if user.uuid == target_uuid:
-                state = self._user_states.get(username, {})
                 current_menu = state.get("menu")
                 if current_menu == "friends_hub_menu":
                     items = self._get_friends_hub_menu_items(user)
@@ -1893,6 +1885,8 @@ PlayAural Server
                 elif current_menu == "friends_list_menu":
                     items = self._get_friends_list_menu_items(user)
                     user.update_menu("friends_list_menu", items)
+            self._refresh_social_presence_menu(user, state)
+            self._refresh_table_presence_menu(user, state)
 
     def on_tables_changed(self) -> None:
         """Called by TableManager when a table is created, destroyed, or changes status.
@@ -1920,6 +1914,76 @@ PlayAural Server
                 if game_type:
                     items = self._get_tables_menu_items(user, game_type)
                     user.update_menu("tables_menu", items)
+
+    def _refresh_social_presence_menu(self, user: NetworkUser, state: dict) -> None:
+        """Refresh open social menus whose contents depend on presence or friendship."""
+        current_menu = state.get("menu")
+        if current_menu == "friends_list_menu":
+            user.update_menu(
+                "friends_list_menu",
+                self._get_friends_list_menu_items(user),
+            )
+        elif current_menu == "online_users":
+            user.update_menu(
+                "online_users",
+                self._get_online_users_menu_items(user),
+            )
+        elif current_menu == "online_user_actions_menu":
+            target_username = state.get("target_username", "")
+            if target_username:
+                self._nav_refresh(user, self._show_online_user_actions_menu, target_username)
+        elif current_menu == "friend_actions_menu":
+            target_username = state.get("target_username", "")
+            if target_username:
+                self._nav_refresh(user, self._show_friend_actions_menu, target_username)
+
+    def _refresh_table_presence_menu(self, user: NetworkUser, state: dict) -> None:
+        """Refresh open table-scoped menus after joins, leaves, host changes, or bot changes."""
+        current_menu = state.get("menu")
+        if current_menu not in {
+            "host_invite_menu",
+            "host_pass_menu",
+            "host_kick_menu",
+            "host_kick_ban_menu",
+            TABLE_MEMBERS_MENU,
+            TABLE_MEMBER_ACTIONS_MENU,
+        }:
+            return
+
+        table_id = state.get("table_id")
+        table = self._tables.get_table(table_id) if table_id else None
+        if not table or not table.game:
+            self._return_to_game(user, table)
+            return
+
+        if current_menu == "host_invite_menu":
+            user.update_menu(
+                "host_invite_menu",
+                self._get_host_invite_menu_items(user, table),
+            )
+        elif current_menu == "host_pass_menu":
+            user.update_menu(
+                "host_pass_menu",
+                self._get_host_pass_menu_items(user, table),
+            )
+        elif current_menu in ("host_kick_menu", "host_kick_ban_menu"):
+            user.update_menu(
+                current_menu,
+                self._get_host_kick_menu_items(user, table),
+            )
+        elif current_menu == TABLE_MEMBERS_MENU:
+            user.update_menu(
+                TABLE_MEMBERS_MENU,
+                self._get_table_members_menu_items(user, table),
+            )
+        elif current_menu == TABLE_MEMBER_ACTIONS_MENU:
+            self._nav_refresh(
+                user,
+                self._show_table_member_actions_menu,
+                table,
+                state.get("target_kind", ""),
+                state.get("target_id", ""),
+            )
 
     # Dice keeping style display names
     DICE_KEEPING_STYLES = {
@@ -3641,6 +3705,10 @@ PlayAural Server
             await self._handle_host_kick_selection(user, selection_id, state)
         elif current_menu == HOST_RESTART_CONFIRM_MENU:
             await self._handle_host_restart_confirm_selection(user, selection_id, state)
+        elif current_menu == TABLE_MEMBERS_MENU:
+            await self._handle_table_members_selection(user, selection_id, state)
+        elif current_menu == TABLE_MEMBER_ACTIONS_MENU:
+            await self._handle_table_member_actions_selection(user, selection_id, state)
         elif current_menu == "table_invite_prompt":
             await self._handle_table_invite_selection(user, selection_id, state)
         elif current_menu == "logout_confirm_menu":
@@ -3830,8 +3898,10 @@ PlayAural Server
                 return
             self._nav_push(user, self._show_friend_actions_menu, target_username)
 
-    def _show_friend_actions_menu(self, user: NetworkUser, target_username: str) -> None:
-        """Show actions for a specific friend."""
+    def _get_friend_actions_menu_items(
+        self, user: NetworkUser, target_username: str
+    ) -> list[MenuItem]:
+        """Build the full friend action list for a current friend."""
         items = [
             MenuItem(text=Localization.get(user.locale, "view-profile"), id="view_profile"),
         ]
@@ -3849,6 +3919,41 @@ PlayAural Server
         if self._find_current_friend_record(user, target_username):
             items.append(MenuItem(text=Localization.get(user.locale, "remove-friend"), id="remove_friend"))
         items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
+        return items
+
+    def _get_non_friend_user_actions_menu_items(
+        self, user: NetworkUser, target_username: str
+    ) -> list[MenuItem]:
+        """Build profile/request actions for a non-friend user."""
+        items = [
+            MenuItem(text=Localization.get(user.locale, "view-profile"), id="view_profile"),
+        ]
+        target_record = self._db.get_user(target_username)
+        is_self = target_username.lower() == user.username.lower()
+        if target_record and not is_self and not self._find_current_friend_record(user, target_username):
+            items.append(
+                MenuItem(
+                    text=Localization.get(user.locale, "friends-send-request"),
+                    id="send_friend_request",
+                )
+            )
+        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
+        return items
+
+    def _show_friend_actions_menu(self, user: NetworkUser, target_username: str) -> None:
+        """Show actions for a specific friend."""
+        target_record = self._db.get_user(target_username)
+        if not target_record:
+            user.speak_l("unknown-player", buffer="system")
+            self._nav_back(user)
+            return
+        if self._find_current_friend_record(user, target_record.username):
+            items = self._get_friend_actions_menu_items(user, target_record.username)
+        else:
+            items = self._get_non_friend_user_actions_menu_items(
+                user,
+                target_record.username,
+            )
 
         user.show_menu(
             "friend_actions_menu",
@@ -3858,7 +3963,7 @@ PlayAural Server
         )
         self._user_states[user.username] = {
             "menu": "friend_actions_menu",
-            "target_username": target_username,
+            "target_username": target_record.username,
         }
 
     async def _handle_friend_actions_selection(self, user: NetworkUser, selection_id: str, state: dict) -> None:
@@ -3873,6 +3978,14 @@ PlayAural Server
 
         if selection_id == "view_profile":
             self._nav_push(user, self._show_public_profile, target_username)
+
+        elif selection_id == "send_friend_request":
+            target_record = self._db.get_user(target_username)
+            if not target_record:
+                user.speak_l("unknown-player", buffer="system")
+            else:
+                self._send_friend_request_to_record(user, target_record)
+            self._nav_refresh(user, self._show_friend_actions_menu, target_username)
 
         elif selection_id == "send_pm":
             user.show_editbox(
@@ -3939,6 +4052,67 @@ PlayAural Server
             )
             return None
         return target_record
+
+    def _send_friend_request_to_record(self, user: NetworkUser, target_record) -> str:
+        """Send or accept a friend request and notify both users consistently."""
+        if target_record.username.lower() == user.username.lower():
+            user.speak_l("friend-error-self", buffer="system")
+            return "self"
+
+        status = self._db.send_friend_request(user.uuid, target_record.uuid)
+
+        if status == "already_friends":
+            user.speak_l("friend-error-already-friends", buffer="system")
+        elif status == "duplicate":
+            user.speak_l("friend-error-duplicate", buffer="system")
+        elif status == "accepted":
+            user.speak_l(
+                "friend-accepted-success",
+                buffer="system",
+                username=target_record.username,
+            )
+            user.play_sound("friend_accepted.ogg")
+            target_user = self._users.get(target_record.username)
+            if target_user:
+                target_user.speak_l(
+                    "friend-accepted-notify",
+                    buffer="system",
+                    username=user.username,
+                )
+                target_user.play_sound("friend_accepted.ogg")
+            else:
+                self._db.add_notification(
+                    target_record.uuid,
+                    user.username,
+                    "friend_accepted",
+                )
+            self.on_friend_requests_changed(target_record.uuid)
+            self.on_friend_requests_changed(user.uuid)
+        elif status == "sent":
+            user.speak_l(
+                "friend-request-sent",
+                buffer="system",
+                username=target_record.username,
+            )
+            user.play_sound("friend_request_sent.ogg")
+            target_user = self._users.get(target_record.username)
+            if target_user:
+                target_user.speak_l(
+                    "friend-request-received",
+                    buffer="system",
+                    username=user.username,
+                )
+                target_user.play_sound("friend_request_received.ogg")
+            else:
+                self._db.add_notification(
+                    target_record.uuid,
+                    user.username,
+                    "friend_request_received",
+                )
+            self.on_friend_requests_changed(target_record.uuid)
+            self.on_friend_requests_changed(user.uuid)
+
+        return status
 
     def _show_friend_remove_confirm_menu(
         self, user: NetworkUser, target_username: str
@@ -5177,6 +5351,7 @@ PlayAural Server
         if hasattr(game, "_on_replacement_slot_reclaimed"):
             game._on_replacement_slot_reclaimed(bot_name, human_name)
         game.refresh_menus()
+        self.on_tables_changed()
 
     def _leave_current_table_for_transfer(
         self, user: NetworkUser, current_table: "Table"
@@ -5728,6 +5903,26 @@ PlayAural Server
             "table_id": table.table_id,
         }
 
+    def _perform_host_pass(
+        self, user: NetworkUser, table: "Table", new_host_name: str
+    ) -> bool:
+        """Transfer host to a valid active human player."""
+        if not table or not table.game or table.host != user.username:
+            user.speak_l("action-not-host", buffer="system")
+            return False
+
+        target = table.game.get_player_by_name(new_host_name)
+        if target and not target.is_bot and not target.is_spectator:
+            table.host = new_host_name
+            table.game.host = new_host_name
+            table.game.broadcast_l("host-passed", buffer="system", player=new_host_name)
+            table.game.refresh_menus()
+            self.on_tables_changed()
+            return True
+
+        user.speak_l("host-pass-failed", buffer="system")
+        return False
+
     async def _handle_host_pass_selection(
         self, user: NetworkUser, selection_id: str, state: dict
     ) -> None:
@@ -5749,17 +5944,7 @@ PlayAural Server
 
         if selection_id.startswith("pass_"):
             new_host_name = selection_id[5:]
-            if table.game:
-                target = table.game.get_player_by_name(new_host_name)
-                if target and not target.is_bot and not target.is_spectator:
-                    table.host = new_host_name
-                    table.game.host = new_host_name
-                    table.game.broadcast_l("host-passed", buffer="system", player=new_host_name)
-                    table.game.refresh_menus()
-                    self.on_tables_changed()
-                    self._nav_refresh(user, self._show_host_pass_menu, table)
-                    return
-            user.speak_l("host-pass-failed", buffer="system")
+            self._perform_host_pass(user, table, new_host_name)
             self._nav_refresh(user, self._show_host_pass_menu, table)
 
     # --- Kick / Kick-and-Ban ---
@@ -5769,6 +5954,14 @@ PlayAural Server
         locale = user.locale
         spectator_suffix = Localization.get(locale, "table-spectator-suffix")
         items: list[MenuItem] = []
+        if table.host != user.username:
+            return [
+                MenuItem(
+                    text=Localization.get(locale, "host-management-no-longer-host"),
+                    id="",
+                ),
+                MenuItem(text=Localization.get(locale, "back"), id="back"),
+            ]
         candidates = []
         if table.game:
             for p in table.game.players:
@@ -5802,6 +5995,74 @@ PlayAural Server
             "ban": ban,
         }
 
+    def _perform_host_kick(
+        self,
+        user: NetworkUser,
+        table: "Table",
+        target_name: str,
+        *,
+        is_ban: bool = False,
+    ) -> bool:
+        """Kick or kick-and-ban a validated human table member."""
+        if not table or not table.game or table.host != user.username:
+            user.speak_l("action-not-host", buffer="system")
+            return False
+
+        target_player = table.game.get_player_by_name(target_name)
+        if not target_player or target_player.is_bot or target_name == user.username:
+            user.speak_l("host-kick-invalid-target", buffer="system")
+            return False
+
+        if is_ban:
+            target_record = self._db.get_user(target_name)
+            if target_record:
+                table.ban_user(target_record.uuid)
+
+        target_online_user = self._users.get(target_name)
+
+        kick_key = "host-kick-ban-broadcast" if is_ban else "host-kick-broadcast"
+        table.game.broadcast_l(kick_key, buffer="system", player=target_name)
+
+        if target_online_user:
+            you_key = "host-kick-ban-you" if is_ban else "host-kick-you"
+            target_online_user.speak_l(you_key, buffer="system", host=user.username)
+
+        if target_player.is_spectator:
+            table.game.remove_spectator(target_player.id)
+            table.game.play_table_leave_sound(
+                target_player,
+                is_bot=False,
+                is_spectator=True,
+            )
+        elif table.game.status == "waiting":
+            table.game.remove_player(target_player.id)
+            table.game.play_table_leave_sound(
+                target_player,
+                is_bot=False,
+                is_spectator=False,
+            )
+        else:
+            if table.game._replace_with_bot(target_player):
+                table.game.play_table_leave_sound(
+                    target_player,
+                    is_bot=False,
+                    is_spectator=False,
+                )
+
+        table.remove_member(target_name)
+
+        if target_online_user:
+            self._user_states.pop(target_name, None)
+            self._show_main_menu(target_online_user)
+
+        invite = self._pending_invites.get(target_name)
+        if invite and invite.get("table_id") == table.table_id:
+            self._cancel_invite(target_name)
+
+        table.game.refresh_menus()
+        self.on_tables_changed()
+        return True
+
     async def _handle_host_kick_selection(
         self, user: NetworkUser, selection_id: str, state: dict
     ) -> None:
@@ -5823,74 +6084,501 @@ PlayAural Server
 
         target_name = selection_id[5:]
 
+        self._perform_host_kick(user, table, target_name, is_ban=is_ban)
+
+        # Redisplay updated kick menu so host can act on remaining players
+        self._nav_refresh(user, self._show_host_kick_menu, table, ban=is_ban)
+
+    # --- Interactive table presence menu ---
+
+    def _table_member_rows(self, table: "Table") -> list[dict[str, Any]]:
+        """Return stable row metadata for every visible person or bot at a table."""
+        rows: list[dict[str, Any]] = []
+        seen_users: set[str] = set()
+        game = table.game
+
+        if game:
+            for player in game.players:
+                if getattr(player, "is_bot", False):
+                    rows.append(
+                        {
+                            "kind": "bot",
+                            "id": player.id,
+                            "name": player.name,
+                            "is_bot": True,
+                            "is_spectator": False,
+                            "is_host": False,
+                            "player": player,
+                        }
+                    )
+                    continue
+
+                seen_users.add(player.name)
+                rows.append(
+                    {
+                        "kind": "user",
+                        "id": player.name,
+                        "name": player.name,
+                        "is_bot": False,
+                        "is_spectator": getattr(player, "is_spectator", False),
+                        "is_host": player.name == table.host,
+                        "player": player,
+                    }
+                )
+
+        for member in table.members:
+            if member.username in seen_users:
+                continue
+            rows.append(
+                {
+                    "kind": "user",
+                    "id": member.username,
+                    "name": member.username,
+                    "is_bot": False,
+                    "is_spectator": member.is_spectator,
+                    "is_host": member.username == table.host,
+                    "player": None,
+                }
+            )
+
+        rows.sort(key=lambda row: (row["kind"] == "bot", row["name"].lower()))
+        return rows
+
+    def _table_member_status_key(self, row: dict[str, Any]) -> str:
+        if row.get("is_bot"):
+            return "table-member-status-bot"
+        if row.get("is_host"):
+            return "table-member-status-host"
+        if row.get("is_spectator"):
+            return "table-member-status-spectator"
+        return "table-member-status-player"
+
+    def _get_table_members_menu_items(
+        self, user: NetworkUser, table: "Table"
+    ) -> list[MenuItem]:
+        """Build the interactive table roster menu."""
+        locale = user.locale
+        rows = self._table_member_rows(table)
+        total = len(rows)
+        bot_count = sum(1 for row in rows if row["is_bot"])
+        real_count = total - bot_count
+        spectator_count = sum(1 for row in rows if row["is_spectator"])
+        active_count = total - spectator_count
+
+        items = [
+            MenuItem(
+                text=Localization.get(
+                    locale,
+                    "table-members-summary",
+                    total=total,
+                    real=real_count,
+                    bots=bot_count,
+                    active=active_count,
+                    spectators=spectator_count,
+                ),
+                id="",
+            )
+        ]
+
+        for row in rows:
+            status = Localization.get(locale, self._table_member_status_key(row))
+            item_id = (
+                f"table_member_bot_{row['id']}"
+                if row["kind"] == "bot"
+                else f"table_member_user_{row['id']}"
+            )
+            items.append(
+                MenuItem(
+                    text=Localization.get(
+                        locale,
+                        "table-member-entry",
+                        player=row["name"],
+                        status=status,
+                    ),
+                    id=item_id,
+                )
+            )
+
+        items.append(MenuItem(text=Localization.get(locale, "back"), id="back"))
+        return items
+
+    def _show_table_members_menu(self, user: NetworkUser, table: "Table") -> None:
+        """Show the interactive table roster."""
+        active_table = self._tables.get_table(table.table_id)
+        if active_table is not table:
+            self._return_to_game(user, active_table)
+            return
         if not table.game:
             self._return_to_game(user, table)
             return
 
-        target_player = table.game.get_player_by_name(target_name)
-        if not target_player or target_player.is_bot or target_name == user.username:
-            user.speak_l("host-kick-invalid-target", buffer="system")
-            self._nav_refresh(user, self._show_host_kick_menu, table, ban=is_ban)
-            return
+        user.show_menu(
+            TABLE_MEMBERS_MENU,
+            self._get_table_members_menu_items(user, table),
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {
+            "menu": TABLE_MEMBERS_MENU,
+            "table_id": table.table_id,
+        }
 
-        # If banning, record UUID against this table instance (runtime-only)
-        if is_ban:
-            target_record = self._db.get_user(target_name)
-            if target_record:
-                table.ban_user(target_record.uuid)
+    def _open_table_members_from_game(
+        self,
+        user: NetworkUser,
+        table: "Table",
+        *,
+        return_focus_id: str | None = None,
+    ) -> None:
+        """Open the table roster through the modal-safe navigation stack."""
+        self._nav_push(
+            user,
+            self._show_table_members_menu,
+            table,
+            game_return_focus_id=return_focus_id,
+        )
 
-        target_online_user = self._users.get(target_name)
+    def _resolve_table_member_target(
+        self, table: "Table", target_kind: str, target_id: str
+    ) -> dict[str, Any] | None:
+        for row in self._table_member_rows(table):
+            if row["kind"] == target_kind and row["id"] == target_id:
+                return row
+        return None
 
-        # Announce to the table
-        kick_key = "host-kick-ban-broadcast" if is_ban else "host-kick-broadcast"
-        table.game.broadcast_l(kick_key, buffer="system", player=target_name)
+    def _get_table_member_action_items(
+        self, user: NetworkUser, table: "Table", row: dict[str, Any]
+    ) -> list[MenuItem]:
+        """Build actions for one table roster entry."""
+        locale = user.locale
+        items: list[MenuItem] = []
+        target_name = row["name"]
+        is_self = target_name.lower() == user.username.lower()
+        is_host = table.host == user.username
 
-        # Notify the kicked player
-        if target_online_user:
-            you_key = "host-kick-ban-you" if is_ban else "host-kick-you"
-            target_online_user.speak_l(you_key, buffer="system", host=user.username)
-
-        # Remove from game state
-        if target_player.is_spectator:
-            table.game.remove_spectator(target_player.id)
-            table.game.play_table_leave_sound(
-                target_player,
-                is_bot=False,
-                is_spectator=True,
-            )
-        elif table.game.status == "waiting":
-            table.game.remove_player(target_player.id)
-            table.game.play_table_leave_sound(
-                target_player,
-                is_bot=False,
-                is_spectator=False,
-            )
-        else:
-            # Mid-game: bot replacement preserves game continuity
-            if table.game._replace_with_bot(target_player):
-                table.game.play_table_leave_sound(
-                    target_player,
-                    is_bot=False,
-                    is_spectator=False,
+        if is_host and not is_self:
+            if row["kind"] == "bot":
+                items.append(
+                    MenuItem(
+                        text=Localization.get(locale, "remove-bot"),
+                        id="table_remove_bot",
+                    )
+                )
+            elif not row["is_spectator"]:
+                items.append(
+                    MenuItem(
+                        text=Localization.get(locale, "host-management-pass-host"),
+                        id="table_pass_host",
+                    )
+                )
+                items.append(
+                    MenuItem(
+                        text=Localization.get(locale, "host-management-kick"),
+                        id="table_kick",
+                    )
+                )
+                items.append(
+                    MenuItem(
+                        text=Localization.get(locale, "host-management-kick-ban"),
+                        id="table_kick_ban",
+                    )
+                )
+            else:
+                items.append(
+                    MenuItem(
+                        text=Localization.get(locale, "host-management-kick"),
+                        id="table_kick",
+                    )
+                )
+                items.append(
+                    MenuItem(
+                        text=Localization.get(locale, "host-management-kick-ban"),
+                        id="table_kick_ban",
+                    )
                 )
 
-        table.remove_member(target_name)
+        if row["kind"] == "user":
+            if is_self:
+                items.append(
+                    MenuItem(
+                        text=Localization.get(locale, "view-profile"),
+                        id="view_profile",
+                    )
+                )
+            elif self._find_current_friend_record(user, target_name):
+                items.extend(
+                    item
+                    for item in self._get_friend_actions_menu_items(user, target_name)
+                    if item.id != "back"
+                )
+            else:
+                items.extend(
+                    item
+                    for item in self._get_non_friend_user_actions_menu_items(
+                        user,
+                        target_name,
+                    )
+                    if item.id != "back"
+                )
 
-        # Send kicked player back to main menu
-        if target_online_user:
-            self._user_states.pop(target_name, None)
-            self._show_main_menu(target_online_user)
+        if not items:
+            items.append(
+                MenuItem(
+                    text=Localization.get(
+                        locale,
+                        "table-member-no-actions",
+                        player=target_name,
+                    ),
+                    id="",
+                )
+            )
+        items.append(MenuItem(text=Localization.get(locale, "back"), id="back"))
+        return items
 
-        # Cancel any pending invite to this user from this table
-        invite = self._pending_invites.get(target_name)
-        if invite and invite.get("table_id") == table_id:
-            self._cancel_invite(target_name)
+    def _show_table_member_actions_menu(
+        self,
+        user: NetworkUser,
+        table: "Table",
+        target_kind: str,
+        target_id: str,
+    ) -> None:
+        """Show contextual actions for a table roster entry."""
+        active_table = self._tables.get_table(table.table_id)
+        if active_table is not table:
+            self._return_to_game(user, active_table)
+            return
+        if not table.game:
+            self._return_to_game(user, table)
+            return
 
-        table.game.refresh_menus()
-        self.on_tables_changed()
+        row = self._resolve_table_member_target(table, target_kind, target_id)
+        if not row:
+            self._show_table_members_menu(user, table)
+            return
 
-        # Redisplay updated kick menu so host can act on remaining players
-        self._nav_refresh(user, self._show_host_kick_menu, table, ban=is_ban)
+        user.show_menu(
+            TABLE_MEMBER_ACTIONS_MENU,
+            self._get_table_member_action_items(user, table, row),
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {
+            "menu": TABLE_MEMBER_ACTIONS_MENU,
+            "table_id": table.table_id,
+            "target_kind": target_kind,
+            "target_id": target_id,
+        }
+
+    async def _handle_table_members_selection(
+        self, user: NetworkUser, selection_id: str, state: dict
+    ) -> None:
+        """Handle selections from the interactive table roster."""
+        table_id = state.get("table_id")
+        table = self._tables.get_table(table_id)
+        if not table or not table.game:
+            self._return_to_game(user, table)
+            return
+
+        if selection_id == "back":
+            self._nav_back(user)
+            return
+        if not selection_id:
+            return
+
+        if selection_id.startswith("table_member_user_"):
+            target_kind = "user"
+            target_id = selection_id[len("table_member_user_"):]
+        elif selection_id.startswith("table_member_bot_"):
+            target_kind = "bot"
+            target_id = selection_id[len("table_member_bot_"):]
+        else:
+            return
+
+        if not self._resolve_table_member_target(table, target_kind, target_id):
+            user.speak_l("table-member-left", buffer="system")
+            self._nav_refresh(user, self._show_table_members_menu, table)
+            return
+        self._nav_push(
+            user,
+            self._show_table_member_actions_menu,
+            table,
+            target_kind,
+            target_id,
+        )
+
+    def _perform_remove_table_bot(
+        self, user: NetworkUser, table: "Table", bot_id: str
+    ) -> bool:
+        """Remove one selected bot from a waiting table."""
+        game = table.game
+        if not game:
+            self._return_to_game(user, table)
+            return False
+        if table.host != user.username:
+            user.speak_l("action-not-host", buffer="system")
+            return False
+        if game.status != "waiting":
+            user.speak_l("action-game-in-progress", buffer="system")
+            return False
+        if getattr(game, "team_arrangement_active", False):
+            user.speak_l("team-arrangement-in-progress", buffer="system")
+            return False
+
+        for index, player in enumerate(list(game.players)):
+            if player.id == bot_id and player.is_bot:
+                bot = game.players.pop(index)
+                game.player_action_sets.pop(bot.id, None)
+                game._users.pop(bot.id, None)
+                game.broadcast_l("table-left", buffer="system", player=bot.name)
+                game.play_table_leave_sound(bot, is_bot=True)
+                game.refresh_menus()
+                self.on_tables_changed()
+                return True
+
+        user.speak_l("table-member-bot-left", buffer="system")
+        return False
+
+    async def _handle_table_member_actions_selection(
+        self, user: NetworkUser, selection_id: str, state: dict
+    ) -> None:
+        """Handle contextual actions for one table roster entry."""
+        table_id = state.get("table_id")
+        table = self._tables.get_table(table_id)
+        if not table or not table.game:
+            self._return_to_game(user, table)
+            return
+
+        if selection_id == "back":
+            self._nav_back(user)
+            return
+
+        target_kind = state.get("target_kind", "")
+        target_id = state.get("target_id", "")
+        row = self._resolve_table_member_target(table, target_kind, target_id)
+        if not row:
+            user.speak_l("table-member-left", buffer="system")
+            self._nav_refresh(user, self._show_table_members_menu, table)
+            return
+
+        target_name = row["name"]
+
+        if selection_id == "table_pass_host":
+            if row["kind"] != "user" or row["is_spectator"]:
+                user.speak_l("host-pass-failed", buffer="system")
+            else:
+                self._perform_host_pass(user, table, target_name)
+            self._nav_refresh(
+                user,
+                self._show_table_member_actions_menu,
+                table,
+                target_kind,
+                target_id,
+            )
+        elif selection_id == "table_kick":
+            self._perform_host_kick(user, table, target_name, is_ban=False)
+            self._nav_refresh(
+                user,
+                self._show_table_member_actions_menu,
+                table,
+                target_kind,
+                target_id,
+            )
+        elif selection_id == "table_kick_ban":
+            self._perform_host_kick(user, table, target_name, is_ban=True)
+            self._nav_refresh(
+                user,
+                self._show_table_member_actions_menu,
+                table,
+                target_kind,
+                target_id,
+            )
+        elif selection_id == "table_remove_bot":
+            self._perform_remove_table_bot(user, table, target_id)
+            self._nav_refresh(
+                user,
+                self._show_table_member_actions_menu,
+                table,
+                target_kind,
+                target_id,
+            )
+        elif selection_id == "view_profile" and row["kind"] == "user":
+            self._nav_push(user, self._show_public_profile, target_name)
+        elif selection_id == "send_friend_request" and row["kind"] == "user":
+            target_record = self._db.get_user(target_name)
+            if not target_record:
+                user.speak_l("unknown-player", buffer="system")
+            else:
+                self._send_friend_request_to_record(user, target_record)
+            self._nav_refresh(
+                user,
+                self._show_table_member_actions_menu,
+                table,
+                target_kind,
+                target_id,
+            )
+        elif selection_id == "send_pm" and row["kind"] == "user":
+            user.show_editbox(
+                "send_pm_input",
+                Localization.get(user.locale, "enter-pm-message", username=target_name),
+                multiline=True,
+                max_length=500,
+            )
+            self._enter_input_state(user, "send_pm_input", target_username=target_name)
+        elif selection_id == "join_table" and row["kind"] == "user":
+            if not self._get_current_friend_record(user, target_name):
+                self._nav_refresh(
+                    user,
+                    self._show_table_member_actions_menu,
+                    table,
+                    target_kind,
+                    target_id,
+                )
+                return
+            target_table = self._tables.find_user_table(target_name)
+            if not target_table:
+                user.speak_l("table-not-exists", buffer="system")
+                self._nav_refresh(
+                    user,
+                    self._show_table_member_actions_menu,
+                    table,
+                    target_kind,
+                    target_id,
+                )
+                return
+            current_table = self._tables.find_user_table(user.username)
+            if current_table == target_table:
+                user.speak_l("already-in-table", buffer="system")
+                self._nav_refresh(
+                    user,
+                    self._show_table_member_actions_menu,
+                    table,
+                    target_kind,
+                    target_id,
+                )
+                return
+            user_is_member = any(m.username == user.username for m in target_table.members)
+            if target_table.is_private and not user_is_member:
+                user.speak_l("table-private-invite-only", buffer="system")
+                self._nav_refresh(
+                    user,
+                    self._show_table_member_actions_menu,
+                    table,
+                    target_kind,
+                    target_id,
+                )
+                return
+            self._auto_join_table(user, target_table, target_table.game_type)
+        elif selection_id == "remove_friend" and row["kind"] == "user":
+            if not self._get_current_friend_record(user, target_name):
+                self._nav_refresh(
+                    user,
+                    self._show_table_member_actions_menu,
+                    table,
+                    target_kind,
+                    target_id,
+                )
+                return
+            self._nav_push(user, self._show_friend_remove_confirm_menu, target_name)
 
     async def _handle_join_selection(
         self, user: NetworkUser, selection_id: str, state: dict
@@ -7164,35 +7852,7 @@ PlayAural Server
                      self._restore_input_parent(user, user_state)
                      return
 
-                # Send request
-                status = self._db.send_friend_request(user.uuid, target_record.uuid)
-
-                if status == "already_friends":
-                     user.speak_l("friend-error-already-friends", buffer="system")
-                elif status == "duplicate":
-                     user.speak_l("friend-error-duplicate", buffer="system")
-                elif status == "accepted":
-                     user.speak_l("friend-accepted-success", buffer="system", username=target_record.username)
-                     user.play_sound("friend_accepted.ogg")
-                     # Notify target if online
-                     target_user = self._users.get(target_record.username)
-                     if target_user:
-                         target_user.speak_l("friend-accepted-notify", buffer="system", username=user.username)
-                         target_user.play_sound("friend_accepted.ogg")
-                     else:
-                         self._db.add_notification(target_record.uuid, user.username, "friend_accepted")
-                     self.on_friend_requests_changed(target_record.uuid)
-                elif status == "sent":
-                     user.speak_l("friend-request-sent", buffer="system", username=target_record.username)
-                     user.play_sound("friend_request_sent.ogg")
-                     # Notify target if online
-                     target_user = self._users.get(target_record.username)
-                     if target_user:
-                         target_user.speak_l("friend-request-received", buffer="system", username=user.username)
-                         target_user.play_sound("friend_request_received.ogg")
-                     else:
-                         self._db.add_notification(target_record.uuid, user.username, "friend_request_received")
-                     self.on_friend_requests_changed(target_record.uuid)
+                self._send_friend_request_to_record(user, target_record)
 
                 self._restore_input_parent(user, user_state)
                 return
@@ -7704,10 +8364,17 @@ PlayAural Server
             self._nav_back(user)
         elif selection_id.startswith("online_"):
             target_username = selection_id[7:]
+            if target_username == user.username:
+                self._nav_refresh(user, self._show_online_users_menu)
+                return
             self._nav_push(user, self._show_online_user_actions_menu, target_username)
 
     def _show_online_user_actions_menu(self, user: NetworkUser, target_username: str) -> None:
         """Show context menu for an online user."""
+        if target_username == user.username:
+            self._show_online_users_menu(user)
+            return
+
         target_user = self._users.get(target_username)
         if not target_user:
             user.speak_l("user-not-online-anymore", buffer="system")
@@ -7715,19 +8382,11 @@ PlayAural Server
             self._show_online_users_menu(user)
             return
 
-        items = [
-            MenuItem(text=Localization.get(user.locale, "view-profile"), id="view_profile"),
-        ]
+        if self._find_current_friend_record(user, target_username):
+            self._show_friend_actions_menu(user, target_username)
+            return
 
-        # Add "Send Friend Request" if not already friends and not pending
-        friend_uuids = self._db.get_friends(user.uuid)
-        pending_uuids = self._db.get_pending_incoming_requests(user.uuid)
-        # Check if we sent one to them too
-        # To be safe, just use the helper which handles "duplicate" cleanly, but for UI:
-        if target_user.uuid not in friend_uuids and target_user.uuid not in pending_uuids:
-             items.append(MenuItem(text=Localization.get(user.locale, "friends-send-request"), id="send_friend_request"))
-
-        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
+        items = self._get_non_friend_user_actions_menu_items(user, target_username)
 
         user.show_menu(
             "online_user_actions_menu",
@@ -7760,26 +8419,12 @@ PlayAural Server
             self._nav_push(user, self._show_public_profile, target_username)
 
         elif selection_id == "send_friend_request":
-            status = self._db.send_friend_request(user.uuid, target_user.uuid)
-
-            if status == "already_friends":
-                 user.speak_l("friend-error-already-friends", buffer="system")
-            elif status == "duplicate":
-                 user.speak_l("friend-error-duplicate", buffer="system")
-            elif status == "accepted":
-                 user.speak_l("friend-accepted-success", buffer="system", username=target_user.username)
-                 user.play_sound("friend_accepted.ogg")
-                 # Notify target if online
-                 target_user.speak_l("friend-accepted-notify", buffer="system", username=user.username)
-                 target_user.play_sound("friend_accepted.ogg")
-                 self.on_friend_requests_changed(target_user.uuid)
-            elif status == "sent":
-                 user.speak_l("friend-request-sent", buffer="system", username=target_user.username)
-                 user.play_sound("friend_request_sent.ogg")
-                 # Notify target if online
-                 target_user.speak_l("friend-request-received", buffer="system", username=user.username)
-                 target_user.play_sound("friend_request_received.ogg")
-                 self.on_friend_requests_changed(target_user.uuid)
+            target_record = self._db.get_user(target_username)
+            if not target_record:
+                user.speak_l("unknown-player", buffer="system")
+                self._nav_refresh(user, self._show_online_users_menu)
+                return
+            self._send_friend_request_to_record(user, target_record)
 
             # Refresh the actions menu so the button disappears, preserving the stack
             self._nav_refresh(user, self._show_online_user_actions_menu, target_username)
@@ -8092,6 +8737,15 @@ PlayAural Server
                 self._show_host_kick_menu(user, table, ban=frame.get("ban", False))
             elif menu == HOST_RESTART_CONFIRM_MENU:
                 self._show_host_restart_confirm_menu(user, table)
+            elif menu == TABLE_MEMBERS_MENU:
+                self._show_table_members_menu(user, table)
+            elif menu == TABLE_MEMBER_ACTIONS_MENU:
+                self._show_table_member_actions_menu(
+                    user,
+                    table,
+                    frame.get("target_kind", ""),
+                    frame.get("target_id", ""),
+                )
             else:
                 self._return_to_game(user, table)
             if username in self._user_states:

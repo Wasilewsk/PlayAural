@@ -63,9 +63,16 @@ class GameScoresMixin:
                 user.speak_l("game-no-turn", buffer="game")
 
     def _action_whos_at_table(self, player: "Player", action_id: str) -> None:
-        """Announce who is at the table."""
+        """Open the interactive table roster, falling back to speech in isolated tests."""
         user = self.get_user(player)
         if not user:
+            return
+
+        table = getattr(self, "_table", None)
+        server = getattr(table, "_server", None) if table else None
+        open_roster = getattr(server, "_open_table_members_from_game", None)
+        if table and callable(open_roster):
+            open_roster(user, table, return_focus_id=action_id)
             return
 
         locale = user.locale

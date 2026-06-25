@@ -65,6 +65,19 @@ def test_online_users_menu_formats_game_names() -> None:
     assert "Alice (User, Desktop, English): Main menu" in texts
 
 
+def test_online_users_menu_renders_current_user_as_read_only() -> None:
+    server = _make_server()
+    viewer = MockUser("Viewer")
+    alice = MockUser("Alice")
+    server._users = {"Viewer": viewer, "Alice": alice}
+
+    server._show_online_users_menu(viewer)
+
+    items = viewer.get_current_menu_items("online_users") or []
+    own_item = next(item for item in items if item.text.startswith("Viewer "))
+    assert own_item.id == ""
+
+
 def test_client_platform_sanitizer_bounds_untrusted_display_text() -> None:
     sanitized = Server._sanitize_client_platform("<Windows>\n<script>AMD64</script>" * 3)
     assert sanitized.startswith("Windows scriptAMD64/script")

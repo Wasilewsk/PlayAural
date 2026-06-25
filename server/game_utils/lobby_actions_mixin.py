@@ -615,6 +615,7 @@ class LobbyActionsMixin:
         self.broadcast_l("table-joined", buffer="system", player=bot_name)
         self.play_table_join_sound(bot_player, is_bot=True)
         self.refresh_menus()
+        self._notify_table_presence_changed()
 
     def _action_remove_bot(self, player: "Player", action_id: str) -> None:
         """Remove the last bot from the game."""
@@ -631,6 +632,7 @@ class LobbyActionsMixin:
                 self.play_table_leave_sound(bot, is_bot=True)
                 break
         self.refresh_menus()
+        self._notify_table_presence_changed()
 
     def _action_toggle_spectator(self, player: "Player", action_id: str) -> None:
         """Toggle spectator mode for a player."""
@@ -665,6 +667,7 @@ class LobbyActionsMixin:
             self.broadcast_sound("leave_spectator.ogg")
 
         self.refresh_menus()
+        self._notify_table_presence_changed()
 
     def _perform_leave_game(self, player: "Player") -> None:
         """Leave the game."""
@@ -870,6 +873,7 @@ class LobbyActionsMixin:
         self.setup_player_actions(player)
         if self.team_arrangement_active and not player.is_spectator:
             self._cancel_team_arrangement_for_roster_change()
+        self._notify_table_presence_changed()
         return player
 
     def add_spectator(self, name: str, user: "User") -> "Player":
@@ -879,4 +883,5 @@ class LobbyActionsMixin:
         self.players.append(player)
         self.attach_user(player.id, user)
         self.setup_player_actions(player)
+        self._notify_table_presence_changed()
         return player

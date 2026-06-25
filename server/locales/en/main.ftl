@@ -307,6 +307,24 @@ table-players-many = { $count } players: { $players }.
 table-spectators = Spectators: { $spectators }.
 table-host-suffix = (Host)
 table-voice-chat-suffix = (in voice chat)
+table-members-summary = Table summary: { $total } { $total ->
+    [one] seat
+   *[other] seats
+}; { $real } { $real ->
+    [one] real person
+   *[other] real people
+}, { $bots } { $bots ->
+    [one] bot
+   *[other] bots
+}; { $active } active, { $spectators } spectating.
+table-member-entry = { $player }: { $status }
+table-member-status-host = Host
+table-member-status-player = Player
+table-member-status-spectator = Spectator
+table-member-status-bot = Bot
+table-member-no-actions = No available actions for { $player }.
+table-member-left = That person is no longer at this table.
+table-member-bot-left = That bot is no longer at this table.
 game-leave = Leave
 game-over = Game Over
 game-final-scores = Final Scores
@@ -663,6 +681,7 @@ table-invite-queued = { $host } invited you to their { $game } table. Finish you
 table-invite-expired = The table invite has expired.
 invite-accept = Accept Invite
 invite-decline = Decline Invite
+host-management-no-longer-host = You are no longer the host of this table.
 host-pass-no-candidates = (No players available to pass host to)
 host-pass-no-longer-host = You passed host to another player. You are no longer the host of this table.
 host-passed = { $player } is now the host.

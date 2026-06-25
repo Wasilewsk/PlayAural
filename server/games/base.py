@@ -398,6 +398,12 @@ class Game(
             ):
                 self._table._server.on_tables_changed()
 
+    def _notify_table_presence_changed(self) -> None:
+        """Notify server-owned table overlays that the game roster changed."""
+        server = getattr(getattr(self, "_table", None), "_server", None)
+        if server and hasattr(server, "on_tables_changed"):
+            server.on_tables_changed()
+
     def on_round_timer_ready(self) -> None:
         """Called when round timer expires. Override in subclasses that use RoundTimer."""
         pass
@@ -455,6 +461,7 @@ class Game(
         
         # Notify others
         self.broadcast_l("spectator-left", buffer="system", player=player.name)
+        self._notify_table_presence_changed()
 
     def remove_player(self, player_id: str) -> None:
         """Remove a player from the game state entirely.
@@ -481,6 +488,7 @@ class Game(
         
         # Notify others
         self.broadcast_l("table-left", buffer="system", player=player.name)
+        self._notify_table_presence_changed()
 
     def _replace_with_bot(
         self,
@@ -519,6 +527,7 @@ class Game(
             player=human_name,
             bot=bot_name,
         )
+        self._notify_table_presence_changed()
         # Note: Caller is responsible for playing sounds if needed
         return True
 

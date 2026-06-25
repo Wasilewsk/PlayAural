@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from server.auth.auth import AuthManager
-from server.core.server import Server
+from server.core.server import Server, TABLE_MEMBERS_MENU, TABLE_MEMBER_ACTIONS_MENU
 from server.games.crazyeights.game import CrazyEightsGame
 from server.games.pig.game import PigGame, PigOptions
 from server.messages.localization import Localization
@@ -683,6 +683,124 @@ class TestTableInviteReclaim:
         items = host.get_current_menu_items("host_pass_menu") or []
         assert [item.id for item in items] == ["", "back"]
         assert any("You passed host to another player" in item.text for item in items)
+
+    @pytest.mark.asyncio
+    async def test_host_pass_menu_auto_refreshes_when_player_joins(self):
+        host = self._create_online_user("Host")
+        guest = self._create_online_user("Guest")
+        newcomer = self._create_online_user("Newcomer")
+        table, game = self._create_waiting_table(
+            host,
+            guest,
+            PigGame(options=PigOptions(target_score=25)),
+        )
+
+        self.server._show_host_pass_menu(host, table)
+        table.add_member(newcomer.username, newcomer, as_spectator=False)
+        game.add_player(newcomer.username, newcomer)
+
+        item_ids = self._get_menu_action_ids(host, "host_pass_menu")
+        assert f"pass_{newcomer.username}" in item_ids
+
+    @pytest.mark.asyncio
+    async def test_online_friend_selection_opens_friend_actions_and_back_returns_online_list(self):
+        viewer = self._create_online_user("Viewer")
+        friend = self._create_online_user("Friend")
+        self.db.send_friend_request(viewer.uuid, friend.uuid)
+        self.db.accept_friend_request(viewer.uuid, friend.uuid)
+
+        self.server._show_online_users_menu(viewer)
+        await self.server._handle_online_users_selection(
+            viewer,
+            f"online_{friend.username}",
+            self.server._user_states[viewer.username],
+        )
+
+        assert self.server._user_states[viewer.username]["menu"] == "friend_actions_menu"
+        item_ids = self._get_menu_action_ids(viewer, "friend_actions_menu")
+        assert "send_pm" in item_ids
+        assert "remove_friend" in item_ids
+
+        await self.server._handle_friend_actions_selection(
+            viewer,
+            "back",
+            self.server._user_states[viewer.username],
+        )
+
+        assert self.server._user_states[viewer.username]["menu"] == "online_users"
+
+    @pytest.mark.asyncio
+    async def test_whos_at_table_opens_interactive_roster_with_host_and_social_actions(self):
+        host = self._create_online_user("Host")
+        guest = self._create_online_user("Guest")
+        table, game = self._create_waiting_table(
+            host,
+            guest,
+            PigGame(options=PigOptions(target_score=25)),
+        )
+        host_player = game.get_player_by_name(host.username)
+        assert host_player is not None
+
+        game._action_whos_at_table(host_player, "whos_at_table")
+
+        assert self.server._user_states[host.username]["menu"] == TABLE_MEMBERS_MENU
+        roster_items = host.get_current_menu_items(TABLE_MEMBERS_MENU) or []
+        assert roster_items[0].id == ""
+        assert "Table summary" in roster_items[0].text
+        assert f"table_member_user_{guest.username}" in [
+            item.id for item in roster_items if hasattr(item, "id")
+        ]
+
+        await self.server._handle_table_members_selection(
+            host,
+            f"table_member_user_{guest.username}",
+            self.server._user_states[host.username],
+        )
+
+        assert self.server._user_states[host.username]["menu"] == TABLE_MEMBER_ACTIONS_MENU
+        action_ids = self._get_menu_action_ids(host, TABLE_MEMBER_ACTIONS_MENU)
+        assert "table_pass_host" in action_ids
+        assert "table_kick" in action_ids
+        assert "table_kick_ban" in action_ids
+        assert "view_profile" in action_ids
+        assert "send_friend_request" in action_ids
+
+        await self.server._handle_table_member_actions_selection(
+            host,
+            "back",
+            self.server._user_states[host.username],
+        )
+        assert self.server._user_states[host.username]["menu"] == TABLE_MEMBERS_MENU
+
+    @pytest.mark.asyncio
+    async def test_table_roster_bot_actions_remove_selected_bot(self):
+        host = self._create_online_user("Host")
+        guest = self._create_online_user("Guest")
+        table, game = self._create_waiting_table(
+            host,
+            guest,
+            PigGame(options=PigOptions(target_score=25)),
+        )
+        bot = self._add_named_bot(game, "Botty")
+
+        self.server._show_table_members_menu(host, table)
+        await self.server._handle_table_members_selection(
+            host,
+            f"table_member_bot_{bot.id}",
+            self.server._user_states[host.username],
+        )
+
+        action_ids = self._get_menu_action_ids(host, TABLE_MEMBER_ACTIONS_MENU)
+        assert "table_remove_bot" in action_ids
+
+        await self.server._handle_table_member_actions_selection(
+            host,
+            "table_remove_bot",
+            self.server._user_states[host.username],
+        )
+
+        assert not any(player.id == bot.id for player in game.players)
+        assert self.server._user_states[host.username]["menu"] == TABLE_MEMBERS_MENU
 
     @pytest.mark.asyncio
     async def test_host_kick_uses_crazyeights_custom_table_leave_sound(self):

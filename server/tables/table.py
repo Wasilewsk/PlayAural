@@ -240,6 +240,10 @@ class Table(DataClassJSONMixin):
         # Auto-destroy if no members left (e.g. all humans left)
         if not self.members:
             self.destroy()
+            return
+
+        if self._server and hasattr(self._server, "on_tables_changed"):
+            self._server.on_tables_changed()
 
     def is_banned(self, user_uuid: str) -> bool:
         """Check if a UUID is banned from this table instance."""
