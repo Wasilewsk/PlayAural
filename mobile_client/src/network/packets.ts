@@ -4,6 +4,7 @@ export type MenuItemData = {
   id?: string;
   text: string;
   sound?: string;
+  selection_value?: string | null;
 };
 
 export type MenuPacket = {
@@ -278,6 +279,7 @@ export type MenuSelectionPacket = {
   menu_id?: string;
   selection: number;
   selection_id?: string;
+  selection_value?: string;
 };
 
 export type EscapePacket = {

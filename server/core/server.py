@@ -53,6 +53,7 @@ UPDATE_HASH = "" # Optional SHA256
 
 SOUNDS_VERSION = "2"
 SOUNDS_URL = "https://github.com/Daoductrung/PlayAural/releases/latest/download/sounds.zip"
+MAX_CLIENT_VOICE_IDENTIFIER_LENGTH = 512
 TABLE_CREATED_NOTIFICATION_SOUND = "table_created.ogg"
 TABLE_INVITE_NOTIFICATION_SOUND = "table_invite.ogg"
 VOICE_CHAT_JOIN_SOUND = "voice_join.ogg"
@@ -2617,12 +2618,14 @@ PlayAural Server
         if selection_id in {"default", "placeholder"}:
             voice_value = ""
         elif selection_id.startswith("web_voice_"):
-            voice_value = str((packet or {}).get("selection_value") or "")
+            voice_value = self._coerce_client_voice_identifier(
+                (packet or {}).get("selection_value")
+            )
             if not voice_value:
                 return
         else:
             # Legacy web clients sent the browser voice URI directly.
-            voice_value = selection_id
+            voice_value = self._coerce_client_voice_identifier(selection_id)
 
         user.preferences.speech_voice = voice_value
         self._save_user_preferences(user)
@@ -2741,19 +2744,38 @@ PlayAural Server
         self._user_states[user.username] = {"menu": "mobile_voice_selection_menu"}
 
     async def _handle_mobile_voice_selection(
-        self, user: NetworkUser, selection_id: str
+        self, user: NetworkUser, selection_id: str, packet: dict | None = None
     ) -> None:
         """Handle mobile voice selection."""
         if selection_id == "back":
             self._nav_back(user)
             return
         if selection_id in {"default", "placeholder"}:
-            selection_id = ""
-        user.preferences.mobile_tts_voice = selection_id
+            voice_value = ""
+        elif selection_id == "mobile_voice_loading":
+            return
+        elif selection_id.startswith("mobile_voice_"):
+            voice_value = self._coerce_client_voice_identifier(
+                (packet or {}).get("selection_value")
+            )
+            if not voice_value:
+                return
+        else:
+            # Legacy mobile clients sent the Expo voice identifier directly.
+            voice_value = self._coerce_client_voice_identifier(selection_id)
+
+        user.preferences.mobile_tts_voice = voice_value
         self._save_user_preferences(user)
-        self._sync_pref_to_client(user, "mobile/tts_voice", selection_id)
+        self._sync_pref_to_client(user, "mobile/tts_voice", voice_value)
         self._nav_back(user)
 
+    def _coerce_client_voice_identifier(self, value: Any) -> str:
+        """Return a bounded printable voice identifier from a client menu."""
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        printable = "".join(ch for ch in text if ch.isprintable())
+        return printable[:MAX_CLIENT_VOICE_IDENTIFIER_LENGTH]
 
     def _sync_pref_to_client(self, user: NetworkUser, key: str, value: any) -> None:
         """Sync a preference update to the client."""
@@ -3555,7 +3577,7 @@ PlayAural Server
         elif current_menu == "mobile_tts_engine_menu":
             await self._handle_mobile_tts_engine_selection(user, selection_id)
         elif current_menu == "mobile_voice_selection_menu":
-            await self._handle_mobile_voice_selection(user, selection_id)
+            await self._handle_mobile_voice_selection(user, selection_id, packet)
         elif current_menu == "saved_tables_menu":
             await self._handle_saved_tables_selection(user, selection_id, state)
         elif current_menu == "saved_table_actions_menu":
@@ -8383,7 +8405,7 @@ PlayAural Server
             return False
         if not selection_id or selection_id == "back":
             return True
-        if current_menu == "voice_selection_menu":
+        if current_menu in {"voice_selection_menu", "mobile_voice_selection_menu"}:
             return True
 
         menu_state = self._current_menu_state(user, current_menu)

@@ -24,6 +24,7 @@ export type TtsVoiceOption = {
   isDefault: boolean;
   label: string;
   language: string;
+  quality?: string;
 };
 
 const DEBUG_PREFIX = "PLAYAURAL_DEBUG TTS";
@@ -75,6 +76,10 @@ export class TtsManager {
     this.setVoice(requestedVoice);
 
     const voices = await this.getAvailableVoiceOptions();
+    if (voices.length === 0) {
+      this.debug("voice-list-empty-keeping-requested", requestedVoice);
+      return;
+    }
     const found = voices.find((candidate) => candidate.id === requestedVoice);
     if (!found) {
       this.debug("voice-fallback-default", requestedVoice);
@@ -94,25 +99,30 @@ export class TtsManager {
     this.replayActiveSpeechForSettingsChange();
   }
 
-  async getAvailableVoiceOptions(): Promise<TtsVoiceOption[]> {
+  async getAvailableVoiceOptions(options: { forceRefresh?: boolean } = {}): Promise<TtsVoiceOption[]> {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      this.webVoices = await this.ensureWebVoicesLoaded();
-      return this.webVoices.map((voice) => ({
+      if (options.forceRefresh || this.webVoices.length === 0) {
+        this.webVoices = await this.ensureWebVoicesLoaded();
+      }
+      return this.normalizeVoiceOptions(this.webVoices.map((voice) => ({
         id: voice.voiceURI || voice.name,
         isDefault: voice.default,
         label: voice.name,
         language: voice.lang,
-      }));
+      })));
     }
 
     try {
-      this.nativeVoices = await Speech.getAvailableVoicesAsync();
-      return this.nativeVoices.map((voice) => ({
+      if (options.forceRefresh || this.nativeVoices.length === 0) {
+        this.nativeVoices = await Speech.getAvailableVoicesAsync();
+      }
+      return this.normalizeVoiceOptions(this.nativeVoices.map((voice) => ({
         id: voice.identifier,
         isDefault: false,
         label: voice.name,
         language: voice.language,
-      }));
+        quality: String(voice.quality || ""),
+      })));
     } catch (error) {
       this.debug("voice-list-error", error instanceof Error ? error.message : String(error));
       this.nativeVoices = [];
@@ -459,6 +469,36 @@ export class TtsManager {
     });
 
     return this.webVoicesReadyPromise;
+  }
+
+  private normalizeVoiceOptions(options: TtsVoiceOption[]): TtsVoiceOption[] {
+    const seen = new Set<string>();
+    return options
+      .map((voice) => {
+        const id = String(voice.id || "").trim();
+        const language = String(voice.language || "").trim();
+        const label = String(voice.label || "").trim() || language || id;
+        const quality = String(voice.quality || "").trim();
+        return {
+          id,
+          isDefault: voice.isDefault,
+          label,
+          language,
+          quality: quality || undefined,
+        };
+      })
+      .filter((voice) => {
+        if (!voice.id || seen.has(voice.id)) {
+          return false;
+        }
+        seen.add(voice.id);
+        return true;
+      })
+      .sort((left, right) => {
+        const leftKey = `${left.language}\u0000${left.label}\u0000${left.id}`;
+        const rightKey = `${right.language}\u0000${right.label}\u0000${right.id}`;
+        return leftKey.localeCompare(rightKey);
+      });
   }
 
   private debug(event: string, text: string): void {

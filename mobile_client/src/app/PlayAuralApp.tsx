@@ -46,6 +46,7 @@ import type {
   LoginFailedPacket,
   MenuItemData,
   MenuPacket,
+  MenuSelectionPacket,
   PlayAmbiencePacket,
   PlayMusicPacket,
   PlaySoundPacket,
@@ -66,7 +67,7 @@ import type {
   VoiceLeaveAckPacket,
 } from "../network/packets";
 import { BufferStore, type BufferName } from "../state/BufferStore";
-import { TtsManager } from "../tts/TtsManager";
+import { TtsManager, type TtsVoiceOption } from "../tts/TtsManager";
 import { ENABLE_CLIENT_DEBUG_LOGS } from "../utils/debug";
 import { MobileVoiceManager, type MobileVoiceConnectionState } from "../voice/MobileVoiceManager";
 
@@ -150,6 +151,7 @@ const AccessibilityOrderedView = View as ComponentType<AccessibilityOrderedViewP
 
 type FocusableMenuItem = {
   id?: string;
+  selectionValue?: string | null;
   text: string;
   sound?: string;
 };
@@ -304,7 +306,17 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function normalizeMenuItems(items: Array<string | MenuItemData>): FocusableMenuItem[] {
-  return items.map((item) => (typeof item === "string" ? { text: item } : item));
+  return items.map((item) => {
+    if (typeof item === "string") {
+      return { text: item };
+    }
+    return {
+      id: item.id,
+      selectionValue: item.selection_value ?? null,
+      sound: item.sound,
+      text: item.text,
+    };
+  });
 }
 
 function getDefaultAuthFocusId(mode: AuthMode): string {
@@ -382,13 +394,51 @@ function serverSpeechRateToExpoRate(value: unknown): number {
   return Math.pow(10, (clamped - 100) / 100);
 }
 
-function formatMobileVoiceLabel(name: string, language: string, isDefault: boolean, defaultLabel: string): string {
+function compactVoiceIdentifier(identifier: string): string {
+  const trimmed = identifier.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const segments = trimmed.split(/[:./]/).filter(Boolean);
+  return segments[segments.length - 1] || trimmed;
+}
+
+function localizeVoiceQuality(localization: MobileLocalization, quality: string | undefined): string {
+  const normalized = String(quality || "").trim().toLowerCase();
+  if (normalized === "enhanced") {
+    return localization.t("mobile-tts-quality-enhanced");
+  }
+  if (normalized === "default") {
+    return localization.t("mobile-tts-quality-default");
+  }
+  return String(quality || "").trim();
+}
+
+function formatMobileVoiceLabel(
+  voice: TtsVoiceOption,
+  localization: MobileLocalization,
+): string {
+  const name = voice.label || voice.language || voice.id;
   const parts = [name];
+  const language = voice.language.trim();
   if (language) {
     parts.push(language);
   }
-  if (isDefault) {
-    parts.push(defaultLabel);
+  const quality = localizeVoiceQuality(localization, voice.quality);
+  if (quality) {
+    parts.push(quality);
+  }
+  if (voice.isDefault) {
+    parts.push(localization.t("mobile-tts-system-default"));
+  }
+  const compactIdentifier = compactVoiceIdentifier(voice.id);
+  if (
+    compactIdentifier &&
+    compactIdentifier !== name &&
+    compactIdentifier !== language &&
+    !name.includes(compactIdentifier)
+  ) {
+    parts.push(compactIdentifier);
   }
   return parts.join(", ");
 }
@@ -590,6 +640,7 @@ export function PlayAuralApp() {
   const activeTextInputKeyRef = useRef<string | null>(activeTextInputKey);
   const longPressConsumedRef = useRef<string | null>(null);
   const longPressResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mobileVoiceMenuGenerationRef = useRef(0);
   const voicePresenceRegisteredRef = useRef(false);
   const transientTurnMenuAllowanceRef = useRef<string | null>(null);
   const accessibilityNodeRefs = useRef(new Map<string, AccessibilityFocusNode>());
@@ -1822,10 +1873,19 @@ export function PlayAuralApp() {
       return;
     }
 
+    const generation = mobileVoiceMenuGenerationRef.current + 1;
+    mobileVoiceMenuGenerationRef.current = generation;
     applyMenuPacket(packet, [
-      { id: "back", text: localization.t("mobile-tts-loading-voices") },
+      { id: "mobile_voice_loading", text: localization.t("mobile-tts-loading-voices") },
+      { id: "back", text: localization.t("back") },
     ]);
-    void tts.getAvailableVoiceOptions().then((voices) => {
+    void tts.getAvailableVoiceOptions({ forceRefresh: true }).then((voices) => {
+      if (
+        generation !== mobileVoiceMenuGenerationRef.current ||
+        menuStateRef.current.menuId !== "mobile_voice_selection_menu"
+      ) {
+        return;
+      }
       const currentVoice = String(preferencesRef.current.mobile_tts_voice || "");
       const currentVoiceAvailable = Boolean(currentVoice) && voices.some((voice) => voice.id === currentVoice);
       const voiceItems: MenuItemData[] = [
@@ -1836,21 +1896,45 @@ export function PlayAuralApp() {
               ? localization.t("mobile-tts-default-voice")
               : `* ${localization.t("mobile-tts-default-voice")}`,
         },
-        ...voices.map((voice) => ({
-          id: voice.id,
+        ...(currentVoice && !currentVoiceAvailable ? [{
+          id: "mobile_voice_current_unavailable",
+          selection_value: currentVoice,
+          text: `* ${localization.t("mobile-tts-current-unavailable", { value: currentVoice })}`,
+        }] : []),
+        ...voices.map((voice, index) => ({
+          id: `mobile_voice_${index}`,
+          selection_value: voice.id,
           text: `${voice.id === currentVoice ? "* " : ""}${formatMobileVoiceLabel(
-            voice.label,
-            voice.language,
-            voice.isDefault,
-            localization.t("mobile-tts-system-default"),
+            voice,
+            localization,
           )}`,
         })),
         { id: "back", text: localization.t("back") },
       ];
-      applyMenuPacket(packet, voiceItems);
+      const selectedItem = voiceItems.find((item) => item.selection_value === currentVoice);
+      applyMenuPacket(
+        {
+          ...packet,
+          selection_id: selectedItem?.id ?? "default",
+        },
+        voiceItems,
+      );
     }).catch(() => {
+      if (
+        generation !== mobileVoiceMenuGenerationRef.current ||
+        menuStateRef.current.menuId !== "mobile_voice_selection_menu"
+      ) {
+        return;
+      }
       applyMenuPacket(packet, [
         { id: "default", text: localization.t("mobile-tts-default-voice") },
+        ...(preferencesRef.current.mobile_tts_voice ? [{
+          id: "mobile_voice_current_unavailable",
+          selection_value: String(preferencesRef.current.mobile_tts_voice),
+          text: `* ${localization.t("mobile-tts-current-unavailable", {
+            value: String(preferencesRef.current.mobile_tts_voice),
+          })}`,
+        }] : []),
         { id: "back", text: localization.t("back") },
       ]);
     });
@@ -3239,12 +3323,16 @@ export function PlayAuralApp() {
       transientTurnMenuAllowanceRef.current = currentMenuState.menuId;
     }
     requestNativeMenuFocusOnNextPacket();
-    connection?.send({
+    const outgoing: MenuSelectionPacket = {
       menu_id: currentMenuState.menuId || undefined,
       selection: (indexOverride ?? currentMenuState.focusIndex) + 1,
       selection_id: item.id,
       type: "menu",
-    });
+    };
+    if (item.selectionValue !== null && item.selectionValue !== undefined) {
+      outgoing.selection_value = item.selectionValue;
+    }
+    connection?.send(outgoing);
   };
 
   const sendEscape = () => {

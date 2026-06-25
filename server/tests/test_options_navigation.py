@@ -399,6 +399,43 @@ async def test_mobile_tts_rate_selection_menu_restores_parent_focus(tmp_path) ->
 
 
 @pytest.mark.asyncio
+async def test_mobile_voice_selection_accepts_client_hydrated_voice_value(tmp_path) -> None:
+    server, user = _make_server(tmp_path)
+    try:
+        user.client_type = "mobile"
+        server._show_mobile_speech_settings_menu(user)
+
+        await server._handle_menu(
+            SimpleNamespace(username=user.username),
+            {
+                "type": "menu",
+                "menu_id": "mobile_speech_settings_menu",
+                "selection": 2,
+                "selection_id": "mobile_tts_voice",
+            },
+        )
+        assert _current_menu(server, user.username) == "mobile_voice_selection_menu"
+
+        voice_id = "com.google.android.tts:vi-vn-x-vif-local"
+        await server._handle_menu(
+            SimpleNamespace(username=user.username),
+            {
+                "type": "menu",
+                "menu_id": "mobile_voice_selection_menu",
+                "selection": 3,
+                "selection_id": "mobile_voice_0",
+                "selection_value": voice_id,
+            },
+        )
+
+        assert user.preferences.mobile_tts_voice == voice_id
+        assert _current_menu(server, user.username) == "mobile_speech_settings_menu"
+        assert user.menus["mobile_speech_settings_menu"]["selection_id"] == "mobile_tts_voice"
+    finally:
+        server._db.close()
+
+
+@pytest.mark.asyncio
 async def test_speech_rate_menu_preserves_legacy_off_step_current_value(tmp_path) -> None:
     server, user = _make_server(tmp_path)
     try:
