@@ -1,6 +1,7 @@
 common-cancel = Cancel
 common-error = Error
 common-ok = OK
+common-save = &Save
 
 main-menu-label = Menu
 main-edit-label = Edit
@@ -124,14 +125,24 @@ options-music-volume-label = Music Volume (spin button):
 options-sound-volume-label = Sound Effects Volume:
 options-ambience-volume-label = Ambience Volume (spin button):
 options-voice-volume-label = Voice Chat Volume:
+options-dialog-title = Client Options
+options-tab-audio = Audio
+options-tab-social = Social
+options-tab-interface = Interface
+options-reset-saved = Reset from Saved
+options-audio-hotkeys-note = Note: F7-F10 hotkeys also adjust music and ambience volumes.
+options-mute-global-chat = Mute &Global Chat
+options-mute-table-chat = Mute &Table Chat
+options-invert-multiline-enter = Invert Multiline &Enter Behavior
+options-play-typing-sounds = Play &Typing Sounds While Editing
+options-reset-confirm-title = Confirm Reset
+options-reset-confirm-message = Reset { $tab } settings to saved values?
 
 slash-command-error = Error processing slash command { $command }.
 reg-error-exception = Error: { $error }
 main-connection-error-title = Connection Error
 main-options-error = Client options not available
 main-options-error-title = Error
-options-restart-required-title = Restart Required
-options-restart-required-message = The language change will take full effect after restarting the client.
 
 buffer-name-all = all
 buffer-name-misc = misc
@@ -140,20 +151,25 @@ buffer-name-system = system
 buffer-name-chat = Chat
 
 system-announcement = System Announcement
+chat-announcement = System Announcement: { $message }
 common-app-closing = The game will now close.
 login-error-connection-refused = Connection refused: Server might be offline.
 login-error-connection-timeout = Connection timeout: Server did not respond.
 login-error-unknown = An unknown error occurred: { $error }
 main-attempting-reconnect = Connection lost. Attempting to reconnect...
 main-reconnect-failed = Reconnection failed. Please restart the application.
+main-reconnecting-as-attempt = Reconnecting as { $username }... attempt { $attempt }.
 logged-out = You have logged out.
 goodbye = Goodbye!
 
 update-available-title = Update Available
 update-available-message = A new version ({ $version }) is available. Do you want to update now?
 update-downloading = Downloading update: { $percent }%
+update-downloading-size = Downloading... { $size } MB
 update-complete = Download complete. Restarting...
 update-error = Update failed: { $error }
+updater-not-found = Updater not found at: { $path }
+updater-launch-failed = Failed to launch updater: { $error }
 
 sounds-update-available-title = Sounds Update
 sounds-update-available-message = A sounds update is available. Do you want to download it now?
@@ -172,11 +188,10 @@ main-restarting = Restarting...
 auth-error-username-length = Username must be between 3 and 30 characters.
 auth-error-password-weak = Password must be at least 8 characters long and contain both letters and numbers.
 reg-error-password-match = Passwords do not match.
+input-default-prompt = Enter text:
 
 error-email-empty = Email is mandatory and cannot be empty.
 error-email-invalid = Please enter a valid email address.
-
-reg-error-email = Email is required to register.
 
 error-email-taken = This email is already in use by another account.
 

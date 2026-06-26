@@ -101,16 +101,16 @@ class AudioPlaylist:
             track_path = os.path.join(self.sound_manager.sounds_folder, track)
 
             # Load from cache or create cache entry
-            if track not in self.sound_manager.sound_cacher.cache:
+            if track_path not in self.sound_manager.sound_cacher.cache:
                 with open(track_path, "rb") as f:
                     import ctypes
 
-                    self.sound_manager.sound_cacher.cache[track] = (
+                    self.sound_manager.sound_cacher.cache[track_path] = (
                         ctypes.create_string_buffer(f.read())
                     )
 
             # Create stream without playing
-            cache_buffer = self.sound_manager.sound_cacher.cache[track]
+            cache_buffer = self.sound_manager.sound_cacher.cache[track_path]
             self.current_stream = stream.FileStream(
                 mem=True, file=cache_buffer, length=len(cache_buffer)
             )
@@ -139,8 +139,10 @@ class AudioPlaylist:
 
         # Now play the stream (callback is already registered)
         if self.current_stream and self.audio_type == "sound":
+            self.current_stream.volume = self.sound_manager._effective_sound_volume(1.0)
             self.current_stream.play()
             self.sound_manager.sound_cacher.refs.append(self.current_stream)
+            self.sound_manager._track_sound_stream(self.current_stream, 1.0)
 
         # Advance to next track index
         self.track_index += 1
@@ -326,6 +328,8 @@ class SoundManager:
         self.current_music_name = None
         self.music_volume = 0.2
         self.sound_volume = 1.0
+        self._active_sound_streams = []
+        self._active_sound_lock = threading.RLock()
         
         import sys
         if getattr(sys, 'frozen', False):
@@ -377,14 +381,60 @@ class SoundManager:
 
         try:
             requested_volume = max(0.0, min(1.0, float(volume)))
-            effective_volume = max(0.0, min(1.0, requested_volume * self.sound_volume))
-            return self.sound_cacher.play(
-                sound_path, pan=pan, volume=effective_volume, pitch=pitch
+            stream = self.sound_cacher.play(
+                sound_path,
+                pan=pan,
+                volume=self._effective_sound_volume(requested_volume),
+                pitch=pitch,
             )
+            self._track_sound_stream(stream, requested_volume)
+            return stream
         except (TypeError, ValueError):
             return None
         except Exception:
             return None
+
+    @staticmethod
+    def _clamp_volume(volume, default=1.0):
+        try:
+            parsed = float(volume)
+        except (TypeError, ValueError):
+            parsed = default
+        return max(0.0, min(1.0, parsed))
+
+    @staticmethod
+    def _stream_is_playing(stream_obj):
+        try:
+            return bool(getattr(stream_obj, "is_playing", False))
+        except Exception:
+            return False
+
+    @staticmethod
+    def _set_stream_volume(stream_obj, volume):
+        try:
+            stream_obj.volume = max(0.0, min(1.0, float(volume)))
+        except Exception:
+            pass
+
+    def _effective_sound_volume(self, base_volume):
+        return self._clamp_volume(base_volume) * self.sound_volume
+
+    def _track_sound_stream(self, stream_obj, base_volume=1.0):
+        """Track a one-shot sound stream for live SFX volume changes."""
+        if not stream_obj:
+            return
+        base_volume = self._clamp_volume(base_volume)
+        self._set_stream_volume(stream_obj, self._effective_sound_volume(base_volume))
+        with self._active_sound_lock:
+            self._prune_active_sound_streams_locked()
+            self._active_sound_streams.append((stream_obj, base_volume))
+
+    def _prune_active_sound_streams_locked(self):
+        self._active_sound_streams = [
+            (stream_obj, base_volume)
+            for stream_obj, base_volume in self._active_sound_streams
+            if self._stream_is_playing(stream_obj)
+        ]
 
     def music(self, music_name: str, looping: bool = True, fade_out_old: bool = True):
         """
@@ -551,11 +601,13 @@ class SoundManager:
         Args:
             volume: Volume level 0.0-1.0
         """
-        try:
-            parsed_volume = float(volume)
-        except (TypeError, ValueError):
-            parsed_volume = 1.0
-        self.sound_volume = max(0.1, min(1.0, parsed_volume))
+        self.sound_volume = self._clamp_volume(volume)
+        with self._active_sound_lock:
+            self._prune_active_sound_streams_locked()
+            for stream_obj, base_volume in list(self._active_sound_streams):
+                self._set_stream_volume(
+                    stream_obj, self._effective_sound_volume(base_volume)
+                )
 
     def play_menuclick(self):
         """Play the menu click sound."""

@@ -1,6 +1,7 @@
 common-cancel = Hủy
 common-error = Lỗi
 common-ok = OK
+common-save = &Lưu
 
 main-menu-label = Menu
 main-edit-label = Chỉnh sửa
@@ -124,14 +125,24 @@ options-music-volume-label = Âm lượng nhạc nền:
 options-sound-volume-label = Âm lượng hiệu ứng:
 options-ambience-volume-label = Âm lượng môi trường:
 options-voice-volume-label = Âm lượng trò chuyện thoại:
+options-dialog-title = Tùy chỉnh máy khách
+options-tab-audio = Âm thanh
+options-tab-social = Xã hội
+options-tab-interface = Giao diện
+options-reset-saved = Khôi phục từ thiết lập đã lưu
+options-audio-hotkeys-note = Lưu ý: phím F7-F10 cũng điều chỉnh âm lượng nhạc nền và âm thanh môi trường.
+options-mute-global-chat = Tắt tiếng &kênh chung
+options-mute-table-chat = Tắt tiếng trò chuyện trong &bàn
+options-invert-multiline-enter = Đảo cách dùng &Enter trong ô nhập nhiều dòng
+options-play-typing-sounds = Phát âm &gõ phím khi nhập liệu
+options-reset-confirm-title = Xác nhận khôi phục
+options-reset-confirm-message = Khôi phục tùy chỉnh { $tab } về giá trị đã lưu?
 
 slash-command-error = Lỗi khi xử lý lệnh gạch chéo { $command }.
 reg-error-exception = Lỗi: { $error }
 main-connection-error-title = Lỗi kết nối
 main-options-error = Các tùy chọn ứng dụng không khả dụng
 main-options-error-title = Lỗi
-options-restart-required-title = Yêu cầu khởi động lại
-options-restart-required-message = Thay đổi ngôn ngữ sẽ có hiệu lực đầy đủ sau khi khởi động lại ứng dụng.
 
 buffer-name-all = tất cả
 buffer-name-misc = linh tinh
@@ -140,20 +151,25 @@ buffer-name-system = hệ thống
 buffer-name-chat = Trò chuyện
 
 system-announcement = Thông báo hệ thống
+chat-announcement = Thông báo hệ thống: { $message }
 common-app-closing = Trò chơi sẽ đóng lại ngay bây giờ.
 login-error-connection-refused = Kết nối bị từ chối: Máy chủ có thể đang ngoại tuyến.
 login-error-connection-timeout = Hết thời gian kết nối: Máy chủ không phản hồi.
 login-error-unknown = Đã xảy ra lỗi không xác định: { $error }
 main-attempting-reconnect = Mất kết nối. Đang thử kết nối lại...
 main-reconnect-failed = Kết nối lại thất bại. Vui lòng khởi động lại ứng dụng.
+main-reconnecting-as-attempt = Đang kết nối lại với tên { $username }... lần thử { $attempt }.
 logged-out = Bạn đã đăng xuất.
 goodbye = Tạm biệt!
 
 update-available-title = Có bản cập nhật mới
 update-available-message = Đã có phiên bản mới ({ $version }). Bạn có muốn cập nhật ngay không?
 update-downloading = Đang tải bản cập nhật: { $percent }%
+update-downloading-size = Đang tải xuống... { $size } MB
 update-complete = Tải xuống hoàn tất. Đang khởi động lại...
 update-error = Cập nhật thất bại: { $error }
+updater-not-found = Không tìm thấy trình cập nhật tại: { $path }
+updater-launch-failed = Không thể khởi chạy trình cập nhật: { $error }
 
 sounds-update-available-title = Cập nhật âm thanh
 sounds-update-available-message = Có bản cập nhật âm thanh mới. Bạn có muốn tải xuống ngay bây giờ không?
@@ -172,11 +188,10 @@ main-restarting = Đang khởi động lại...
 auth-error-username-length = Tên đăng nhập phải dài từ 3 đến 30 ký tự.
 auth-error-password-weak = Mật khẩu phải dài ít nhất 8 ký tự và bao gồm cả chữ và số.
 reg-error-password-match = Mật khẩu không khớp.
+input-default-prompt = Nhập nội dung:
 
 error-email-empty = Email là bắt buộc và không được để trống.
 error-email-invalid = Vui lòng nhập địa chỉ email hợp lệ.
-
-reg-error-email = Email là bắt buộc để đăng ký.
 
 error-email-taken = Email này đã được sử dụng bởi một tài khoản khác.
 

@@ -29,7 +29,11 @@ class ClientOptionsDialog(wx.Dialog, uisound.SoundBindingsMixin):
             client_options: Reference to main window's client_options dict (optional, will be updated on save)
             voice_manager: VoiceManager instance (optional, for applying voice volume changes)
         """
-        super().__init__(parent, title="Client Options", size=(600, 520))
+        super().__init__(
+            parent,
+            title=Localization.get("options-dialog-title"),
+            size=(600, 520),
+        )
 
         self.config_manager = config_manager
         self.server_id = server_id
@@ -56,7 +60,7 @@ class ClientOptionsDialog(wx.Dialog, uisound.SoundBindingsMixin):
         self.panel = panel
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        title = wx.StaticText(panel, label="Client Options")
+        title = wx.StaticText(panel, label=Localization.get("options-dialog-title"))
         font = title.GetFont()
         font.PointSize += 2
         font = font.Bold()
@@ -65,11 +69,13 @@ class ClientOptionsDialog(wx.Dialog, uisound.SoundBindingsMixin):
 
         self.notebook = wx.Notebook(panel)
         audio_panel = self._create_audio_panel(self.notebook)
-        self.notebook.AddPage(audio_panel, "Audio")
+        self.notebook.AddPage(audio_panel, Localization.get("options-tab-audio"))
         social_panel = self._create_social_panel(self.notebook)
-        self.notebook.AddPage(social_panel, "Social")
+        self.notebook.AddPage(social_panel, Localization.get("options-tab-social"))
         interface_panel = self._create_interface_panel(self.notebook)
-        self.notebook.AddPage(interface_panel, "Interface")
+        self.notebook.AddPage(
+            interface_panel, Localization.get("options-tab-interface")
+        )
 
         self.tab_names = tuple(
             [self.notebook.GetPageText(i) for i in range(self.notebook.GetPageCount())]
@@ -77,14 +83,18 @@ class ClientOptionsDialog(wx.Dialog, uisound.SoundBindingsMixin):
         main_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 10)
 
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        reset_last_btn = wx.Button(panel, label="Reset from Saved")
+        reset_last_btn = wx.Button(
+            panel, label=Localization.get("options-reset-saved")
+        )
         reset_last_btn.Bind(wx.EVT_BUTTON, self.on_reset_to_last_used)
         button_sizer.Add(reset_last_btn, 0, wx.RIGHT, 5)
         button_sizer.AddStretchSpacer()
-        save_btn = wx.Button(panel, label="&Save")
+        save_btn = wx.Button(panel, label=Localization.get("common-save"))
         save_btn.SetDefault()
         button_sizer.Add(save_btn, 0, wx.RIGHT, 5)
-        done_btn = wx.Button(panel, wx.ID_CANCEL, "Cancel")
+        done_btn = wx.Button(
+            panel, wx.ID_CANCEL, Localization.get("common-cancel")
+        )
         button_sizer.Add(done_btn, 0)
         main_sizer.Add(button_sizer, 0, wx.EXPAND | wx.ALL, 10)
 
@@ -141,7 +151,7 @@ class ClientOptionsDialog(wx.Dialog, uisound.SoundBindingsMixin):
         self.voice_spin.Bind(wx.EVT_TEXT, self.on_voice_spin_change)
         sizer.Add(self.voice_spin, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM | wx.EXPAND, 10)
 
-        sizer.Add(wx.StaticText(panel, label="Note: F7-F10 hotkeys also adjust music/ambience volumes."),
+        sizer.Add(wx.StaticText(panel, label=Localization.get("options-audio-hotkeys-note")),
                   0, wx.ALL, 10)
 
         panel.SetSizer(sizer)
@@ -152,10 +162,14 @@ class ClientOptionsDialog(wx.Dialog, uisound.SoundBindingsMixin):
         panel = wx.Panel(parent)
         sizer = wx.BoxSizer(wx.VERTICAL)
         social = self.options.get("social", {})
-        self.mute_global_check = wx.CheckBox(panel, label="Mute &Global Chat")
+        self.mute_global_check = wx.CheckBox(
+            panel, label=Localization.get("options-mute-global-chat")
+        )
         self.mute_global_check.SetValue(social.get("mute_global_chat", False))
         sizer.Add(self.mute_global_check, 0, wx.ALL, 10)
-        self.mute_table_check = wx.CheckBox(panel, label="Mute &Table Chat")
+        self.mute_table_check = wx.CheckBox(
+            panel, label=Localization.get("options-mute-table-chat")
+        )
         self.mute_table_check.SetValue(social.get("mute_table_chat", False))
         sizer.Add(self.mute_table_check, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         panel.SetSizer(sizer)
@@ -166,10 +180,14 @@ class ClientOptionsDialog(wx.Dialog, uisound.SoundBindingsMixin):
         panel = wx.Panel(parent)
         sizer = wx.BoxSizer(wx.VERTICAL)
         interface = self.options.get("interface", {})
-        self.invert_multiline_enter_check = wx.CheckBox(panel, label="Invert Multiline &Enter Behavior")
+        self.invert_multiline_enter_check = wx.CheckBox(
+            panel, label=Localization.get("options-invert-multiline-enter")
+        )
         self.invert_multiline_enter_check.SetValue(interface.get("invert_multiline_enter_behavior", False))
         sizer.Add(self.invert_multiline_enter_check, 0, wx.ALL, 10)
-        self.play_typing_sounds_check = wx.CheckBox(panel, label="Play &Typing Sounds While Editing")
+        self.play_typing_sounds_check = wx.CheckBox(
+            panel, label=Localization.get("options-play-typing-sounds")
+        )
         self.play_typing_sounds_check.SetValue(interface.get("play_typing_sounds", True))
         sizer.Add(self.play_typing_sounds_check, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         panel.SetSizer(sizer)
@@ -232,8 +250,8 @@ class ClientOptionsDialog(wx.Dialog, uisound.SoundBindingsMixin):
         current_page = self.notebook.GetSelection()
         current_tab_name = self.tab_names[current_page]
         result = wx.MessageBox(
-            f"Reset {current_tab_name} settings to saved values?",
-            "Confirm Reset",
+            Localization.get("options-reset-confirm-message", tab=current_tab_name),
+            Localization.get("options-reset-confirm-title"),
             wx.YES_NO | wx.ICON_QUESTION,
         )
         if result == wx.YES:

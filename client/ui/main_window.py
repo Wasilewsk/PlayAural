@@ -378,6 +378,47 @@ class MainWindow(wx.Frame):
         self.voice_leave_button.SetName(self.voice_leave_button.GetLabel())
         self.voice_mic_checkbox.SetName(Localization.get("voice-chat-mic"))
 
+    def _refresh_localized_chrome(self):
+        """Refresh client-owned labels after the active locale changes."""
+        focused = wx.Window.FindFocus()
+
+        self.SetTitle(Localization.get("main-window-title", version=VERSION))
+        self.menu_label.SetLabel(Localization.get("main-menu-label"))
+        if self.current_mode != "edit":
+            self.edit_label.SetLabel(Localization.get("main-edit-label"))
+        self.chat_label.SetLabel(Localization.get("main-chat-label"))
+        self.history_label.SetLabel(Localization.get("main-history-label"))
+        self.update_voice_ui()
+        self._apply_accessibility_labels()
+        self._layout_main_panel()
+
+        focusable_controls = (
+            self.menu_list,
+            self.chat_input,
+            self.history_text,
+            self.voice_join_button,
+            self.voice_leave_button,
+            self.voice_mic_checkbox,
+            self.edit_input,
+            self.edit_input_multiline,
+        )
+        if focused and any(focused is control for control in focusable_controls):
+            wx.CallAfter(focused.SetFocus)
+
+    def _apply_locale_change(self, locale):
+        """Persist and immediately apply a server-selected client locale."""
+        locale = str(locale or "en").strip() or "en"
+        if self.config_manager:
+            self.config_manager.set_client_option(
+                "interface_language", locale, create_mode=True
+            )
+        set_item_in_dict(
+            self.client_options, "interface_language", locale, create_mode=True
+        )
+        Localization.set_locale(locale)
+        if hasattr(self, "menu_label"):
+            self._refresh_localized_chrome()
+
     def _sync_chat_area_tab_order(self):
         """Keep chat, voice controls, and history in a stable focus order."""
         self.chat_input.MoveAfterInTabOrder(self.menu_list)
@@ -1420,7 +1461,7 @@ class MainWindow(wx.Frame):
         if prompt:
             self.edit_label.SetLabel(prompt)
         else:
-            self.edit_label.SetLabel("&Edit")
+            self.edit_label.SetLabel(Localization.get("main-edit-label"))
         self.edit_input.SetName(self.edit_label.GetLabel())
         self.edit_input_multiline.SetName(self.edit_label.GetLabel())
 
@@ -1903,7 +1944,11 @@ class MainWindow(wx.Frame):
 
         # Attempt to connect
         self.add_history(
-            f"Reconnecting as {username}... (attempt {self.reconnect_attempts})"
+            Localization.get(
+                "main-reconnecting-as-attempt",
+                username=username,
+                attempt=self.reconnect_attempts,
+            )
         )
         self.network.disconnect()
 
@@ -2001,8 +2046,7 @@ class MainWindow(wx.Frame):
         self.voice_presence_registered = False
         self.update_voice_ui()
 
-        # Save locale to config
-        self.config_manager.set_client_option("interface_language", locale, create_mode=True)
+        self._apply_locale_change(locale)
         
         # Apply preferences from server
         preferences = packet.get("preferences", {})
@@ -2170,7 +2214,6 @@ class MainWindow(wx.Frame):
                     if current_time - last_update_check > 0.1: # Update max 10 times per second
                         last_update_check = current_time
                         
-                        keep_going = True
                         if total_size > 0:
                             percent = int((downloaded / total_size) * 100)
                             # Call Update on main thread and get result (requires passing a callback or using a shared flag? 
@@ -2193,7 +2236,10 @@ class MainWindow(wx.Frame):
                         else:
                             # Indeterminate size
                             downloaded_mb = downloaded / (1024*1024)
-                            msg = f"Downloading... {downloaded_mb:.2f} MB"
+                            msg = Localization.get(
+                                "update-downloading-size",
+                                size=f"{downloaded_mb:.2f}",
+                            )
                             
                             def pulse_modal(msg):
                                 if not self.update_dialog: return
@@ -2223,7 +2269,12 @@ class MainWindow(wx.Frame):
                 # User didn't specify. But "Mandatory" logic (lines 1339) implies they must update.
                 # However, maybe they want to cancel to try again later?
                 # I will Close App if cancelled, consistent with mandatory policy.
-                wx.CallAfter(wx.MessageBox, Localization.get("update-cancelled"), Localization.get("main-options-error-title"), wx.OK)
+                wx.CallAfter(
+                    wx.MessageBox,
+                    Localization.get("update-cancelled"),
+                    Localization.get("main-options-error-title"),
+                    wx.OK,
+                )
                 wx.CallAfter(self.Close)
                 wx.CallAfter(wx.GetApp().ExitMainLoop)
                 return
@@ -2246,7 +2297,12 @@ class MainWindow(wx.Frame):
             if self.update_dialog:
                  wx.CallAfter(self.update_dialog.Destroy)
             wx.CallAfter(self.speaker.speak, Localization.get("update-error", error=str(e)))
-            wx.CallAfter(wx.MessageBox, Localization.get("update-error", error=str(e)), "Error", wx.OK | wx.ICON_ERROR)
+            wx.CallAfter(
+                wx.MessageBox,
+                Localization.get("update-error", error=str(e)),
+                Localization.get("common-error"),
+                wx.OK | wx.ICON_ERROR,
+            )
             # Cleanup broken zip
             if os.path.exists(target_zip):
                  try:
@@ -2265,7 +2321,6 @@ class MainWindow(wx.Frame):
             if os.path.exists(updater_script):
                 # Running from source, call python
                 python_exe = sys.executable
-                exe_name = os.path.basename(sys.executable) if getattr(sys, 'frozen', False) else "PlayAural.exe"
                 cmd = [python_exe, updater_script, "--zip", zip_path, "--target", os.getcwd(), "--exe", "PlayAural.exe", "--pid", str(pid)]
                 if extract_dir:
                     cmd.extend(["--extract-dir", extract_dir])
@@ -2301,7 +2356,12 @@ class MainWindow(wx.Frame):
                         cmd.extend(["--extract-dir", extract_dir])
                     subprocess.Popen(cmd)
                 else:
-                     wx.CallAfter(wx.MessageBox, f"Updater not found at: {updater_exe}", "Error", wx.OK | wx.ICON_ERROR)
+                     wx.CallAfter(
+                         wx.MessageBox,
+                         Localization.get("updater-not-found", path=updater_exe),
+                         Localization.get("common-error"),
+                         wx.OK | wx.ICON_ERROR,
+                     )
                      return
             
             # Quit immediately
@@ -2310,7 +2370,12 @@ class MainWindow(wx.Frame):
             os._exit(0)
             
         except Exception as e:
-            wx.CallAfter(wx.MessageBox, f"Failed to launch updater: {e}", "Error", wx.OK | wx.ICON_ERROR)
+            wx.CallAfter(
+                wx.MessageBox,
+                Localization.get("updater-launch-failed", error=str(e)),
+                Localization.get("common-error"),
+                wx.OK | wx.ICON_ERROR,
+            )
 
     def _check_sounds_update(self, sounds_info):
         """Check if sounds update is needed."""
@@ -2408,7 +2473,10 @@ class MainWindow(wx.Frame):
                                 last_percent = percent
                         else:
                             downloaded_mb = downloaded / (1024*1024)
-                            msg = f"Downloading... {downloaded_mb:.2f} MB"
+                            msg = Localization.get(
+                                "update-downloading-size",
+                                size=f"{downloaded_mb:.2f}",
+                            )
 
                             def pulse_modal(msg):
                                 if not getattr(self, "sounds_update_dialog", None): return
@@ -2443,7 +2511,12 @@ class MainWindow(wx.Frame):
             if getattr(self, "sounds_update_dialog", None):
                  wx.CallAfter(self.sounds_update_dialog.Destroy)
             wx.CallAfter(self.speaker.speak, Localization.get("sounds-update-error", error=str(e)))
-            wx.CallAfter(wx.MessageBox, Localization.get("sounds-update-error", error=str(e)), "Error", wx.OK | wx.ICON_ERROR)
+            wx.CallAfter(
+                wx.MessageBox,
+                Localization.get("sounds-update-error", error=str(e)),
+                Localization.get("common-error"),
+                wx.OK | wx.ICON_ERROR,
+            )
             if os.path.exists(target_zip):
                  try:
                      os.remove(target_zip)
@@ -2452,16 +2525,7 @@ class MainWindow(wx.Frame):
 
     def on_update_locale(self, packet):
         """Handle update_locale packet from server."""
-        locale = packet.get("locale", "en")
-        self.config_manager.set_client_option("interface_language", locale, create_mode=True)
-        
-        # Notify user that restart is required if locale changed
-        if locale != Localization._locale:
-            wx.MessageBox(
-                Localization.get("options-restart-required-message"),
-                Localization.get("options-restart-required-title"),
-                wx.OK | wx.ICON_INFORMATION,
-            )
+        self._apply_locale_change(packet.get("locale", "en"))
 
     def on_open_server_options(self, packet):
         """Handle open server options packet from server.
@@ -2545,7 +2609,9 @@ class MainWindow(wx.Frame):
         if convo == "global":
             message = Localization.get("chat-global", player=packet.get("sender"), message=packet.get("message"))
         elif convo == "announcement":
-            message = f"{Localization.get('system-announcement')}: {packet.get('message')}"
+            message = Localization.get(
+                "chat-announcement", message=packet.get("message")
+            )
         else:
             message = Localization.get("chat-local", player=packet.get("sender"), message=packet.get("message"))
         should_alert = not packet.get("silent")
@@ -2960,7 +3026,7 @@ class MainWindow(wx.Frame):
 
     def on_server_request_input(self, packet):
         """Handle request_input packet from server."""
-        prompt = packet.get("prompt", "Enter text:")
+        prompt = packet.get("prompt", Localization.get("input-default-prompt"))
         input_id = packet.get("input_id") or packet.get("id") or packet.get("menu_id")
         default_value = packet.get("default_value", "")
         multiline = packet.get("multiline", False)

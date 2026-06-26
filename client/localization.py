@@ -2,24 +2,48 @@
 Client-side localization system using Fluent.
 """
 
-import os
+import logging
 from pathlib import Path
 from fluent.runtime import FluentBundle, FluentResource
+
+
+LOGGER = logging.getLogger("playaural.localization")
+
 
 class Localization:
     _bundle = None
     _locale = "en"
     _fallback_locale = "en"
+    _locales_dir: Path | None = None
 
     @classmethod
     def init(cls, locales_dir: Path | None = None, locale: str = "en"):
         """Initialize the localization system."""
-        cls._locale = locale
         if locales_dir is None:
             # Default to 'locales' next to this file
             locales_dir = Path(__file__).parent / "locales"
-        
-        cls._load_bundle(locales_dir)
+
+        cls._locales_dir = Path(locales_dir)
+        cls.set_locale(locale)
+
+    @classmethod
+    def current_locale(cls) -> str:
+        """Return the currently active client locale."""
+        return cls._locale
+
+    @classmethod
+    def set_locale(cls, locale: str | None, locales_dir: Path | None = None) -> bool:
+        """Switch the active locale and reload Fluent resources immediately."""
+        if locales_dir is not None:
+            cls._locales_dir = Path(locales_dir)
+        if cls._locales_dir is None:
+            cls._locales_dir = Path(__file__).parent / "locales"
+
+        normalized_locale = str(locale or cls._fallback_locale).strip() or cls._fallback_locale
+        changed = normalized_locale != cls._locale
+        cls._locale = normalized_locale
+        cls._load_bundle(cls._locales_dir)
+        return changed
 
     @classmethod
     def _load_bundle(cls, locales_dir: Path):
@@ -30,26 +54,23 @@ class Localization:
             locales.append(cls._fallback_locale)
 
         cls._bundle = FluentBundle(locales, use_isolating=False)
-        
-        # Load files
-        # We assume a single 'client.ftl' for now for simplicity
+
+        # Load the fallback first, then the target locale so translated keys can
+        # override fallback keys while missing keys remain readable.
         filename = "client.ftl"
-        
-        for loc in locales:
+
+        for loc in reversed(locales):
             path = locales_dir / loc / filename
-            print(f"[Localization] Trying to load: {path}")
             if path.exists():
                 try:
                     with open(path, "r", encoding="utf-8") as f:
                         content = f.read()
-                        print(f"[Localization] Read {len(content)} bytes from {path}")
                         resource = FluentResource(content)
-                        cls._bundle.add_resource(resource)
-                        print(f"[Localization] Loaded {loc}")
+                        cls._bundle.add_resource(resource, allow_overrides=True)
                 except Exception as e:
-                    print(f"Error loading locale {loc}: {e}")
+                    LOGGER.warning("Error loading locale %s from %s: %s", loc, path, e)
             else:
-                print(f"[Localization] File not found: {path.absolute()}")
+                LOGGER.debug("Locale file not found: %s", path.absolute())
 
     @classmethod
     def get(cls, message_id: str, **kwargs) -> str:
@@ -65,10 +86,10 @@ class Localization:
             if message and message.value:
                 val, errors = cls._bundle.format_pattern(message.value, kwargs)
                 if errors:
-                    print(f"Fluent errors for {message_id}: {errors}")
+                    LOGGER.warning("Fluent errors for %s: %s", message_id, errors)
                     return val or message_id
                 return val
             return message_id
         except Exception as e:
-            print(f"Error formatting {message_id}: {e}")
+            LOGGER.warning("Error formatting %s: %s", message_id, e)
             return message_id

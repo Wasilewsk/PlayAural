@@ -1,7 +1,13 @@
 import ast
 from pathlib import Path
+import sys
 
-from client.buffer_system import BufferSystem
+
+CLIENT_DIR = Path(__file__).resolve().parents[1]
+if str(CLIENT_DIR) not in sys.path:
+    sys.path.insert(0, str(CLIENT_DIR))
+
+from buffer_system import BufferSystem
 
 
 def _get_main_window_function(function_name: str) -> ast.FunctionDef:
