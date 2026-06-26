@@ -636,6 +636,7 @@ export function PlayAuralApp() {
   const nativeScreenReaderAnnouncementQueueRef = useRef<string[]>([]);
   const nativeScreenReaderAnnouncementTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nativeScreenReaderAnnouncementActiveRef = useRef(false);
+  const nativeScreenReaderAnnouncementGenerationRef = useRef(0);
   const nativeScreenReaderLastAnnouncementRef = useRef({ at: 0, text: "" });
   const activeTextInputKeyRef = useRef<string | null>(activeTextInputKey);
   const longPressConsumedRef = useRef<string | null>(null);
@@ -810,6 +811,7 @@ export function PlayAuralApp() {
   }, []);
 
   const clearNativeScreenReaderAnnouncementQueue = useCallback(() => {
+    nativeScreenReaderAnnouncementGenerationRef.current += 1;
     nativeScreenReaderAnnouncementQueueRef.current = [];
     nativeScreenReaderAnnouncementActiveRef.current = false;
     if (nativeScreenReaderAnnouncementTimerRef.current) {
@@ -840,9 +842,13 @@ export function PlayAuralApp() {
 
     nativeScreenReaderLastAnnouncementRef.current = { at: now, text: next };
     nativeScreenReaderAnnouncementActiveRef.current = true;
+    const generation = nativeScreenReaderAnnouncementGenerationRef.current;
     postNativeScreenReaderAnnouncement(next);
 
     nativeScreenReaderAnnouncementTimerRef.current = setTimeout(() => {
+      if (generation !== nativeScreenReaderAnnouncementGenerationRef.current) {
+        return;
+      }
       nativeScreenReaderAnnouncementTimerRef.current = null;
       nativeScreenReaderAnnouncementActiveRef.current = false;
       processNativeScreenReaderAnnouncementQueue();
@@ -934,6 +940,7 @@ export function PlayAuralApp() {
       focusKey !== scheduledFocusKey &&
       Date.now() - scheduledAt <= NATIVE_FOCUS_RESET_GUARD_MS
     ) {
+      clearNativeScreenReaderAnnouncementQueue();
       return;
     }
     pendingNativeAccessibilityFocusKeyRef.current = null;
@@ -949,7 +956,7 @@ export function PlayAuralApp() {
       nativeFocusTargetReleaseTimerRef.current = null;
     }
     clearNativeScreenReaderAnnouncementQueue();
-  }, [clearNativeScreenReaderAnnouncementQueue, clearScheduledNativeFocus, nativeScreenReaderMode]);
+  }, [clearNativeScreenReaderAnnouncementQueue, nativeScreenReaderMode]);
 
   const speakServerAnnouncement = useCallback(
     (text: string, options?: { remember?: boolean }) => {

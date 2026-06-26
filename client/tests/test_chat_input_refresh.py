@@ -177,6 +177,25 @@ def test_voice_ui_restores_the_same_voice_control_when_possible():
     assert _has_wx_callafter_target(function, "_restore_voice_control_focus")
 
 
+def test_voice_shortcuts_toggle_chat_and_microphone_directly():
+    source = _main_window_source()
+    setup = _get_main_window_function("_setup_accelerators")
+    attributes = _referenced_self_attributes(setup)
+
+    assert "ID_FOCUS_VOICE" not in source
+    assert "ID_TOGGLE_VOICE_CHAT" in attributes
+    assert "ID_TOGGLE_VOICE_MIC" in attributes
+    assert "wx.ACCEL_ALT | wx.ACCEL_SHIFT" in source
+    assert _has_method_call(
+        _get_main_window_function("on_toggle_voice_chat"),
+        "_toggle_voice_chat",
+    )
+    assert _has_method_call(
+        _get_main_window_function("on_toggle_voice_mic"),
+        "_request_voice_mic_toggle",
+    )
+
+
 def test_legacy_chat_recreation_and_focus_bounce_helpers_are_removed():
     method_names = _main_window_method_names()
     assert "_refresh_chat_input_after_send" not in method_names

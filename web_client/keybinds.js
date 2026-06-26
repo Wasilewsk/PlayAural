@@ -56,7 +56,8 @@ export function installKeybinds({
   sendListOnlineWithGames,
   onFocusMenu,
   onFocusChat,
-  onFocusVoice,
+  onToggleVoiceChat,
+  onToggleVoiceMic,
   onFocusHistory,
   onOpenFriends,
   onOpenOptions,
@@ -93,6 +94,19 @@ export function installKeybinds({
     if (
       connected
       && event.altKey
+      && event.shiftKey
+      && !event.ctrlKey
+      && !event.metaKey
+      && event.key.toLowerCase() === "v"
+    ) {
+      event.preventDefault();
+      onToggleVoiceMic?.();
+      return;
+    }
+
+    if (
+      connected
+      && event.altKey
       && !event.ctrlKey
       && !event.shiftKey
       && !event.metaKey
@@ -110,7 +124,7 @@ export function installKeybinds({
       }
       if (altKey === "v") {
         event.preventDefault();
-        onFocusVoice?.();
+        onToggleVoiceChat?.();
         return;
       }
       if (altKey === "h") {

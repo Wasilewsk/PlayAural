@@ -447,7 +447,8 @@ class MainWindow(wx.Frame):
         # Create unique IDs for each accelerator
         self.ID_FOCUS_MENU = wx.NewIdRef()
         self.ID_FOCUS_CHAT = wx.NewIdRef()
-        self.ID_FOCUS_VOICE = wx.NewIdRef()
+        self.ID_TOGGLE_VOICE_CHAT = wx.NewIdRef()
+        self.ID_TOGGLE_VOICE_MIC = wx.NewIdRef()
         self.ID_FOCUS_HISTORY = wx.NewIdRef()        
         self.ID_VOLUME_DOWN = wx.NewIdRef()
         self.ID_VOLUME_UP = wx.NewIdRef()
@@ -476,7 +477,12 @@ class MainWindow(wx.Frame):
         common_entries = [
             wx.AcceleratorEntry(wx.ACCEL_ALT, ord("M"), self.ID_FOCUS_MENU),
             wx.AcceleratorEntry(wx.ACCEL_ALT, ord("C"), self.ID_FOCUS_CHAT),
-            wx.AcceleratorEntry(wx.ACCEL_ALT, ord("V"), self.ID_FOCUS_VOICE),
+            wx.AcceleratorEntry(wx.ACCEL_ALT, ord("V"), self.ID_TOGGLE_VOICE_CHAT),
+            wx.AcceleratorEntry(
+                wx.ACCEL_ALT | wx.ACCEL_SHIFT,
+                ord("V"),
+                self.ID_TOGGLE_VOICE_MIC,
+            ),
             wx.AcceleratorEntry(wx.ACCEL_ALT, ord("H"), self.ID_FOCUS_HISTORY),
             wx.AcceleratorEntry(wx.ACCEL_NORMAL, wx.WXK_F6, self.ID_TOGGLE_TABLE_CHAT),
             wx.AcceleratorEntry(wx.ACCEL_SHIFT, wx.WXK_F6, self.ID_TOGGLE_GLOBAL_CHAT),
@@ -521,7 +527,16 @@ class MainWindow(wx.Frame):
         # Bind the accelerator events
         self.Bind(wx.EVT_MENU, self.on_focus_menu, id=self.ID_FOCUS_MENU)
         self.Bind(wx.EVT_MENU, self.on_focus_chat, id=self.ID_FOCUS_CHAT)
-        self.Bind(wx.EVT_MENU, self.on_focus_voice, id=self.ID_FOCUS_VOICE)
+        self.Bind(
+            wx.EVT_MENU,
+            self.on_toggle_voice_chat,
+            id=self.ID_TOGGLE_VOICE_CHAT,
+        )
+        self.Bind(
+            wx.EVT_MENU,
+            self.on_toggle_voice_mic,
+            id=self.ID_TOGGLE_VOICE_MIC,
+        )
         self.Bind(wx.EVT_MENU, self.on_focus_history, id=self.ID_FOCUS_HISTORY)
         self.Bind(wx.EVT_MENU, self.on_toggle_table_chat, id=self.ID_TOGGLE_TABLE_CHAT)
         self.Bind(
@@ -577,9 +592,13 @@ class MainWindow(wx.Frame):
         """Handle Alt+C shortcut to focus chat input."""
         self.chat_input.SetFocus()
 
-    def on_focus_voice(self, event):
-        """Handle Alt+V shortcut to focus voice chat controls."""
-        self._focus_voice_control()
+    def on_toggle_voice_chat(self, event):
+        """Handle Alt+V shortcut to join or leave Voice Chat."""
+        self._toggle_voice_chat()
+
+    def on_toggle_voice_mic(self, event):
+        """Handle Alt+Shift+V shortcut to toggle the Voice Chat microphone."""
+        self._request_voice_mic_toggle(not self.voice_mic_enabled)
 
     def _get_voice_focus_target(self):
         """Return which voice control currently owns focus, if any."""
@@ -611,6 +630,12 @@ class MainWindow(wx.Frame):
         else:
             self.voice_join_button.SetFocus()
 
+    def _toggle_voice_chat(self):
+        if self.voice_state == "connected":
+            self._request_voice_leave()
+            return
+        self._request_voice_join()
+
     def update_voice_ui(self):
         """Update visible Voice Chat controls for the current connection state."""
         connected = self.voice_state == "connected"
@@ -638,6 +663,10 @@ class MainWindow(wx.Frame):
             wx.CallAfter(self._restore_voice_control_focus, voice_focus_target)
 
     def on_voice_join_button(self, event):
+        """Request a server-authorized Voice Chat session."""
+        self._request_voice_join()
+
+    def _request_voice_join(self):
         """Request a server-authorized Voice Chat session."""
         if self.voice_state == "connecting":
             return
@@ -672,12 +701,20 @@ class MainWindow(wx.Frame):
 
     def on_voice_leave_button(self, event):
         """Leave the active Voice Chat session."""
+        self._request_voice_leave()
+
+    def _request_voice_leave(self):
+        """Leave the active Voice Chat session."""
         if self.voice_state != "connected":
             self.on_voice_status("voice-chat-not-connected", True)
             return
         self.cleanup_voice_chat(send_leave=True, announce=True)
 
     def on_voice_mic_checkbox(self, event):
+        """Toggle microphone publishing for the active Voice Chat session."""
+        self._request_voice_mic_toggle(self.voice_mic_checkbox.GetValue())
+
+    def _request_voice_mic_toggle(self, target_state):
         """Toggle microphone publishing for the active Voice Chat session."""
         if self.voice_state != "connected":
             self.on_voice_status("voice-chat-not-connected", True)
@@ -686,8 +723,9 @@ class MainWindow(wx.Frame):
         if self.voice_mic_toggle_pending is not None:
             self.voice_mic_checkbox.SetValue(self.voice_mic_enabled)
             return
-        target_state = self.voice_mic_checkbox.GetValue()
+        target_state = bool(target_state)
         if target_state == self.voice_mic_enabled:
+            self.voice_mic_checkbox.SetValue(self.voice_mic_enabled)
             return
         input_device = None
         if target_state:

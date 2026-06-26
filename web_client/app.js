@@ -1312,7 +1312,8 @@ class PlayAuralWebApp {
       sendListOnlineWithGames: () => this.sendListOnline(true),
       onFocusMenu: () => this.focusMenu(),
       onFocusChat: () => this.focusChat(),
-      onFocusVoice: () => this.focusVoiceControls(),
+      onToggleVoiceChat: () => this.toggleVoiceChatShortcut(),
+      onToggleVoiceMic: () => this.voice.toggleMic(),
       onFocusHistory: () => this.focusHistory(),
       onOpenFriends: () => this.openFriendsHub(),
       onOpenOptions: () => this.openOptionsMenu(),
@@ -1447,13 +1448,12 @@ class PlayAuralWebApp {
     }
   }
 
-  focusVoiceControls() {
-    const target = [
-      this.elements.voiceMicBtn,
-      this.elements.voiceJoinBtn,
-      this.elements.voiceLeaveBtn,
-    ].find((element) => this.isVisibleFocusTarget(element) && !element.disabled);
-    target?.focus({ preventScroll: true });
+  toggleVoiceChatShortcut() {
+    if (this.voice.state === "connected") {
+      this.voice.leave();
+      return;
+    }
+    this.voice.join();
   }
 
   focusHistory() {
@@ -1813,11 +1813,14 @@ class PlayAuralWebApp {
   }
 
   authResponseMessage(packet, successKey, errorKey = "common-error") {
+    const code = packet?.key || packet?.error || packet?.reason || "";
+    const mapped = this.authCodeToKey(code);
+    if (mapped && Localization.has(mapped)) {
+      return mapped;
+    }
     if (packet?.text) {
       return packet.text;
     }
-    const code = packet?.key || packet?.error || packet?.reason || "";
-    const mapped = this.authCodeToKey(code);
     if (mapped) {
       return mapped;
     }
