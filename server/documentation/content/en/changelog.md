@@ -1,502 +1,462 @@
 Changelog
 
+Friday 26 June 2026
+
+New Additions:
+- Who's at the table is now an interactive roster with a table summary, each person's roles, host actions, friend actions, and bot removal where available.
+- Online Players now opens the full friend actions menu directly when you select someone who is already your friend.
+- Pirates of the Lost Seas now shows Check position to touch players during live games.
+- Desktop and web Voice Chat now use Alt+V to join or leave and Alt+Shift+V to mute or unmute the microphone.
+- Mobile menu click and activation sounds have been refreshed.
+
+Bug Fixes:
+- Host Management pass-host, kick, and kick-and-ban lists now refresh automatically when people join or leave the table.
+- Your own row in Online Players and Who's at the table is now read-only so you cannot accidentally act on yourself.
+- The desktop client now applies server language changes immediately without requiring a restart.
+- Desktop sound effect volume changes now affect sounds that are already playing.
+- The mobile TTS voice menu now selects system voices correctly and safely keeps saved voices when Android temporarily returns an empty voice list.
+- TalkBack mode now drops stale queued server announcements after you move around the screen instead of repeating old messages later.
+- The web update/version mismatch message is now localized instead of showing raw English fallback text.
+
 Thursday 25 June 2026
 
-Server Updates:
+New Additions:
+- The web version has been rebuilt into a fuller PlayAural client with stronger keyboard navigation, touch layout, voice chat, password recovery, CAPTCHA support, stable history buffers, and a clearer low-vision interface.
+- The web version now tries to reconnect for up to 30 seconds after a network drop or server restart before showing a clear failure message.
+- Dead Man's Poker now uses one contextual Fold button instead of separate Fold and Coward's Fold buttons.
+- Dead Man's Poker now opens Read table and Read revolvers as modern live status screens.
 
-Poker table flow is smoother in Five Card Draw, Texas Hold'em, and Dead Man's Poker. Draw and stand-pat choices now return you to the main action menu, busted players are treated like spectators instead of seeing hand actions, Dead Man's Poker uses one contextual Fold button, all-in calls behave consistently, and Read table / Read revolvers now open modern live status screens.
-
-Player location and post-game screens are clearer. Friends and player lists now distinguish people in the main lobby from people waiting at a table, and each player's end-of-game screen is now their own. Closing your results no longer closes someone else's, new joins or leaves do not dismiss your results, and the screen still closes automatically when a new game starts.
-
-Host Management is easier for hosts. After inviting a friend, passing host, kicking, or kicking and banning, the related list refreshes and stays open so hosts can continue managing the table without reopening the menu.
-
-Game-over screens now stay responsive even if you were in another menu, such as Friends or Options, when the match ended.
-
-Mobile Client Updates:
-
-The mobile app is more reliable in the background. The game connection stays alive when the app is minimized or the screen is off, and voice chat microphones keep transmitting in the background on devices that previously stopped after a few seconds.
-
-Mobile audio and accessibility have been polished. Voice chat no longer forces game audio into mono, self-voicing gestures are more reliable, edit boxes read their contents better, TTS voice and speed changes apply immediately, and the speech speed control now uses the same clear menu style as volume controls.
-
-TalkBack mode is steadier when self-voicing is off. Server announcements are handled more like the web version, menu focus stays inside the active menu, and dice games such as Farkle now land on the correct scoring choice instead of bouncing to the self-voicing toggle.
-
-Web Client Updates:
-
-The web version has been rebuilt into a fuller PlayAural client. It now has stronger desktop-style keyboard navigation, better touch and mobile layout, clearer login and account screens, improved voice chat handling, password recovery, CAPTCHA support, stable history buffers, and a more polished low-vision interface.
-
-Web menus now behave more like the desktop client. Tab cycles through the menu, history, and chat; Escape works from more menus; input prompts use single-line or multiline fields appropriately; typing sounds and menu sounds are more consistent; F4 can mute the current buffer; and music / ambience volume shortcuts now work.
-
-Screen reader output on the web is more dependable. ARIA live and Web Speech announcements no longer skip messages, buffer reading shortcuts work in Web Speech mode, voice selection is clearer across operating systems, and the speech speed menu supports a wider useful range.
-
-The web version now tries to reconnect for up to 30 seconds when the network or server drops, then gives a clear message if it cannot reconnect.
-
-Web localization and connection messages are clearer in English and Vietnamese, and Android browsers are now identified as Android instead of Linux in the online players list.
+Bug Fixes:
+- Five Card Draw now returns you to the main betting menu immediately after drawing cards or standing pat.
+- Texas Hold'em and Five Card Draw now stop showing gameplay actions to busted players.
+- Dead Man's Poker now lets Call and All-in both call an opponent's all-in amount correctly.
+- Friends and player lists now distinguish people in the main menu from people waiting at a table.
+- End-of-game result screens are now individual, so closing your results no longer closes another player's results.
+- End-of-game result screens no longer disappear when someone joins or leaves the table.
+- Game-over screens now stay responsive if a match ends while you are reading another menu such as Friends or Options.
+- Host Management invite, pass-host, kick, and kick-and-ban flows now stay open after an action so hosts can keep managing the table.
+- The mobile game connection now stays alive when the app is minimized or the screen is off.
+- Mobile voice chat microphones now keep transmitting in the background on devices that previously stopped after several seconds.
+- Mobile voice chat no longer forces game audio into mono.
+- Mobile self-voicing gestures now respond more reliably during play.
+- Mobile edit boxes now read their contents more reliably in self-voicing mode.
+- Mobile TTS voice changes now apply more reliably without restarting.
+- Mobile TTS speed changes now apply more reliably without restarting.
+- Mobile TalkBack focus now stays inside active game menus more reliably when self-voicing is off.
+- Web Tab navigation now cycles through the menu, history, and chat during play.
+- Web Escape navigation now works from more server menus, including online player lists.
+- Web input prompts now choose single-line or multiline fields from the server's request type and submit single-line inputs with Enter.
+- Web menu sounds now follow desktop-style navigation feedback more closely.
+- Web typing sounds now play during input prompts.
+- Web F4 buffer muting now works from the active buffer.
+- Web music and ambience volume shortcuts now adjust the active browser audio.
+- Web ARIA live and Web Speech output now avoids skipped messages more reliably.
+- Web buffer-reading shortcuts now work in Web Speech mode.
+- Web voice selection and speech speed controls are clearer across Windows, Android, iOS, and macOS.
+- Web localization and connection messages are clearer in English and Vietnamese.
+- Android browsers now report Android instead of Linux in the online players list.
 
 Sunday 21 June 2026
 
-Server Updates:
+New Additions:
+- Yahtzee now supports solo practice without affecting competitive rankings.
+- Yahtzee now lets players and spectators press Shift+C to check any player's scorecard.
+- Pirates of the Lost Seas Portal now includes a Random destination that can choose any valid map space, including empty seas.
+- Rolling Balls now includes richer and more accurate Around the World and Journey Through Vietnam ball sets.
+- Rolling Balls documentation now clearly credits the original open-source PlayPalace project.
+- Chaos Bear now supports Brief announcements.
+- Farkle's default Target Score is now 1000.
 
-The platform-wide game polish continued with Age of Heroes, Bunko, Color Game, Farkle, Left Right Center, Light Turret, Metal Pipe, Midnight, Nine, Pig, Pirates of the Lost Seas, Rolling Balls, Snakes and Ladders, Threes, Toss Up, Tradeoff, Yahtzee, and Cards Against Humanity. These games received clearer rules, more natural announcements, steadier touch focus, smarter bots where useful, and refreshed manuals where needed.
-
-Turn and action announcements now speak to each listener more naturally. When it is your turn, you hear "It is your turn"; everyone else hears whose turn it is. Winner, elimination, combat, score, timeout, and check messages in games such as Chess, Citadels, Sorry!, UNO, and Age of Heroes now use the same personal wording instead of describing your own actions as if someone else did them.
-
-Menu focus is more dependable across the platform. Returning from submenus now restores the item you opened, including Administration, Host Management, Options, table menus, status screens, and action prompts. Touch players should see fewer jumps back to the top after choosing, canceling, or closing a menu.
-
-The Start game option now stays visible in waiting rooms even when setup choices need attention. Selecting it explains what must be fixed, which makes setup easier to navigate by keyboard, touch, and screen reader.
-
-Dice keeping preferences are clearer and more predictable. Dice keeping style now explains Dice indexes and Dice values more accurately, and games only expose those controls when their dice flow actually uses them.
-
-Yahtzee now supports solo practice, shared scorecard viewing, and cleaner scoring. Shift+C opens Check scorecard for all players for players and spectators, standard score checks now show real Yahtzee totals, solo games stay out of competitive rankings, and scoring a category returns touch focus to Roll dice.
-
-Chess takeback, draw offer, and clock states are safer. Accepting a takeback no longer resolves as a draw, undo history is cleaned up properly, Enter Move remains available as a stable focus anchor, and touch players return to Enter Move after submitting a move.
-
-Pirates of the Lost Seas has a much smarter bot and smoother skills. Sailor's Instinct no longer creates blank choices, skill balance and announcements are clearer, and Portal now includes Random map space so it can teleport to any valid space on the map, including empty seas, even when there are no rival ships elsewhere.
-
-Rolling Balls now has richer, more accurate ball sets, including Around the World and Journey Through Vietnam. Its manual has been rewritten as a beginner guide and clearly credits the original open-source PlayPalace project.
-
-Mile by Mile now explains distance-card limits clearly. Legal distance cards remain playable when they do not pass the finish, Require exact finish is respected, finishing past the target works when that option is off, Speed Limit is handled correctly, and discard prompts return focus to the card position you came from.
-
-Snakes and Ladders now follows familiar board-game flow more closely, with clearer start, ladder, snake, bounce-back, exact-finish, and winning announcements.
-
-Chaos Bear, Midnight, Threes, Toss Up, Pig, Tradeoff, Bunko, Farkle, Color Game, Light Turret, Left Right Center, and Metal Pipe now have smoother round flow and shorter audio options where they help. Roll, Bank, Hold, dice-choice, score, and status menus are more stable for touch clients, Farkle's default Target Score is now 1000, and bots make stronger choices in Farkle, Rolling Balls, Tradeoff, and Pirates of the Lost Seas.
-
-UNO now preserves a pending Draw stack correctly when a Draw card wins the hand, and elimination scoring announcements are clearer for the player involved and for everyone else.
-
-Cards Against Humanity now gives clearer feedback around submissions, judging, multi-judge setup, hand sizes above 10 cards, and English-only card text. Its dedicated sound cues are also routed correctly across clients.
+Bug Fixes:
+- The platform-wide turn announcement now tells the active player "It is your turn" while everyone else hears whose turn it is.
+- Chess timeout and check announcements now use separate personal and public wording.
+- Citadels final winner announcements now use separate personal and public wording.
+- Sorry! final winner announcements now use separate personal and public wording.
+- UNO elimination, scoring, and final winner announcements now use separate personal and public wording.
+- Age of Heroes battle summaries now use separate attacker, defender, and observer wording.
+- Menu focus now restores more reliably when returning from Administration, Host Management, Options, table menus, status screens, and action prompts.
+- The Start game option now stays visible in waiting rooms and explains setup problems when selected.
+- Dice keeping preferences now explain Dice indexes and Dice values more clearly and only appear in games that use them.
+- Yahtzee standard score checks now show real Yahtzee totals.
+- Yahtzee scoring a category now returns touch focus to Roll dice.
+- Chess takeback acceptance no longer resolves the game as a draw.
+- Chess undo history is cleaned up correctly.
+- Chess keeps Enter Move visible as a stable focus anchor and returns touch focus there after submitting a move.
+- Pirates of the Lost Seas Sailor's Instinct no longer creates blank choices.
+- Pirates of the Lost Seas bot strategy is stronger and uses skills more intelligently.
+- Pirates of the Lost Seas skill balance, skill messages, and Portal lock-in feedback are clearer.
+- Rolling Balls rules, manuals, ball terminology, and announcements are clearer in English and Vietnamese.
+- Mile by Mile now explains distance-card limits clearly and allows legal cards that do not pass the finish.
+- Mile by Mile now respects Require exact finish and over-finish options correctly.
+- Mile by Mile discard prompts now restore focus to the card you came from.
+- Snakes and Ladders now gives clearer start, ladder, snake, bounce-back, exact-finish, and winning announcements.
+- Midnight now keeps roll and score-lock focus steadier for touch clients.
+- Threes now keeps dice result, roll, and score menu focus steadier for touch clients.
+- Toss Up now returns touch focus gently after banking without stealing it during normal navigation.
+- Pig now returns touch focus gently after holding without stealing it during normal navigation.
+- Tradeoff now keeps roll, trade, and score menus steadier for touch clients.
+- Bunko now keeps roll and status menus steadier for touch clients.
+- Farkle now keeps dice-choice and roll menus steadier for touch clients.
+- Color Game now keeps betting and status menus steadier for touch clients.
+- Light Turret now keeps fire, upgrade, and status menus steadier for touch clients.
+- Left Right Center now keeps roll and chip-status menus steadier for touch clients.
+- Metal Pipe now keeps action and status menus steadier for touch clients.
+- Farkle bots now make stronger risk-versus-reward decisions.
+- Rolling Balls bots now make stronger decisions.
+- Tradeoff bots now make stronger decisions.
+- Pirates of the Lost Seas bots now use movement, attacks, and skills more strategically.
+- UNO now preserves a pending Draw stack correctly when a Draw card wins the hand.
+- Cards Against Humanity now gives clearer feedback for submissions, judging, multi-judge setup, larger hand sizes, and English-only card text.
+- Cards Against Humanity sound cues now route correctly across clients.
 
 Wednesday 17 June 2026
 
-Server Updates:
+New Additions:
+- UNO now has full beginner-friendly documentation in English and Vietnamese.
+- Chess now supports typed move input using common chess notation and coordinate-style moves.
+- Chess now has a stronger bounded bot.
+- Battle now supports Team Battle through the standard team setup flow.
+- Battle fighter skills are completed, rebalanced, and explained in-game.
+- Live status boxes now let scoreboards, boards, standings, rosters, and other status screens stay open and refresh while the game changes.
 
-Added full UNO documentation in English and Vietnamese. UNO now has beginner-friendly rules available from How to Play and Documentation, and its prompts, color picker, scoring explanations, and option checks have been polished.
-
-Polished Coup, Citadels, Backgammon, Battle, Battleship, Chess, Crazy Eights, Chaos Bear, Dead Man's Deck, Dead Man's Poker, Senet, Ludo, Sorry!, Threes, and 21 (Survival Rules) with clearer announcements, safer option handling, and steadier screen reader menus.
-
-Chess now supports typed move input for common chess notation and coordinate-style moves, follows standard full-move counting, gives shorter Brief announcements when that preference is enabled, and has a stronger bot that stays bounded so multiple chess tables can remain stable.
-
-Battle now supports Team Battle through the standard team setup flow. Fighter skills were completed and rebalanced, character selection announcements are less noisy, team-related menus appear only when Team Mode is relevant, Vietnamese skill names are more dramatic, and both player-replacement bots and enemy AI make stronger tactical choices.
-
-Battleship now gives clearer placement and firing feedback. Manual ship placement uses a cleaner isolated menu again, and checking whose turn during deployment now reports each player's ready status instead of saying no one has the turn.
-
-Crazy Eights now handles Wild 8 suit choice more like UNO. Suit choices appear in a clearer place, focus moves to the first suit option, shortcut keys no longer collide with other actions, and waiting players no longer hear irrelevant "not your turn" errors for suit-choice shortcuts.
-
-Dead Man's Poker now keeps touch action menus anchored during card exchanges, including when spectators join or other table events happen. Showdown announcements are less repetitive, ties are reported as draws instead of as multiple winners, tied players are not counted as round winners, and the bot plays more aggressively and intelligently.
-
-Dead Man's Deck received clearer rule feedback, better status information, and more polished announcements for bluffing, challenges, and survival moments.
-
-Coup now applies the official two-player first-turn coin rule correctly even when the first player is a bot. Exchange menus also keep selected cards visible and mark them as exchanged, which gives screen reader users better context without dropping focus.
-
-Citadels now gives clearer build, character, and scoring feedback, with more natural personal and public announcements throughout the round.
-
-Senet now handles spectators correctly, uses the standard S and Shift+S score shortcuts, gives better context if you try to move before throwing the sticks, and no longer overwrites a different open menu during board refreshes.
-
-Backgammon, Ludo, and Sorry! now make Brief announcements genuinely brief. Movement, hit, capture, and pawn announcements keep the important player, piece, roll, and position details while stripping out unnecessary spoken wording.
-
-Backgammon also now gives a clear spoken error if you try to move a checker before rolling the dice.
-
-Ludo and Sorry! keep touch focus steadier after rolls, draws, automatic moves, and manual piece choices. Sorry! move prompts now include each pawn's current position so choosing a piece or target is easier.
-
-Midnight and Farkle now move focus to the first dice choice immediately after a roll asks you to choose dice to keep.
-
-21 (Survival Rules) no longer reveals an opponent's hidden total when they stand, and it now explains when an active effect prevents you from drawing.
-
-Age of Heroes now handles declined or unavailable road-building requests more safely.
-
-Score and standings checks are more consistent across games. Basic score checks now speak each player or team separately, while detailed score views use clear line-by-line status screens where appropriate.
-
-Leaderboard menus now hide games that do not actually support leaderboards, and old unsupported leaderboard data is cleaned up safely.
-
-Status screens can now stay open and refresh themselves while the game changes, without forcing players to close and reopen them. Opening another menu while a status screen is open is also handled more safely.
-
-Table invitations are safer and more predictable. Pressing the invitation title no longer declines it; invites are only declined through the Decline Invite button, and invitations that arrive while you are typing are queued until you finish the input.
-
-The Play category filter no longer leaks into Documentation, Leaderboards, or My Stats. Those menus now show their own complete game lists instead of accidentally inheriting the last Play filter.
-
-Documentation pages are rendered more consistently, including cleaner handling for escaped Markdown in game rules.
-
-Desktop Client Updates:
-
-Opening How to Play with Ctrl+F1 while the action menu is open no longer leaves the action menu empty after closing the rules screen.
+Bug Fixes:
+- Coup now has clearer announcements and steadier screen reader menus.
+- Citadels now has clearer announcements and safer setup feedback.
+- Backgammon now has clearer announcements and steadier screen reader menus.
+- Battle now has clearer announcements and safer skill feedback.
+- Battleship now has clearer announcements and steadier deployment menus.
+- Chess now has clearer announcements and steadier move-entry menus.
+- Crazy Eights now has clearer announcements and steadier suit-choice menus.
+- Chaos Bear now has clearer announcements and steadier screen reader menus.
+- Dead Man's Deck now has clearer announcements and steadier action menus.
+- Dead Man's Poker now has clearer announcements and steadier betting menus.
+- Senet now has clearer announcements and steadier board menus.
+- Ludo now has clearer announcements and steadier piece menus.
+- Sorry! now has clearer announcements and steadier pawn menus.
+- Threes now has clearer announcements and steadier dice menus.
+- 21 (Survival Rules) now has clearer announcements and safer action feedback.
+- Chess now follows standard full-move counting and gives shorter Brief announcements when enabled.
+- Battleship now gives clearer deployment and firing feedback.
+- Battleship manual ship placement uses the isolated placement menu again.
+- Battleship now reports each player's deployment readiness when checking whose turn during setup.
+- Crazy Eights now handles Wild 8 suit choice more like UNO and avoids irrelevant not-your-turn errors for suit shortcuts.
+- Dead Man's Poker keeps touch action menus anchored during card exchanges and table events.
+- Dead Man's Poker showdown announcements are less repetitive and tied hands are reported as draws.
+- Dead Man's Poker bots now play more aggressively and intelligently.
+- Dead Man's Deck gives clearer rule feedback, status information, bluffing, challenge, and survival announcements.
+- Coup now applies the official two-player first-turn coin rule even when the first player is a bot.
+- Coup exchange menus now keep selected cards visible and mark exchanged cards.
+- Citadels now gives clearer build, character, and scoring feedback.
+- Senet now handles spectators correctly and uses standard S and Shift+S score shortcuts.
+- Senet no longer overwrites another open menu during board refreshes.
+- Backgammon now makes Brief announcements genuinely brief.
+- Ludo now makes Brief announcements genuinely brief.
+- Sorry! now makes Brief announcements genuinely brief.
+- Backgammon now gives a clear error if you try to move before rolling.
+- Ludo keeps touch focus steadier after rolls, automatic moves, and manual piece choices.
+- Sorry! keeps touch focus steadier after draws, automatic moves, and manual pawn choices.
+- Sorry! move prompts now include each pawn's current position.
+- Midnight and Farkle now move focus to the first dice choice after a roll asks you to keep dice.
+- 21 (Survival Rules) no longer reveals an opponent's hidden total when they stand.
+- 21 (Survival Rules) now explains when an active effect prevents drawing.
+- Age of Heroes now handles declined or unavailable road-building requests safely.
+- Basic score checks now speak each player or team separately.
+- Detailed score checks now use clear line-by-line status screens where appropriate.
+- Leaderboard menus now hide games that do not support leaderboards.
+- Old unsupported leaderboard data is cleaned up safely.
+- Table invites can no longer be declined by pressing the invite title.
+- Table invites that arrive while you are typing wait until you finish the input.
+- The Play category filter no longer leaks into Documentation, Leaderboards, or My Stats.
+- Documentation pages render escaped Markdown more consistently.
+- Desktop Ctrl+F1 How to Play no longer leaves the action menu empty after closing the rules screen.
 
 Tuesday 9 June 2026
 
-Server Updates:
+New Additions:
+- Age of Heroes was added with localized menus and documentation.
+- Metal Pipe was added with localized menus and documentation.
+- Nine was added with localized menus and documentation.
+- Senet was added with localized menus and documentation.
+- Cards Against Humanity was added with localized menus and documentation.
+- 21 (Survival Rules) was added with localized menus and documentation.
+- UNO was added as the replacement for Last Card.
+- The Play menu now has a category filter for browsing games by type.
+- Options are now split into clearer General Options and Game Options sections.
+- Game Options now support per-game preference overrides.
+- Confirm risky actions and Brief announcements were added as personal game options where games benefit from them.
+- Sound Effects Volume was added alongside Music, Ambience, and Voice Chat volume.
+- Mobile now has top navigation tabs for Main, Chat, History, and Shortcuts when self-voicing is off.
+- Web and mobile clients now honor per-item highlight sounds, including Backgammon board square sounds.
 
-Added several new games: Age of Heroes, Metal Pipe, Nine, Senet, Cards Against Humanity, and 21 (Survival Rules). Cards Against Humanity has localized menus and documentation, but its question and answer cards currently remain in English.
-
-Added UNO as a replacement for Last Card. UNO is currently in beta/testing, and its documentation is not available yet. The documentation will be added later; the other newly added games in this update are documented and ready for regular play.
-
-Added a category filter to the Play menu, making it easier to browse games by type.
-
-Reworked the Options area into clearer General Options and Game Options sections. Game options now support per-game preference overrides, clearer descriptions, and safer prompts such as Confirm risky actions and Brief announcements.
-
-Added a Sound Effects Volume setting alongside Music, Ambience, and Voice Chat volume. Volume controls now use a simple selection menu with fixed levels instead of manual number entry.
-
-Polished many existing games with clearer rules, better prompts, and more natural announcements. Scopa, Blackjack, Ninety Nine, Mile by Mile, Dominos, 21, Tien Len, Pusoy Dos, Five Card Draw, Texas Hold'em, Ludo, Sorry!, Backgammon, and Citadels all received player-facing improvements.
-
-Blackjack now skips bankrupt players properly, uses chips consistently, locks bets immediately when confirmed, and spaces out the dealer's card draws so the announcements are easier to follow.
-
-Ninety Nine now excludes eliminated players from future dealing, starts each new round with a random first player, pauses briefly between rounds, restores localized menus correctly after reconnecting, and fixes the rare count overflow bug that could make the total jump to impossible numbers.
-
-Dead Man's Poker now tracks showdown wins correctly, handles ties with clearer draw announcements, allows card swaps once per hand, blocks first-round All-in actions, and has stronger bot strategy.
-
-Mile by Mile now recognizes a Dirty Trick when you play the correct safety card normally during the reaction window. Unplayable cards now explain exactly why they cannot be played and offer a clear discard or cancel choice.
-
-Dominos now keeps spinner branches stable and lets the correct opening player choose their opening tile instead of automatically playing one for them.
-
-Tien Len now follows Southern and Northern rule details more closely, including continued play for remaining places, Southern instant-win conditions, chopping rules, Southern Vietnamese card terminology, and a coin-based scoring flow.
-
-Pusoy Dos received rule validation, clearer localized messages, more accurate bot decisions, and safer handling for risky pass actions.
-
-Five Card Draw and Texas Hold'em now keep important information actions, such as reading your hand or checking hand strength, available on touch clients throughout the hand.
-
-Ludo and Sorry! now respect each player's Brief announcements preference, give clearer movement details, and keep screen reader focus routed to the next useful action or choice after direct roll, draw, or move interactions.
-
-Improved touch-client stability across many games by keeping primary actions visible as focus anchors while still speaking a clear error if the action is not currently allowed.
-
-Improved audio feedback across the platform. Turn sounds are more consistent, Crazy Eights once again plays spectator join and leave sounds, table join and leave sounds now also play for kicks and bans, and Cards Against Humanity now uses its dedicated sound effects.
-
-Improved bot name safety. Human players can no longer register or use names reserved for bots, and bots cannot impersonate human players at the same table.
-
-Mobile Client Updates:
-
-When self-voicing is turned off, the mobile client now uses top navigation tabs for Main, Chat, History, and Shortcuts, matching the web client more closely. Chat focuses the input box, History focuses the newest item, Shortcuts focuses the first shortcut, and the Main tab remembers the game menu position.
-
-Status details such as the client type and build time now appear at the bottom of the screen reader order instead of before the main game content.
-
-Menu highlight sounds now match the desktop client, including game-specific sounds such as Backgammon board squares.
-
-Web Client Updates:
-
-Web menus now honor per-item highlight sounds, giving web players the same game-specific menu audio cues as desktop and mobile players.
-
-Desktop Client Updates:
-
-Shortcut routing was improved for recently added grid and board games, including Backgammon and Senet, so documented navigation shortcuts behave more reliably.
+Bug Fixes:
+- Scopa now has clearer rules, better prompts, and more natural announcements.
+- Blackjack now has clearer rules, better prompts, and more natural announcements.
+- Ninety Nine now has clearer rules, better prompts, and more natural announcements.
+- Mile by Mile now has clearer rules, better prompts, and more natural announcements.
+- Dominos now has clearer rules, better prompts, and more natural announcements.
+- 21 now has clearer rules, better prompts, and more natural announcements.
+- Tien Len now has clearer rules, better prompts, and more natural announcements.
+- Pusoy Dos now has clearer rules, better prompts, and more natural announcements.
+- Five Card Draw now has clearer rules, better prompts, and more natural announcements.
+- Texas Hold'em now has clearer rules, better prompts, and more natural announcements.
+- Ludo now has clearer rules, better prompts, and more natural announcements.
+- Sorry! now has clearer rules, better prompts, and more natural announcements.
+- Backgammon now has clearer rules, better prompts, and more natural announcements.
+- Citadels now has clearer rules, better prompts, and more natural announcements.
+- Blackjack now skips bankrupt players, uses chips consistently, locks bets when confirmed, and spaces out dealer card draws.
+- Ninety Nine now excludes eliminated players from future dealing.
+- Ninety Nine now starts each new round with a random first player and pauses briefly between rounds.
+- Ninety Nine now restores localized menus correctly after reconnecting.
+- Ninety Nine now fixes a rare count overflow bug.
+- Dead Man's Poker now tracks showdown wins correctly and handles ties with clearer draw announcements.
+- Dead Man's Poker now allows one card swap per hand and blocks first-round All-in actions.
+- Mile by Mile now recognizes Dirty Trick when the correct safety card is played during the reaction window.
+- Mile by Mile unplayable cards now explain the reason and offer discard or cancel.
+- Dominos now keeps spinner branches stable.
+- Dominos now lets the correct opening player choose their opening tile.
+- Tien Len now follows Southern and Northern rule details more closely.
+- Tien Len now supports continued play for remaining places, instant wins, chopping rules, Southern Vietnamese terminology, and coin scoring.
+- Pusoy Dos now validates rules more strictly.
+- Pusoy Dos now gives clearer localized messages.
+- Pusoy Dos bots now make better decisions.
+- Pusoy Dos risky passes now use safer confirmation handling.
+- Five Card Draw now keeps useful information actions available on touch clients during the hand.
+- Texas Hold'em now keeps useful information actions available on touch clients during the hand.
+- Ludo now respects each player's Brief announcements preference.
+- Sorry! now respects each player's Brief announcements preference.
+- Ludo now keeps screen reader focus routed to the next useful action after direct roll or move interactions.
+- Sorry! now keeps screen reader focus routed to the next useful action after direct draw or move interactions.
+- Touch clients now keep primary actions visible as focus anchors while still speaking clear errors when actions are not allowed.
+- Turn sounds are more consistent.
+- Crazy Eights spectator join and leave sounds now play again.
+- Table join and leave sounds now also play for kicks and bans.
+- Cards Against Humanity now uses its dedicated sound effects.
+- Human players can no longer register names reserved for bots.
+- Bots can no longer impersonate human players at the same table.
+- Mobile status details now appear at the bottom of the screen reader order instead of before the main game content.
+- Desktop shortcut routing is more reliable for recently added grid and board games.
 
 Tuesday 5 May 2026
 
-Server Updates:
+New Additions:
+- Dead Man's Poker was added with full beginner documentation and English/Vietnamese localization.
+- Options were reorganized into categorized submenus.
+- Voice Chat Volume was added to Options.
+- Desktop now supports the Voice Chat Volume control.
+- Web now supports the Voice Chat Volume control.
+- Mobile now supports the Voice Chat Volume control.
 
-Added a new game called Dead Man's Poker, complete with full documentation for beginners. The game is fully localized in both English and Vietnamese.
-
-Reorganized the Options menu into categorized submenus, making it much easier to find specific settings instead of scrolling through one massive list.
-
-Added a Voice Chat Volume setting in the Options menu, allowing you to adjust how loud other players are.
-
-Optimized and refined the intro audio sequence for Dead Man's Deck, perfectly timing the revolver loading sounds and background music for a smoother, more cinematic start.
-
-Desktop Client Updates:
-
-Integrated the new Voice Chat Volume control directly into the desktop client's audio Options dialog.
-
-Mobile Client Updates:
-
-Web Client Updates:
-
-Applied the exact same voice chat audio routing and volume control improvements as the mobile app for a consistent experience.
+Bug Fixes:
+- Dead Man's Deck intro audio timing was refined for a smoother cinematic start.
+- Options submenu return paths now restore more reliably after editing values or backing out.
 
 Saturday 2 May 2026
 
-Server Updates:
+New Additions:
+- Team arrangement was added so hosts can assign and swap teams before supported team games.
+- Friend deletion now asks for confirmation before removing someone.
 
-Improved the score checking feature to be more precise. Instead of using generic terms, the system now announces the exact score units specific to each game (such as in Mile by Mile or Backgammon), clearly organized by player or team.
-
-Added a team arrangement feature for the table host. In supported team games (like Dominos, Mile by Mile, Pig, and Scopa), the host can now easily swap and assign team members before starting the match.
-
-Fixed a name display bug when checking scores. If a player disconnects or leaves and a bot takes over their seat, the score check will now correctly display the replacement bot's name instead of the disconnected human's name.
-
-Added a confirmation dialog before deleting a friend. This safety step ensures you do not accidentally remove someone from your friends list with a misclick.
+Bug Fixes:
+- Score checks now announce exact score units for each game instead of generic terms.
+- Score checks now show replacement bot names correctly when a disconnected player has been taken over.
 
 Wednesday 29 April 2026
 
-Server Updates:
+New Additions:
+- Replacement bots now use a different bot name instead of taking the disconnected player's exact name.
+- Disconnected players can reclaim their exact seat while the current match is still ongoing.
+- Lobby cleanup now converts disconnected seated players into reclaimable replacement bots before the host starts a match.
+- Seat handoff sounds and announcements now identify both the original human and the replacement bot.
 
-When using the Custom bot names feature in the Options, you can no longer add a bot with the name of anyone currently at the table or the name of a registered player. This prevents anyone from using bots to impersonate real players.
-
-Changed the bot replacement behavior: Previously, when a player disconnected or left, the replacement bot would use that player's exact name. Now, a different bot will take over the seat, making it clear who is a bot and who is a human.
-
-Disconnected players can reclaim their exact seat as long as the current match is still ongoing. However, once the match ends and the table moves to a new game, the seat can no longer be reclaimed.
-
-Lobby handling: If the host starts a match while a seated player is disconnected, the system will convert that player into a reclaimable replacement bot before the game starts. Disconnected spectators are also automatically removed before the game begins.
-
-Updated sounds and announcements: The standard leave sound will play whenever a human seat is handed to a replacement bot, and the standard join sound will play when a player reclaims a bot-held seat. Voice announcements will also clearly identify both the original human name and the replacement bot name.
+Bug Fixes:
+- Custom bot names can no longer match anyone at the table or any registered player.
+- Disconnected spectators are now removed before a match begins.
 
 Tuesday 28 April 2026
 
-Server Updates:
-
-Added a new game: Dead Man's Deck, featuring complete gameplay rules and detailed documentation for beginners.
-
-The game is fully localized in both English and Vietnamese.
+New Additions:
+- Dead Man's Deck was added with beginner documentation.
+- Dead Man's Deck is fully localized in English and Vietnamese.
 
 Sunday 26 April 2026
 
-Server Updates:
+New Additions:
+- Adding a bot now automatically assigns a random bot name unless Custom bot names is enabled.
+- Custom bot names now require unique names from 3 to 30 characters.
 
-Fixed a menu bug that occurred when receiving a table invite while you were typing in an input box, such as changing a value in the Options or typing a private message. The system will now safely hold the invite and display it only after you finish your current task.
-
-Changed how bots are added to a table. Adding a bot will now automatically assign it a random name, saving you time. If you prefer to name them yourself, you can enable the Custom bot names feature in the Options.
-
-Added new rules for bot names: You cannot have two bots with the exact same name at a table. When creating a custom name, it must be between 3 and 30 characters long.
-
-Fixed an issue where the game failed to announce when a player reclaimed their seat. If you disconnected and a bot took over, rejoining your seat will now send a clear announcement to the entire table.
-
-Fixed a minor issue where invalid slash commands would accidentally be broadcast as regular chat messages.
-
-Mobile Client Updates:
-
-Fixed an issue where canceling an input prompt, like backing out of a private message without typing anything, would cause the menu to freeze or break.
-
-Optimized gesture handling, making swipes and screen interactions much smoother and more reliable when using the built-in self-voicing mode.
+Bug Fixes:
+- Table invites that arrive while you are typing in an input box now wait safely until you finish.
+- Reclaiming a seat from a replacement bot now announces the return to the whole table.
+- Invalid slash commands no longer broadcast as regular chat messages.
+- Mobile input cancel actions no longer freeze the menu.
+- Mobile self-voicing gestures are smoother and more reliable.
 
 Thursday 23 April 2026
 
-Server Updates:
+New Additions:
+- Citadels was added with comprehensive documentation.
+- Citadels is fully localized in English and Vietnamese.
+- Mobile gained experimental background-running support.
 
-Added a new game called Citadels, complete with comprehensive documentation. The game is fully localized in both English and Vietnamese.
-
-Desktop Client Updates:
-
-Optimized the underlying code for the user interface. This improves background performance and stability without affecting your current user experience.
-
-Mobile Client Updates:
-
-Fixed an issue where the network latency ping check would not return any results if the built-in self-voicing mode was turned off.
-
-Fixed a bug that prevented players from discarding cards in Mile by Mile. You can now discard cards by using the screen reader's long-press gesture (typically a double tap and hold with one finger).
-
-Optimized device language detection for a more seamless experience the very first time you launch the app.
-
-Optimized network connection threads for better stability and responsiveness.
-
-Added experimental support to allow the game to keep running in the background. Please note that this may not work exactly as expected on all devices yet and will receive further optimizations over time.
+Bug Fixes:
+- Desktop interface internals were optimized for smoother and more stable play.
+- Mobile ping checks now return results when self-voicing is off.
+- Mobile players can now discard Mile by Mile cards with the screen reader long-press gesture.
+- Mobile device language detection is smoother on first launch.
+- Mobile network connection threads are more stable and responsive.
 
 Sunday 19 April 2026
 
-Server Updates:
+New Additions:
+- Host Management now has Restart Game to return a table to the waiting room without recreating it.
+- Ninety Nine choice cards such as 10 and Ace now include Cancel.
+- Ninety Nine now gives clear Not your turn feedback.
+- Mile by Mile now gives clear Not your turn feedback.
+- Scopa now gives clear Not your turn feedback.
 
-Added a new Restart Game option to the Host Management menu. This is highly useful if you want to start a new match immediately without having to leave and recreate the table. When you restart the game, all table settings and current players remain safely in place.
-
-Fixed a bug where ambient sounds and background music from a previous table would sometimes continue playing after you switched to a different table.
-
-Added a Cancel option to cards that require a choice in Ninety Nine, such as the 10 or Ace, allowing you to back out and change your mind.
-
-Added a clear Not your turn voice feedback if you try to make a move when it is not your turn in games like Ninety Nine, Mile by Mile, and Scopa.
-
-Desktop Client Updates:
-
-Fixed a minor issue with the chat input box when using a Vietnamese keyboard.
-
-Mobile Client Updates:
-
-Fixed an issue where players were sometimes unable to navigate back from the in-game action menu.
-
-Fixed a bug where ambient sounds and background music would abruptly cut out when connecting to the voice chat.
-
-Fixed an issue where in-game notifications were not being sent to the device's system screen reader when the built-in self-voicing mode was turned off.
-
-Fixed an issue with the screen reader focus jumping unexpectedly, ensuring a more stable experience when playing with a system screen reader instead of self-voicing.
-
-Significantly improved the grid board system for games like Battleship and Chess. The grid now displays correctly, and the swiping experience to navigate the grid while using self-voicing has been greatly enhanced.
+Bug Fixes:
+- Ambience and background music from a previous table no longer continue after switching tables.
+- Desktop chat input works better with Vietnamese keyboards.
+- Mobile players can navigate back from the in-game action menu more reliably.
+- Mobile ambience and background music no longer cut out when joining voice chat.
+- Mobile game notifications now reach the system screen reader when self-voicing is off.
+- Mobile screen reader focus is steadier when using the system screen reader.
+- Mobile grid boards such as Battleship and Chess now display and navigate more reliably.
 
 Thursday 16 April 2026
 
-Server Updates:
-
-Added a real-time voice chat system directly inside the game tables. This feature is only active when you are joined at a table.
-
-How it works: Upon joining a table, you will have the option to join the voice chat. Once joined, you can immediately hear other players. However, to speak and participate in the discussion, you need to turn on your microphone.
-
-Desktop Client Updates:
-
-Integrated the new voice chat system. You can press Alt and V to focus directly on the voice chat area, or use the Tab key to navigate to it if you are using a screen reader while in the game.
-
-Added an audio input selection option, allowing you to choose your preferred microphone to use for voice chat.
-
-Mobile Client Updates:
-
-Integrated the voice chat system. This feature is located inside the Chat tab.
-
-To access it, swipe right with two fingers to open the chat if you are using the built-in self-voicing mode, or tap the Chat button if you are using your device's native screen reader instead of self-voicing.
-
-Web Client Updates:
-
-Integrated the voice chat system. Simply open the Chat tab on the web client interface to see the voice chat options.
+New Additions:
+- Real-time table Voice Chat was added.
+- Desktop now includes table Voice Chat controls.
+- Desktop now lets you choose an audio input device for Voice Chat.
+- Mobile now includes table Voice Chat in the Chat tab.
+- Web now includes table Voice Chat in the Chat area.
 
 Tuesday 14 April 2026
 
-Server Updates:
+New Additions:
+- Battle skill descriptions were added directly inside the skill menu.
+- Table-created notification sounds were added.
+- Table invite notification sounds were added.
 
-Rebalanced the gameplay in Chaos Bear to make matches fairer and more engaging.
-
-Battle game updates: Fixed a rare bug that could cause the game to freeze. Added sound effects for when a fighter is destroyed and when a player is eliminated. Added a sound effect for the overall match victory.
-
-Added detailed skill descriptions directly inside the skill menu for Battle. You can now learn exactly what an ability does right in the middle of the game without needing to read the documentation.
-
-Added an audio notification when a new table is created. This sound is enabled by default, but you can turn it off in the Options menu if you prefer.
-
-Added an audio notification whenever someone invites you to join their table. This invite alert is always on and cannot be disabled to ensure you never miss a request from your friends.
+Bug Fixes:
+- Chaos Bear gameplay was rebalanced for fairer matches.
+- Battle no longer freezes in a rare match-ending case.
+- Battle now plays clearer sounds for destroyed fighters, eliminated players, and match victory.
 
 Monday 13 April 2026
 
-Server Updates:
+New Additions:
+- Battle was added with beginner documentation.
+- Battle is fully localized in English and Vietnamese.
+- Mobile now lets players disable self-voicing and use the device's system screen reader instead.
+- Mobile shows standard on-screen buttons for chat and shortcuts when self-voicing is off.
 
-Added a new game called Battle, complete with comprehensive beginner documentation. The game is fully localized in both English and Vietnamese.
-
-Fixed a bug where the table join sound would sometimes incorrectly play immediately after a game round ended.
-
-Fixed an issue in Backgammon where spectators watching a match would sometimes falsely receive a notification that they were holding the doubling cube.
-
-Fixed an exploit in Crazy Eights where a player, after playing an 8 (wild-card) to change the suit, could quickly play another card of the new suit before the game passed the turn to the next player.
-
-Mobile Client Updates:
-
-Added an option to disable the built-in self-voicing mode and its custom gestures if you prefer to play the game using your device's native system screen reader.
-
-Please note: The button to toggle self-voicing on or off can only be focused and read by your system screen reader; the game's internal self-voicing system cannot see this button.
-
-When self-voicing is turned off, quick swipe gestures for actions like opening the chat or using shortcuts will be displayed as standard on-screen buttons for easy tapping.
+Bug Fixes:
+- Table join sounds no longer incorrectly play immediately after a game round ends.
+- Backgammon spectators no longer receive false doubling-cube holder messages.
+- Crazy Eights no longer lets a player play another card immediately after changing suit with a wild 8.
 
 Saturday 11 April 2026
 
-Mobile Client Updates:
-
-Officially launched the PlayAural mobile application. Currently, the app is only available for Android devices.
-
-Integrated a built-in self-voicing feature. This allows you to fully enjoy the game with your device's system screen reader turned off. We highly recommend playing with your system screen reader disabled, as it allows you to use our custom quick gestures smoothly and without any interference.
+New Additions:
+- The PlayAural mobile app launched for Android.
+- The mobile app includes built-in self-voicing for playing without the system screen reader.
 
 Thursday 9 April 2026
 
-Server Updates:
+New Additions:
+- Color Game was added with beginner documentation.
+- Color Game is fully localized in English and Vietnamese.
 
-Added a new game called Color Game, complete with comprehensive documentation for beginners. The game is fully localized in both English and Vietnamese.
-
-Tien Len updates: Cards in your hand are now automatically sorted from lowest to highest for easier management. Also added clearer and more detailed voice feedback when you attempt an invalid play.
-
-Pusoy Dos updates: Cards in your hand will now also automatically sort from lowest to highest.
-
-Ninety Nine updates: Improved the bot AI to be slightly smarter and made minor underlying code improvements for better performance.
+Bug Fixes:
+- Tien Len now sorts cards from lowest to highest and gives clearer invalid-play feedback.
+- Pusoy Dos now sorts cards from lowest to highest.
+- Ninety Nine bots now make more natural decisions.
 
 Tuesday 7 April 2026
 
-Server Updates:
-
-Added the highly anticipated card game Tien Len, featuring both Southern and Northern rule variants along with detailed documentation.
-
-Fully localized the game in both English and Vietnamese.
+New Additions:
+- Tien Len was added with Southern and Northern rule variants.
+- Tien Len is fully localized in English and Vietnamese.
 
 Monday 6 April 2026
 
-Server Updates:
-
-Added a new dice game: Bunko, featuring complete gameplay rules and beginner-friendly documentation.
-
-Fully localized the game in both English and Vietnamese.
+New Additions:
+- Bunko was added with complete rules and beginner documentation.
+- Bunko is fully localized in English and Vietnamese.
 
 Friday 3 April 2026
 
-Server Updates:
-
-Added a new game: Sorry!, featuring complete gameplay rules and beginner-friendly documentation.
-
-Fully localized the game in both English and Vietnamese.
+New Additions:
+- Sorry! was added with complete rules and beginner documentation.
+- Sorry! is fully localized in English and Vietnamese.
 
 Thursday 2 April 2026
 
-Server Updates:
+New Additions:
+- Players replaced by a bot can reclaim their original seat through invites or the join menu.
+- Joining a new table while already in a game now leaves the current match safely first.
 
-Improved seat reclamation: If you were replaced by a bot after leaving a game, you can now seamlessly take back your original seat via invitations or the join menu without creating duplicate entries.
-
-Safe table switching: Joining a new table while currently in a game now triggers a proper departure from your active match first. This ensures the game you left remains stable and a bot can take over correctly.
-
-Enhanced system reliability: Added extra safety checks for private table visibility and table switching to prevent errors.
-
-Improved Windows reliability so the platform starts and runs more consistently across different setups.
+Bug Fixes:
+- Private table visibility and table switching are more reliable.
+- Windows startup and runtime reliability were improved.
 
 Wednesday 1 April 2026
 
-Server Updates:
-
-Added two new games: Chess and Backgammon, featuring complete rules and detailed documentation.
-
-Implemented professional chess clocks with various time control presets.
-
-Added essential match features for Chess, including draw offers, undo requests, and automatic draw detection.
-
-Integrated standard Backgammon mechanics, including doubling cube support and international tournament rules.
-
-Fully localized both games in English and Vietnamese.
+New Additions:
+- Chess was added with complete rules and documentation.
+- Backgammon was added with complete rules and documentation.
+- Chess includes clock presets, draw offers, undo requests, and automatic draw detection.
+- Backgammon includes the doubling cube and international tournament rules.
+- Chess is fully localized in English and Vietnamese.
+- Backgammon is fully localized in English and Vietnamese.
 
 Tuesday 31 March 2026
 
-Server Updates:
-
-Added a new game: Ludo, complete with full gameplay rules and detailed documentation.
-
-Fully localized the game with natural and familiar terminology for both English and Vietnamese players.
+New Additions:
+- Ludo was added with complete rules and detailed documentation.
+- Ludo uses natural English and Vietnamese terminology.
 
 Sunday 29 March 2026
 
-Server Updates:
+New Additions:
+- The online users list now displays each player's current language.
+- Coup bots now remember play patterns, bluff strategically, adapt to game phases, and fight harder to survive.
 
-Fixed friends list online status mismatches and duplicate login issues caused by typing usernames with different uppercase and lowercase letters.
-
-Refined the online users list so your screen reader immediately focuses on the first person in the list instead of the Back button.
-
-Added the player's current language display to the online users list.
-
-Fixed a critical bug in Coup where players wouldn't be eliminated even after losing all their cards, along with fixing card exchange counts when the deck is almost empty.
-
-Massively overhauled bot AI in Coup. Bots now remember your playstyle, bluff strategically, adapt to game phases, fight aggressively to survive assassinations, and are much more competitive in one-on-one matches.
-
-Desktop Client Updates:
-
-Improved screen reader cursor stability for auto-refreshing menus like the friends list. Your reading position will now remain perfectly still instead of jumping around when the list updates.
-
-Fixed a bug where the Escape key would occasionally stop working as a back button after a background menu refresh.
-
-Web Client Updates:
-
-Synchronized cursor management with the desktop app, ensuring smooth list navigation and perfectly stationary cursor positions during auto-refreshes on the web.
+Bug Fixes:
+- Friends list online statuses now handle username capitalization consistently.
+- Duplicate logins caused by different username capitalization are blocked.
+- The online users list now focuses the first person instead of the Back button.
+- Coup players are now eliminated correctly after losing all influence cards.
+- Coup exchange counts now work correctly when the deck is nearly empty.
+- Desktop focus stays steadier in auto-refreshing lists such as Friends.
+- Desktop Escape now works more reliably after background menu refreshes.
+- Web cursor management now keeps list navigation stable during auto-refreshes.
 
 Friday 27 March 2026
 
-Updated and applied bug fixes for Poker games, including Texas Hold'em and Five Card Draw.
+New Additions:
+- Web poker action buttons were reordered so important mobile actions are easier to reach.
+- Poker invalid actions now give clearer feedback.
+- Several poker buttons were renamed from Reveal to Read for clarity.
+- Five Card Draw first and second betting round announcements are now distinct.
 
-Cleaned up the in-game menu: Action buttons like Fold, Call, and Raise will now hide automatically as soon as a hand ends or during the showdown, preventing accidental presses.
-
-Reordered the button layout on the web version to provide the best experience on mobile devices. The most critical action buttons are now placed at the top of the menu for quick and easy tapping.
-
-Fixed a betting limit bug, allowing players to go completely All-in with their entire stack.
-
-Improved screen reader announcements to be more natural and precise, such as fixing the grammar for raise amounts and ensuring you only hear your actual profit when winning an uncontested pot.
-
-Fixed the reading order in Five Card Draw: The game will now announce the current betting phase before announcing whose turn it is, helping you follow the flow of the game better.
-
-Added clear voice feedback when performing an invalid action, such as trying to bet when there is no active betting round, or pressing discard keys outside the draw phase.
-
-Changed some button labels from Reveal to Read for better clarity.
-
-Separated the announcements for the first and second betting rounds in Five Card Draw so they are completely distinct.
-
-Fixed minor audio routing issues to ensure all winner announcements play correctly through the game sound channel.
+Bug Fixes:
+- Texas Hold'em and Five Card Draw now hide Fold, Call, Raise, and similar action buttons after a hand ends or during showdown.
+- Poker betting limits now allow a player to go fully All-in.
+- Poker announcements now use clearer grammar and report actual uncontested-pot profit.
+- Five Card Draw now announces the betting phase before announcing whose turn it is.
+- Poker winner announcements now use the correct game sound channel.
 
 Wednesday 25 March 2026
 
-Welcome to the first version of PlayAural. This is an audio-first online gaming platform designed to be fully accessible for blind players.
-
-Added 25 different games across several game families, including card games like Ninety Nine, dice games, adventure games like Battleship, and social games like Coup.
-
-Added a desktop application with native screen reader support and low latency.
-
-Added a web version that is best optimized for mobile devices.
-
-Added full bilingual support, allowing you to play in both English and Vietnamese.
-
-Added a complete account system to save progress, skill ratings, add friends, and chat.
-
-Added a spectator mode, allowing players to join tables and listen to ongoing games.
-
-Added comprehensive keyboard shortcuts for desktop users and simple, easy-to-use button layouts for mobile players.
-
+New Additions:
+- PlayAural launched as an audio-first online gaming platform for blind players.
+- The first release included 25 games across card, dice, strategy, and social game families.
+- The desktop client launched with native screen reader support and low latency.
+- The web client launched with a mobile-friendly layout.
+- English and Vietnamese support launched across the platform.
+- Player accounts launched with saved progress, skill ratings, friends, and chat.
+- Spectator mode launched for listening to active tables.
+- Desktop keyboard shortcuts and mobile-friendly button layouts launched.

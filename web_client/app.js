@@ -7,7 +7,7 @@ import { AVAILABLE_LOCALES, DEFAULT_LOCALE, loadLocaleBundle } from "./locales/i
 import { createHistoryView } from "./ui/history.js";
 import { createMenuView } from "./ui/menus.js";
 
-const CLIENT_VERSION = String(window.PLAYAURAL_WEB_VERSION || "1.0.4.6");
+const CLIENT_VERSION = String(window.PLAYAURAL_WEB_VERSION || "1.0.4.7");
 const WEB_CLIENT_CONFIG = window.PLAYAURAL_WEB_CONFIG || {};
 const DEFAULT_SERVER_URL = String(
   WEB_CLIENT_CONFIG.serverUrl
