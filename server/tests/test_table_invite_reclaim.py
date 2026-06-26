@@ -747,6 +747,10 @@ class TestTableInviteReclaim:
         roster_items = host.get_current_menu_items(TABLE_MEMBERS_MENU) or []
         assert roster_items[0].id == ""
         assert "Table summary" in roster_items[0].text
+        own_row = next(item for item in roster_items if item.text.startswith("Host:"))
+        assert own_row.id == ""
+        assert "Host" in own_row.text
+        assert "Player" in own_row.text
         assert f"table_member_user_{guest.username}" in [
             item.id for item in roster_items if hasattr(item, "id")
         ]
@@ -770,6 +774,37 @@ class TestTableInviteReclaim:
             "back",
             self.server._user_states[host.username],
         )
+        assert self.server._user_states[host.username]["menu"] == TABLE_MEMBERS_MENU
+
+    @pytest.mark.asyncio
+    async def test_table_roster_shows_multiple_statuses_and_blocks_self_selection(self):
+        host = self._create_online_user("Host")
+        guest = self._create_online_user("Guest")
+        table, game = self._create_waiting_table(
+            host,
+            guest,
+            PigGame(options=PigOptions(target_score=25)),
+        )
+        host_player = game.get_player_by_name(host.username)
+        assert host_player is not None
+        host_player.is_spectator = True
+        for member in table.members:
+            if member.username == host.username:
+                member.is_spectator = True
+
+        self.server._show_table_members_menu(host, table)
+        roster_items = host.get_current_menu_items(TABLE_MEMBERS_MENU) or []
+        own_row = next(item for item in roster_items if item.text.startswith("Host:"))
+        assert own_row.id == ""
+        assert "Host" in own_row.text
+        assert "Spectator" in own_row.text
+
+        await self.server._handle_table_members_selection(
+            host,
+            f"table_member_user_{host.username}",
+            self.server._user_states[host.username],
+        )
+
         assert self.server._user_states[host.username]["menu"] == TABLE_MEMBERS_MENU
 
     @pytest.mark.asyncio

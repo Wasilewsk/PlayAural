@@ -6144,14 +6144,19 @@ PlayAural Server
         rows.sort(key=lambda row: (row["kind"] == "bot", row["name"].lower()))
         return rows
 
-    def _table_member_status_key(self, row: dict[str, Any]) -> str:
-        if row.get("is_bot"):
-            return "table-member-status-bot"
+    def _table_member_status_text(self, locale: str, row: dict[str, Any]) -> str:
+        """Return all concurrent table statuses for one roster row."""
+        status_keys: list[str] = []
         if row.get("is_host"):
-            return "table-member-status-host"
-        if row.get("is_spectator"):
-            return "table-member-status-spectator"
-        return "table-member-status-player"
+            status_keys.append("table-member-status-host")
+        if row.get("is_bot"):
+            status_keys.append("table-member-status-bot")
+        elif row.get("is_spectator"):
+            status_keys.append("table-member-status-spectator")
+        else:
+            status_keys.append("table-member-status-player")
+        statuses = [Localization.get(locale, key) for key in status_keys]
+        return Localization.format_list_and(locale, statuses)
 
     def _get_table_members_menu_items(
         self, user: NetworkUser, table: "Table"
@@ -6181,12 +6186,19 @@ PlayAural Server
         ]
 
         for row in rows:
-            status = Localization.get(locale, self._table_member_status_key(row))
-            item_id = (
-                f"table_member_bot_{row['id']}"
-                if row["kind"] == "bot"
-                else f"table_member_user_{row['id']}"
+            status = self._table_member_status_text(locale, row)
+            is_self = (
+                row["kind"] == "user"
+                and row["name"].lower() == user.username.lower()
             )
+            if is_self:
+                item_id = ""
+            else:
+                item_id = (
+                    f"table_member_bot_{row['id']}"
+                    if row["kind"] == "bot"
+                    else f"table_member_user_{row['id']}"
+                )
             items.append(
                 MenuItem(
                     text=Localization.get(
@@ -6297,15 +6309,8 @@ PlayAural Server
                     )
                 )
 
-        if row["kind"] == "user":
-            if is_self:
-                items.append(
-                    MenuItem(
-                        text=Localization.get(locale, "view-profile"),
-                        id="view_profile",
-                    )
-                )
-            elif self._find_current_friend_record(user, target_name):
+        if row["kind"] == "user" and not is_self:
+            if self._find_current_friend_record(user, target_name):
                 items.extend(
                     item
                     for item in self._get_friend_actions_menu_items(user, target_name)
@@ -6392,6 +6397,10 @@ PlayAural Server
             target_kind = "bot"
             target_id = selection_id[len("table_member_bot_"):]
         else:
+            return
+
+        if target_kind == "user" and target_id.lower() == user.username.lower():
+            self._nav_refresh(user, self._show_table_members_menu, table)
             return
 
         if not self._resolve_table_member_target(table, target_kind, target_id):
