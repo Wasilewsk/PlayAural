@@ -30,12 +30,48 @@ jobs:
           cd mobile_client/ios
           pod install --repo-update
 
-      - name: Build unsigned archive and package .ipa
+      - name: Create self-signing certificate
+        run: |
+          set -e
+          # Create a self-signed certificate for building (signing will be stripped later)
+          CERT_NAME="PlayAuralCI"
+          security create-keychain -p temp temp.keychain
+          security default-keychain -s temp.keychain
+          security unlock-keychain -p temp temp.keychain
+          security set-keychain-settings -lut 7200 temp.keychain
+          security add-certificates -k temp.keychain
+          # Generate cert
+          CERT_DIR=$(mktemp -d)
+          cat > "$CERT_DIR/cert.conf" << 'EOF'
+          [req]
+          distinguished_name = req_distinguished_name
+          x509_extensions = v3_req
+          prompt = no
+          [req_distinguished_name]
+          CN = PlayAural CI Certificate
+          [v3_req]
+          keyUsage = digitalSignature
+          extendedKeyUsage = codeSigning
+          EOF
+          openssl req -new -newkey rsa:2048 -nodes -out "$CERT_DIR/request.csr" \
+            -keyout "$CERT_DIR/key.pem" -config "$CERT_DIR/cert.conf"
+          openssl x509 -req -days 365 -in "$CERT_DIR/request.csr" \
+            -signkey "$CERT_DIR/key.pem" -out "$CERT_DIR/cert.pem" \
+            -extensions v3_req -extfile "$CERT_DIR/cert.conf" 2>/dev/null
+          # Import into keychain
+          security import "$CERT_DIR/cert.pem" -k temp.keychain
+          security import "$CERT_DIR/key.pem" -k temp.keychain
+          # Find the identity
+          IDENTITY=$(security find-identity -v -p codesigning temp.keychain | grep "PlayAural" | head -1 | awk '{print $2}')
+          echo "CERT_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "CERT_NAME=$CERT_NAME" >> "$GITHUB_ENV"
+
+      - name: Build archive with self-signed cert
         run: |
           set -e
           cd mobile_client/ios
 
-          # find .xcworkspace directory (must be a directory, not contents.xcworkspacedata)
+          # find .xcworkspace directory
           WORKSPACE_DIR=""
           for d in *.xcworkspace; do
             if [ -d "$d" ]; then
@@ -50,24 +86,53 @@ jobs:
           fi
           echo "Using workspace: $WORKSPACE_DIR"
 
-          # detect scheme from workspace
+          # detect scheme
           SCHEME=$(xcodebuild -list -workspace "$WORKSPACE_DIR" 2>/dev/null | awk '/Schemes:/{flag=1;next} flag && NF{print $1; exit}')
           if [ -z "$SCHEME" ]; then
             echo "Error: could not detect scheme"
             exit 1
           fi
           echo "Using scheme: $SCHEME"
+          echo "SCHEME_NAME=$SCHEME" >> "$GITHUB_ENV"
 
           ARCHIVE_PATH="$PWD/build/Archive.xcarchive"
           mkdir -p "$(dirname "$ARCHIVE_PATH")"
 
-          # archive without code signing
-          xcodebuild -workspace "$WORKSPACE_DIR" -scheme "$SCHEME" -configuration Release -archivePath "$ARCHIVE_PATH" archive CODE_SIGNING_ALLOWED=NO
+          # Build archive with the self-signed cert (allows proper module compilation)
+          xcodebuild -workspace "$WORKSPACE_DIR" -scheme "$SCHEME" \
+            -configuration Release \
+            -archivePath "$ARCHIVE_PATH" \
+            archive \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="$CERT_IDENTITY" \
+            CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGNING_ALLOWED=YES \
+            DEVELOPMENT_TEAM=""
 
-          # package unsigned .ipa from .xcarchive
+      - name: Strip signatures and package unsigned .ipa
+        run: |
+          set -e
+          cd mobile_client/ios
+          ARCHIVE_PATH="$PWD/build/Archive.xcarchive"
+          SCHEME="$SCHEME_NAME"
+
           APP_PATH="$ARCHIVE_PATH/Products/Applications/${SCHEME}.app"
           echo "App path: $APP_PATH"
 
+          # Remove code signatures from the .app
+          codesign --remove-signature "$APP_PATH" 2>/dev/null || true
+          # Also remove from all embedded frameworks and plugins
+          for f in $(find "$APP_PATH" -name "*.framework" -type d 2>/dev/null); do
+            codesign --remove-signature "$f" 2>/dev/null || true
+          done
+          for f in $(find "$APP_PATH" -name "*.dylib" -type f 2>/dev/null); do
+            codesign --remove-signature "$f" 2>/dev/null || true
+          done
+          for f in $(find "$APP_PATH" -name "*.appex" -type d 2>/dev/null); do
+            codesign --remove-signature "$f" 2>/dev/null || true
+          done
+
+          # Package into unsigned .ipa
           mkdir -p unsigned/Payload
           cp -R "$APP_PATH" unsigned/Payload/
           cd unsigned
