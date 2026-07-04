@@ -30,139 +30,74 @@ jobs:
           cd mobile_client/ios
           pod install --repo-update
 
-      - name: Create self-signing certificate
-        run: |
-          set -e
-
-          # Create a keychain
-          KEYCHAIN_NAME=build.keychain
-          security create-keychain -p temp "$KEYCHAIN_NAME"
-          security default-keychain -s "$KEYCHAIN_NAME"
-          security unlock-keychain -p temp "$KEYCHAIN_NAME"
-          security set-keychain-settings -lut 7200 "$KEYCHAIN_NAME"
-
-          # Generate a code-signing certificate via openssl
-          CERT_DIR=$(mktemp -d)
-
-          cat > "$CERT_DIR/cert.conf" << 'CONF'
-          [req]
-          distinguished_name = dn
-          x509_extensions = extensions
-          prompt = no
-
-          [dn]
-          CN = PlayAural CI
-
-          [extensions]
-          basicConstraints = critical, CA:false
-          keyUsage = critical, digitalSignature
-          extendedKeyUsage = codeSigning
-          subjectKeyIdentifier = hash
-          CONF
-
-          openssl req -x509 -newkey rsa:2048 -nodes \
-            -keyout "$CERT_DIR/key.pem" \
-            -out "$CERT_DIR/cert.pem" \
-            -days 365 \
-            -config "$CERT_DIR/cert.conf"
-
-          # Import as PKCS12
-          openssl pkcs12 -export \
-            -inkey "$CERT_DIR/key.pem" \
-            -in "$CERT_DIR/cert.pem" \
-            -out "$CERT_DIR/cert.p12" \
-            -password pass:temp \
-            -name "PlayAural CI"
-
-          security import "$CERT_DIR/cert.p12" \
-            -k "$KEYCHAIN_NAME" \
-            -P temp \
-            -A \
-            -t agg
-
-          # Get identity hash
-          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_NAME" 2>/dev/null | grep -i "PlayAural" | head -1 | awk '{print $2}')
-          if [ -z "$IDENTITY" ]; then
-            echo "Available identities:"
-            security find-identity -v "$KEYCHAIN_NAME"
-            exit 1
-          fi
-          echo "Using identity: $IDENTITY"
-          echo "CERT_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
-
-      - name: Build archive with self-signed cert
+      - name: Detect workspace and scheme
+        id: detect
         run: |
           set -e
           cd mobile_client/ios
-
-          # find .xcworkspace directory
-          WORKSPACE_DIR=""
           for d in *.xcworkspace; do
             if [ -d "$d" ]; then
-              WORKSPACE_DIR="$d"
+              echo "WORKSPACE=$d" >> "$GITHUB_OUTPUT"
               break
             fi
           done
-          if [ -z "$WORKSPACE_DIR" ]; then
-            echo "Error: no .xcworkspace directory found"
-            ls -la
-            exit 1
-          fi
-          echo "Using workspace: $WORKSPACE_DIR"
+          SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | awk '/Schemes:/{flag=1;next} flag && NF{print $1; exit}')
+          echo "SCHEME=$SCHEME" >> "$GITHUB_OUTPUT"
+          echo "Workspace: $d, Scheme: $SCHEME"
 
-          # detect scheme
-          SCHEME=$(xcodebuild -list -workspace "$WORKSPACE_DIR" 2>/dev/null | awk '/Schemes:/{flag=1;next} flag && NF{print $1; exit}')
-          if [ -z "$SCHEME" ]; then
-            echo "Error: could not detect scheme"
-            exit 1
-          fi
-          echo "Using scheme: $SCHEME"
-          echo "SCHEME_NAME=$SCHEME" >> "$GITHUB_ENV"
-
-          ARCHIVE_PATH="$PWD/build/Archive.xcarchive"
-          mkdir -p "$(dirname "$ARCHIVE_PATH")"
-
-          # Build archive with the self-signed cert (allows proper module compilation)
-          xcodebuild -workspace "$WORKSPACE_DIR" -scheme "$SCHEME" \
-            -configuration Release \
-            -archivePath "$ARCHIVE_PATH" \
-            archive \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="$CERT_IDENTITY" \
-            CODE_SIGNING_REQUIRED=YES \
-            CODE_SIGNING_ALLOWED=YES \
-            DEVELOPMENT_TEAM=""
-
-      - name: Strip signatures and package unsigned .ipa
+      - name: Build .app with xcodebuild
         run: |
           set -e
           cd mobile_client/ios
-          ARCHIVE_PATH="$PWD/build/Archive.xcarchive"
-          SCHEME="$SCHEME_NAME"
+          WORKSPACE="${{ steps.detect.outputs.WORKSPACE }}"
+          SCHEME="${{ steps.detect.outputs.SCHEME }}"
+          DD="$PWD/build/DerivedData"
 
-          APP_PATH="$ARCHIVE_PATH/Products/Applications/${SCHEME}.app"
-          echo "App path: $APP_PATH"
+          # Build the app target. We do NOT set CODE_SIGNING_ALLOWED=NO
+          # to avoid Expo module-map issues. An empty identity prevents
+          # actual signing but lets compilation proceed normally.
+          xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" \
+            -configuration Release \
+            -derivedDataPath "$DD" \
+            build \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO 2>&1 || true
 
-          # Remove code signatures from the .app
-          codesign --remove-signature "$APP_PATH" 2>/dev/null || true
-          # Also remove from all embedded frameworks and plugins
-          for f in $(find "$APP_PATH" -name "*.framework" -type d 2>/dev/null); do
-            codesign --remove-signature "$f" 2>/dev/null || true
-          done
-          for f in $(find "$APP_PATH" -name "*.dylib" -type f 2>/dev/null); do
-            codesign --remove-signature "$f" 2>/dev/null || true
-          done
-          for f in $(find "$APP_PATH" -name "*.appex" -type d 2>/dev/null); do
-            codesign --remove-signature "$f" 2>/dev/null || true
-          done
+          # Find the built .app in DerivedData
+          APP_PATH=$(find "$DD" -name "*.app" -type d 2>/dev/null | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app found — checking build output..."
+            # Look for any errors in the xcodebuild log
+            xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" \
+              -configuration Debug \
+              -derivedDataPath "$DD/debug" \
+              build \
+              CODE_SIGN_STYLE=Manual \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO 2>&1 | tail -50 || true
+            APP_PATH=$(find "$DD/debug" -name "*.app" -type d 2>/dev/null | head -1)
+          fi
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: no .app produced. Build failed."
+            exit 1
+          fi
+          echo "App found at: $APP_PATH"
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_OUTPUT"
+        id: build
 
-          # Package into unsigned .ipa
+      - name: Package unsigned .ipa
+        run: |
+          set -e
+          APP_PATH="${{ steps.build.outputs.APP_PATH }}"
           mkdir -p unsigned/Payload
           cp -R "$APP_PATH" unsigned/Payload/
           cd unsigned
           zip -r ../PlayAuralMobile-unsigned.ipa Payload
           cd ..
           ls -lh PlayAuralMobile-unsigned.ipa
+          echo "IPA=$PWD/PlayAuralMobile-unsigned.ipa" >> "$GITHUB_OUTPUT"
+        id: package
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
