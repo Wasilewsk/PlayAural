@@ -28,6 +28,26 @@ jobs:
       - name: Install CocoaPods
         run: |
           cd mobile_client/ios
+
+          # Insert post_install hook before the final `end` in the Podfile
+          # to force SWIFT_STRICT_CONCURRENCY=0 on all pod targets (works
+          # around Swift 6 concurrency errors in ExpoModulesCore).
+          ruby -e '
+            content = File.read("Podfile")
+            hook = <<~HOOK
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings["SWIFT_STRICT_CONCURRENCY"] = "0"
+              end
+            end
+          end
+          HOOK
+            lines = content.lines
+            lines.insert(-1, hook)
+            File.write("Podfile", lines.join)
+          '
+
           pod install --repo-update
 
       - name: Detect workspace and scheme
