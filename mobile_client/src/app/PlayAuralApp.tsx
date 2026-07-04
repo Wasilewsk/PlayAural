@@ -1,6 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Audio as ExpoAudio } from "expo-av";
+import { getRecordingPermissionsAsync, requestRecordingPermissionsAsync } from "expo-audio";
 import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import {
@@ -1140,14 +1140,14 @@ export function PlayAuralApp() {
       return true;
     }
     try {
-      const existing = await ExpoAudio.getPermissionsAsync();
+      const existing = await getRecordingPermissionsAsync();
       if (existing.granted) {
         return true;
       }
       if (!promptIfNeeded || existing.canAskAgain === false) {
         return false;
       }
-      const requested = await ExpoAudio.requestPermissionsAsync();
+      const requested = await requestRecordingPermissionsAsync();
       return requested.granted;
     } catch {
       return false;

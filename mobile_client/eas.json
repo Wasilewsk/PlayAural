@@ -7,12 +7,18 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "ios": {
+        "image": "latest"
+      },
       "android": {
         "image": "latest"
       }
     },
     "preview": {
       "distribution": "internal",
+      "ios": {
+        "image": "latest"
+      },
       "android": {
         "image": "latest",
         "buildType": "apk"
@@ -22,6 +28,14 @@
       "autoIncrement": true,
       "android": {
         "image": "latest"
+      }
+    },
+    "enterprise": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "image": "latest",
+        "enterpriseProvisioning": "universal"
       }
     }
   },

@@ -1,14 +1,13 @@
-import { Audio as ExpoAudio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
-import type { AVPlaybackSource, AVPlaybackStatus, AVPlaybackStatusToSet } from "expo-av";
+import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
+import type { AudioPlayer, AudioSource, AudioStatus } from "expo-audio";
 import { Asset } from "expo-asset";
-import { requireNativeModule } from "expo-modules-core";
 import { Platform } from "react-native";
 
 import { soundManifest } from "../generated/soundManifest";
 import { ENABLE_CLIENT_DEBUG_LOGS } from "../utils/debug";
 
 type ManagedNativePlayer = {
-  player: ExpoAudio.Sound;
+  player: AudioPlayer;
   sourceKey: string;
 };
 
@@ -42,20 +41,6 @@ type AmbiencePhase = "idle" | "intro" | "loop" | "outro";
 
 const DEBUG_PREFIX = "PLAYAURAL_DEBUG Audio";
 
-type AndroidNativeAudioMode = {
-  interruptionModeAndroid: number;
-  shouldDuckAndroid: boolean;
-  staysActiveInBackground: boolean;
-};
-
-type ExponentAVModule = {
-  setAudioMode(mode: AndroidNativeAudioMode): Promise<void>;
-};
-
-const exponentAV = Platform.OS === "android"
-  ? requireNativeModule<ExponentAVModule>("ExponentAV")
-  : null;
-
 export class MobileAudioManager {
   private initialized = false;
   private nativeAudioModeReady = false;
@@ -67,15 +52,14 @@ export class MobileAudioManager {
   private ambienceOutroKey: string | null = null;
   private ambiencePhase: AmbiencePhase = "idle";
   private ambiencePlaybackId = 0;
-  private sfxPlayers = new Set<ExpoAudio.Sound>();
-  private retiringMusicPlayers = new Set<ExpoAudio.Sound>();
+  private sfxPlayers = new Set<AudioPlayer>();
+  private retiringMusicPlayers = new Set<AudioPlayer>();
   private musicVolume = 0.2;
   private ambienceVolume = 0.3;
   private musicTransitionId = 0;
   private musicFadeInterval: ReturnType<typeof setInterval> | null = null;
-  private nativeSourceCache = new Map<string, AVPlaybackSource>();
-  private nativeSourceLoading = new Map<string, Promise<AVPlaybackSource | null>>();
-  private nativeSoundVolumes = new WeakMap<ExpoAudio.Sound, number>();
+  private nativeSourceCache = new Map<string, AudioSource>();
+  private nativeSourceLoading = new Map<string, Promise<AudioSource | null>>();
   private desiredMusicRequest: DesiredMusicRequest | null = null;
   private desiredAmbienceRequest: DesiredAmbienceRequest | null = null;
 
@@ -211,7 +195,7 @@ export class MobileAudioManager {
     }
 
     if (this.musicPlayer) {
-      this.setNativeSoundVolume(this.musicPlayer.player, this.musicVolume);
+      this.musicPlayer.player.volume = this.musicVolume;
     }
 
     if (this.webAudioContext && this.webMusicBus) {
@@ -237,13 +221,13 @@ export class MobileAudioManager {
     }
 
     if (this.ambienceLoopPlayer) {
-      this.setNativeSoundVolume(this.ambienceLoopPlayer.player, this.ambienceVolume);
+      this.ambienceLoopPlayer.player.volume = this.ambienceVolume;
     }
     if (this.ambienceIntroPlayer) {
-      this.setNativeSoundVolume(this.ambienceIntroPlayer.player, this.ambienceVolume);
+      this.ambienceIntroPlayer.player.volume = this.ambienceVolume;
     }
     if (this.ambienceOutroPlayer) {
-      this.setNativeSoundVolume(this.ambienceOutroPlayer.player, this.ambienceVolume);
+      this.ambienceOutroPlayer.player.volume = this.ambienceVolume;
     }
 
     if (this.webAudioContext && this.webAmbienceBus) {
@@ -283,23 +267,23 @@ export class MobileAudioManager {
     }
 
     if (this.musicPlayer) {
-      this.setNativeSoundVolume(this.musicPlayer.player, this.musicVolume);
-      void this.musicPlayer.player.playAsync().catch(() => undefined);
+      this.musicPlayer.player.volume = this.musicVolume;
+      this.musicPlayer.player.play();
     } else if (this.musicVolume > 0 && this.desiredMusicRequest) {
       void this.playMusic(this.desiredMusicRequest.name, this.desiredMusicRequest.looping);
     }
 
     if (this.ambienceIntroPlayer) {
-      this.setNativeSoundVolume(this.ambienceIntroPlayer.player, this.ambienceVolume);
-      void this.ambienceIntroPlayer.player.playAsync().catch(() => undefined);
+      this.ambienceIntroPlayer.player.volume = this.ambienceVolume;
+      this.ambienceIntroPlayer.player.play();
     }
     if (this.ambienceLoopPlayer) {
-      this.setNativeSoundVolume(this.ambienceLoopPlayer.player, this.ambienceVolume);
-      void this.ambienceLoopPlayer.player.playAsync().catch(() => undefined);
+      this.ambienceLoopPlayer.player.volume = this.ambienceVolume;
+      this.ambienceLoopPlayer.player.play();
     }
     if (this.ambienceOutroPlayer) {
-      this.setNativeSoundVolume(this.ambienceOutroPlayer.player, this.ambienceVolume);
-      void this.ambienceOutroPlayer.player.playAsync().catch(() => undefined);
+      this.ambienceOutroPlayer.player.volume = this.ambienceVolume;
+      this.ambienceOutroPlayer.player.play();
     }
     if (
       !this.ambienceIntroPlayer &&
@@ -349,24 +333,17 @@ export class MobileAudioManager {
     }
     if (this.musicPlayer?.sourceKey === name) {
       this.cancelMusicFade();
-      void this.musicPlayer.player.setIsLoopingAsync(looping).catch(() => undefined);
-      this.setNativeSoundVolume(this.musicPlayer.player, this.musicVolume);
-      void this.musicPlayer.player.playAsync().catch(() => undefined);
+      this.musicPlayer.player.loop = looping;
+      this.musicPlayer.player.volume = this.musicVolume;
+      this.musicPlayer.player.play();
       return true;
     }
 
-    const player = await this.createNativeSound(
+    const player = this.createNativeSound(
       source,
-      {
-        isLooping: looping,
-        progressUpdateIntervalMillis: 250,
-        shouldPlay: true,
-        volume: 0,
-      },
+      250,
+      { isLooping: looping, volume: 0 },
     );
-    if (!player) {
-      return false;
-    }
     if (transitionId !== this.musicTransitionId) {
       this.disposeNativeSound(player);
       return false;
@@ -386,9 +363,9 @@ export class MobileAudioManager {
       }
 
       const step = 0.05;
-      const currentVolume = this.getTargetNativePlayerVolume(nextMusicPlayer.player);
+      const currentVolume = nextMusicPlayer.player.volume;
       const nextVolume = Math.min(this.musicVolume, currentVolume + step);
-      this.setNativeSoundVolume(nextMusicPlayer.player, nextVolume);
+      nextMusicPlayer.player.volume = nextVolume;
 
       this.fadeRetiringMusicPlayers(step);
 
@@ -464,55 +441,34 @@ export class MobileAudioManager {
       if (playbackId !== this.ambiencePlaybackId) {
         return;
       }
-      void this.createNativeSound(
+      const loopPlayer = this.createNativeSound(
         loopSource,
-        {
-          isLooping: true,
-          progressUpdateIntervalMillis: 250,
-          shouldPlay: true,
-          volume: this.ambienceVolume,
-        },
-      ).then((loopPlayer) => {
-        if (!loopPlayer) {
-          if (playbackId === this.ambiencePlaybackId) {
-            this.ambiencePhase = "idle";
-          }
-          return;
-        }
-        if (playbackId !== this.ambiencePlaybackId) {
-          this.disposeNativeSound(loopPlayer);
-          return;
-        }
-        this.ambienceLoopPlayer = { player: loopPlayer, sourceKey: loop };
-        this.ambiencePhase = "loop";
-      });
+        250,
+        { isLooping: true, volume: this.ambienceVolume },
+      );
+      if (playbackId !== this.ambiencePlaybackId) {
+        this.disposeNativeSound(loopPlayer);
+        return;
+      }
+      this.ambienceLoopPlayer = { player: loopPlayer, sourceKey: loop };
+      this.ambiencePhase = "loop";
     };
 
     const introSource = intro ? await this.resolveNativeSource(intro) : null;
     if (introSource) {
-      let introPlayerRef: ExpoAudio.Sound | null = null;
-      const introPlayer = await this.createNativeSound(
+      const introPlayer = this.createNativeSound(
         introSource,
-        {
-          isLooping: false,
-          progressUpdateIntervalMillis: 80,
-          shouldPlay: true,
-          volume: this.ambienceVolume,
-        },
-        () => {
-          if (this.ambienceIntroPlayer?.player === introPlayerRef) {
-            this.ambienceIntroPlayer = null;
-          }
-          if (introPlayerRef) {
-            this.disposeNativeSound(introPlayerRef);
-          }
-          startLoop();
-        },
+        80,
+        { isLooping: false, volume: this.ambienceVolume },
       );
-      if (!introPlayer) {
-        return false;
-      }
-      introPlayerRef = introPlayer;
+      introPlayer.addListener("playbackStatusUpdate", (status: AudioStatus) => {
+        if (!status.isLoaded || !status.didJustFinish) return;
+        if (this.ambienceIntroPlayer?.player === introPlayer) {
+          this.ambienceIntroPlayer = null;
+        }
+        this.disposeNativeSound(introPlayer);
+        startLoop();
+      });
       if (playbackId !== this.ambiencePlaybackId) {
         this.disposeNativeSound(introPlayer);
         return false;
@@ -569,35 +525,25 @@ export class MobileAudioManager {
         return;
       }
       const outroKey = this.ambienceOutroKey;
-      void this.createNativeSound(
+      const outroPlayer = this.createNativeSound(
         outroSource,
-        {
-          isLooping: false,
-          progressUpdateIntervalMillis: 80,
-          shouldPlay: true,
-          volume: this.ambienceVolume,
-        },
-      ).then((outroPlayer) => {
-        if (!outroPlayer) {
-          return;
+        80,
+        { isLooping: false, volume: this.ambienceVolume },
+      );
+      outroPlayer.addListener("playbackStatusUpdate", (status: AudioStatus) => {
+        if (!status.isLoaded || !status.didJustFinish) return;
+        if (this.ambienceOutroPlayer?.player === outroPlayer) {
+          this.ambienceOutroPlayer = null;
         }
-        outroPlayer.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
-          if (!status.isLoaded || !status.didJustFinish) {
-            return;
-          }
-          if (this.ambienceOutroPlayer?.player === outroPlayer) {
-            this.ambienceOutroPlayer = null;
-          }
-          this.ambiencePhase = "idle";
-          this.disposeNativeSound(outroPlayer);
-        });
-        this.ambienceOutroPlayer = { player: outroPlayer, sourceKey: outroKey };
-        this.ambiencePhase = "outro";
+        this.ambiencePhase = "idle";
+        this.disposeNativeSound(outroPlayer);
       });
+      this.ambienceOutroPlayer = { player: outroPlayer, sourceKey: outroKey };
+      this.ambiencePhase = "outro";
     }
   }
 
-  private resolveSource(name: string): AVPlaybackSource | null {
+  private resolveSource(name: string): AudioSource | null {
     const normalized = name.replaceAll("\\", "/");
     const assetId = soundManifest[normalized];
     if (typeof assetId === "number") {
@@ -606,7 +552,7 @@ export class MobileAudioManager {
     return null;
   }
 
-  private async resolveNativeSource(name: string): Promise<AVPlaybackSource | null> {
+  private async resolveNativeSource(name: string): Promise<AudioSource | null> {
     const normalized = name.replaceAll("\\", "/");
     const cached = this.nativeSourceCache.get(normalized);
     if (cached) {
@@ -631,7 +577,7 @@ export class MobileAudioManager {
       try {
         const assets = await Asset.loadAsync(directSource);
         const asset = assets[0] ?? Asset.fromModule(directSource);
-        const resolvedSource: AVPlaybackSource =
+        const resolvedSource: AudioSource =
           asset.localUri
             ? { uri: asset.localUri }
             : asset.uri
@@ -652,7 +598,7 @@ export class MobileAudioManager {
     return loadPromise;
   }
 
-  private resolveNativeSourceSync(name: string): AVPlaybackSource | null {
+  private resolveNativeSourceSync(name: string): AudioSource | null {
     const normalized = name.replaceAll("\\", "/");
     return this.nativeSourceCache.get(normalized) ?? this.resolveSource(normalized);
   }
@@ -665,15 +611,12 @@ export class MobileAudioManager {
       return this.nativeAudioModeLoading;
     }
 
-    this.nativeAudioModeLoading = (Platform.OS === "android"
-      ? this.ensureAndroidAudioMode()
-      : ExpoAudio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-        })
-    ).then(() => {
+    this.nativeAudioModeLoading = setAudioModeAsync({
+      allowsRecording: false,
+      interruptionMode: "mixWithOthers",
+      playsInSilentMode: true,
+      shouldPlayInBackground: true,
+    }).then(() => {
       this.nativeAudioModeReady = true;
     }).finally(() => {
       this.nativeAudioModeLoading = null;
@@ -682,60 +625,32 @@ export class MobileAudioManager {
     return this.nativeAudioModeLoading;
   }
 
-  private async ensureAndroidAudioMode(): Promise<void> {
-    if (!exponentAV) {
-      return;
+  private createNativeSound(
+    source: AudioSource,
+    updateInterval: number,
+    options: {
+      isLooping: boolean;
+      volume: number;
+      playbackRate?: number;
+      shouldCorrectPitch?: boolean;
+    },
+  ): AudioPlayer {
+    const player = createAudioPlayer(source, { updateInterval });
+    player.loop = options.isLooping;
+    player.volume = options.volume;
+    if (options.playbackRate !== undefined) {
+      player.playbackRate = options.playbackRate;
+    }
+    if (options.shouldCorrectPitch !== undefined) {
+      player.shouldCorrectPitch = options.shouldCorrectPitch;
     }
 
-    await exponentAV.setAudioMode({
-      interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
-      shouldDuckAndroid: false,
-      staysActiveInBackground: true,
-    });
+    player.play();
+    return player;
   }
 
-  private async createNativeSound(
-    source: AVPlaybackSource,
-    status: AVPlaybackStatusToSet,
-    onFinished?: () => void,
-  ): Promise<ExpoAudio.Sound | null> {
-    const sound = new ExpoAudio.Sound();
-    if (onFinished) {
-      sound.setOnPlaybackStatusUpdate((playbackStatus: AVPlaybackStatus) => {
-        if (!playbackStatus.isLoaded || !playbackStatus.didJustFinish) {
-          return;
-        }
-        sound.setOnPlaybackStatusUpdate(null);
-        onFinished();
-      });
-    }
-
-    try {
-      await sound.loadAsync(source, status);
-      this.nativeSoundVolumes.set(sound, status.volume ?? 1);
-      return sound;
-    } catch (error) {
-      console.warn("MobileAudioManager: native sound load failed.", error);
-      sound.setOnPlaybackStatusUpdate(null);
-      void sound.unloadAsync().catch(() => undefined);
-      return null;
-    }
-  }
-
-  private disposeNativeSound(sound: ExpoAudio.Sound): void {
-    this.nativeSoundVolumes.delete(sound);
-    sound.setOnPlaybackStatusUpdate(null);
-    void sound.unloadAsync().catch(() => undefined);
-  }
-
-  private setNativeSoundVolume(sound: ExpoAudio.Sound, volume: number): void {
-    const clamped = Math.max(0, Math.min(1, volume));
-    this.nativeSoundVolumes.set(sound, clamped);
-    void sound.setVolumeAsync(clamped).catch(() => undefined);
-  }
-
-  private getTargetNativePlayerVolume(sound: ExpoAudio.Sound): number {
-    return this.nativeSoundVolumes.get(sound) ?? 0;
+  private disposeNativeSound(player: AudioPlayer): void {
+    player.remove();
   }
 
   private async resolveWebUri(name: string): Promise<string | null> {
@@ -804,8 +719,8 @@ export class MobileAudioManager {
 
   private fadeRetiringMusicPlayers(step: number): void {
     for (const player of [...this.retiringMusicPlayers]) {
-      const nextVolume = Math.max(0, this.getTargetNativePlayerVolume(player) - step);
-      this.setNativeSoundVolume(player, nextVolume);
+      const nextVolume = Math.max(0, player.volume - step);
+      player.volume = nextVolume;
       if (nextVolume <= 0.001) {
         this.disposeNativeSound(player);
         this.retiringMusicPlayers.delete(player);
@@ -829,48 +744,28 @@ export class MobileAudioManager {
       return false;
     }
 
-    const sound = new ExpoAudio.Sound();
     const volume = Math.max(0, Math.min(1, options.volume ?? 1));
     const pitch = options.pitch && options.pitch > 0 ? options.pitch : 1;
-    const pan = this.normalizePan(options.pan ?? 0);
-    const initialStatus: AVPlaybackStatusToSet = {
-      isLooping: false,
-      progressUpdateIntervalMillis: 100,
-      rate: pitch,
-      shouldCorrectPitch: true,
-      shouldPlay: true,
-      volume,
-      ...(Platform.OS === "android"
-        ? {
-            androidImplementation: "MediaPlayer" as const,
-            audioPan: pan,
-          }
-        : {}),
-    };
 
-    sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+    const player = createAudioPlayer(source, { updateInterval: 100 });
+    player.volume = volume;
+    player.playbackRate = pitch;
+    player.shouldCorrectPitch = true;
+
+    const subscription = player.addListener("playbackStatusUpdate", (status: AudioStatus) => {
       if (!status.isLoaded) {
         return;
       }
       if (status.didJustFinish) {
-        sound.setOnPlaybackStatusUpdate(null);
-        this.sfxPlayers.delete(sound);
-        this.nativeSoundVolumes.delete(sound);
-        void sound.unloadAsync();
+        subscription.remove();
+        this.sfxPlayers.delete(player);
+        player.remove();
       }
     });
 
-    try {
-      await sound.loadAsync(source, initialStatus);
-      this.nativeSoundVolumes.set(sound, volume);
-      this.sfxPlayers.add(sound);
-      return true;
-    } catch (error) {
-      console.warn("MobileAudioManager: native sound playback failed.", error);
-      sound.setOnPlaybackStatusUpdate(null);
-      void sound.unloadAsync().catch(() => undefined);
-      return false;
-    }
+    this.sfxPlayers.add(player);
+    player.play();
+    return true;
   }
 
   private async playWebSound(
