@@ -29,23 +29,30 @@ jobs:
         run: |
           cd mobile_client/ios
 
-          # Insert post_install hook before the final `end` in the Podfile
-          # to force SWIFT_STRICT_CONCURRENCY=0 on all pod targets (works
-          # around Swift 6 concurrency errors in ExpoModulesCore).
+          # Add SWIFT_STRICT_CONCURRENCY=0 to the existing post_install hook
+          # (CocoaPods rejects duplicate post_install hooks).
           ruby -e '
             content = File.read("Podfile")
-            hook = <<~HOOK
-          post_install do |installer|
-            installer.pods_project.targets.each do |target|
-              target.build_configurations.each do |config|
-                config.build_settings["SWIFT_STRICT_CONCURRENCY"] = "0"
-              end
-            end
-          end
-          HOOK
+            # Find the existing post_install do |installer| block and inject
+            # our concurrency setting inside it, before the closing end
             lines = content.lines
-            lines.insert(-1, hook)
-            File.write("Podfile", lines.join)
+            idx = lines.rindex { |l| l.include?("post_install") && l.include?("|installer|") }
+            if idx
+              indent = lines[idx][/\A\s*/]
+              hook_lines = [
+                "#{indent}  # Disable Swift 6 strict concurrency for all pod targets\n",
+                "#{indent}  installer.pods_project.targets.each do |target|\n",
+                "#{indent}    target.build_configurations.each do |config|\n",
+                "#{indent}      config.build_settings[\"SWIFT_STRICT_CONCURRENCY\"] = \"0\"\n",
+                "#{indent}    end\n",
+                "#{indent}  end\n",
+              ]
+              lines.insert(idx + 1, *hook_lines)
+              File.write("Podfile", lines.join)
+            else
+              $stderr.puts "WARNING: could not find post_install hook in Podfile"
+              exit 1
+            end
           '
 
           pod install --repo-update
