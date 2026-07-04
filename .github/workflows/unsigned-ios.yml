@@ -97,20 +97,7 @@ jobs:
           # Pod auto-generated schemes (EX*, React-*, hermes*, etc.) are listed
           # first alphabetically — skip them and pick the first non-Pod scheme.
           SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" 2>/dev/null \
-            | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-ws=d.get('workspace',{})
-schemes=ws.get('schemes',[]) or d.get('project',{}).get('schemes',[])
-for s in schemes:
-    # skip pod/library schemes
-    if s.startswith('Pods-') or s.startswith('EX') or s.startswith('React-') or s.startswith('hermes') or s.startswith('FBL') or s.startswith('RCT') or s.startswith('lib') or s.startswith('cxx'):
-        continue
-    print(s)
-    sys.exit(0)
-# fallback: last resort
-print(schemes[0] if schemes else '')
-")
+            | python3 -c "import sys,json; d=json.load(sys.stdin); ws=d.get('workspace',{}); schemes=ws.get('schemes',[]) or d.get('project',{}).get('schemes',[]); skip=['Pods-','EX','React-','hermes','FBL','RCT','lib','cxx']; filtered=[s for s in schemes if not any(s.startswith(p) for p in skip)]; print(filtered[0] if filtered else (schemes[0] if schemes else ''))")
           if [ -z "$SCHEME" ]; then
             # Fallback: grep the .xcodeproj for scheme names
             SCHEME=$(ls -d *.xcodeproj 2>/dev/null | head -1 | sed 's/\.xcodeproj//')
