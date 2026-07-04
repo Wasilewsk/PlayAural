@@ -58,13 +58,8 @@ jobs:
           # Create a stub EXEventEmitter.h — this header was removed in Expo SDK 55
           # but expo-av (deprecated) still imports it. Provide the bare protocol
           # declaration so EXAV Objective-C code compiles.
-          cat > Pods/Headers/Public/ExpoModulesCore/EXEventEmitter.h << 'OBJC'
-  #import <Foundation/Foundation.h>
-
-  @protocol EXEventEmitter
-  - (NSDictionary<NSString *, NSString *> *)supportedEvents;
-  @end
-  OBJC
+          # WARNING: indentation below must match YAML literal block context (10 spaces).
+          printf '%s\n' '#import <Foundation/Foundation.h>' '' '@protocol EXEventEmitter' '- (NSDictionary<NSString *, NSString *> *)supportedEvents;' '@end' > Pods/Headers/Public/ExpoModulesCore/EXEventEmitter.h
 
       - name: Detect workspace and scheme
         id: detect
