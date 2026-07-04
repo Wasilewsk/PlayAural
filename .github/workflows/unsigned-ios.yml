@@ -63,29 +63,30 @@ jobs:
           SCHEME="${{ steps.detect.outputs.SCHEME }}"
           DD="$PWD/build/DerivedData"
 
-          # Build the app target. We do NOT set CODE_SIGNING_ALLOWED=NO
-          # to avoid Expo module-map issues. An empty identity prevents
-          # actual signing but lets compilation proceed normally.
+          # Build the app target. Disable Swift 6 strict concurrency
+          # checking (expo-modules-core has many Sendable/@MainActor
+          # violations with Xcode 26.5+).
           xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" \
             -configuration Release \
             -derivedDataPath "$DD" \
             build \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO 2>&1 || true
+            CODE_SIGNING_REQUIRED=NO \
+            SWIFT_STRICT_CONCURRENCY=0 2>&1 || true
 
           # Find the built .app in DerivedData
           APP_PATH=$(find "$DD" -name "*.app" -type d 2>/dev/null | head -1)
           if [ -z "$APP_PATH" ]; then
             echo "No .app found — checking build output..."
-            # Look for any errors in the xcodebuild log
             xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" \
               -configuration Debug \
               -derivedDataPath "$DD/debug" \
               build \
               CODE_SIGN_STYLE=Manual \
               CODE_SIGN_IDENTITY="" \
-              CODE_SIGNING_REQUIRED=NO 2>&1 | tail -50 || true
+              CODE_SIGNING_REQUIRED=NO \
+              SWIFT_STRICT_CONCURRENCY=0 2>&1 | tail -50 || true
             APP_PATH=$(find "$DD/debug" -name "*.app" -type d 2>/dev/null | head -1)
           fi
           if [ -z "$APP_PATH" ]; then
