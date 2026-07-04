@@ -46,3 +46,8 @@ PRIVATE_ANDROID_BUILD_GUIDE.md
 *.jks
 *.keystore
 *keystore*credential*.md
+mobile_client/*.mobileprovision
+mobile_client/*.p12
+mobile_client/credentials.json
+mobile_client/password.txt
+commitmsg.txt

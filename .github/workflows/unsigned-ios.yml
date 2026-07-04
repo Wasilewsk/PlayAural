@@ -113,6 +113,18 @@ jobs:
           SCHEME="${{ steps.detect.outputs.SCHEME }}"
           DD="$PWD/build/DerivedData"
 
+          # CP-User script phases (Hermes, RNDeps) source
+          # $REACT_NATIVE_PATH/scripts/xcode/with-environment.sh — the env
+          # var is unset in vanilla CI and must be provided explicitly.
+          export REACT_NATIVE_PATH="$GITHUB_WORKSPACE/mobile_client/node_modules/react-native"
+
+          # Fail early with a clear message if the script isn't reachable
+          if [ ! -f "$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh" ]; then
+            echo "Error: $REACT_NATIVE_PATH/scripts/xcode/with-environment.sh not found."
+            echo "Check that npx expo prebuild and pod install completed successfully."
+            exit 1
+          fi
+
           # Must specify iOS destination — otherwise xcodebuild defaults to
           # Mac Catalyst where ExpoModulesCore headers are incomplete.
           xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" \
@@ -123,7 +135,7 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            SWIFT_STRICT_CONCURRENCY=minimal 2>&1 || true
+            SWIFT_STRICT_CONCURRENCY=minimal 2>&1
 
           # Find the built .app in DerivedData
           APP_PATH=$(find "$DD" -name "*.app" -type d 2>/dev/null | head -1)
