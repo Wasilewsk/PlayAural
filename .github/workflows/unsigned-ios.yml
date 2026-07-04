@@ -13,7 +13,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22
 
       - name: Install npm dependencies
         run: |
@@ -35,25 +35,34 @@ jobs:
           set -e
           cd mobile_client/ios
 
-          # find workspace
-          WORKSPACE=$(ls *.xcworkspace 2>/dev/null | head -n 1)
-          if [ -z "$WORKSPACE" ]; then
-            XCODEPROJ=$(ls *.xcodeproj 2>/dev/null | head -n 1)
-            if [ -n "$XCODEPROJ" ]; then
-              WORKSPACE="${XCODEPROJ%.xcodeproj}.xcworkspace"
+          # find .xcworkspace directory (must be a directory, not contents.xcworkspacedata)
+          WORKSPACE_DIR=""
+          for d in *.xcworkspace; do
+            if [ -d "$d" ]; then
+              WORKSPACE_DIR="$d"
+              break
             fi
+          done
+          if [ -z "$WORKSPACE_DIR" ]; then
+            echo "Error: no .xcworkspace directory found"
+            ls -la
+            exit 1
           fi
-          echo "Using workspace: $WORKSPACE"
+          echo "Using workspace: $WORKSPACE_DIR"
 
-          # detect scheme
-          SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | awk '/Schemes:/{flag=1;next} flag && NF{print $1; exit}')
+          # detect scheme from workspace
+          SCHEME=$(xcodebuild -list -workspace "$WORKSPACE_DIR" 2>/dev/null | awk '/Schemes:/{flag=1;next} flag && NF{print $1; exit}')
+          if [ -z "$SCHEME" ]; then
+            echo "Error: could not detect scheme"
+            exit 1
+          fi
           echo "Using scheme: $SCHEME"
 
           ARCHIVE_PATH="$PWD/build/Archive.xcarchive"
           mkdir -p "$(dirname "$ARCHIVE_PATH")"
 
           # archive without code signing
-          xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release -archivePath "$ARCHIVE_PATH" archive CODE_SIGNING_ALLOWED=NO
+          xcodebuild -workspace "$WORKSPACE_DIR" -scheme "$SCHEME" -configuration Release -archivePath "$ARCHIVE_PATH" archive CODE_SIGNING_ALLOWED=NO
 
           # package unsigned .ipa from .xcarchive
           APP_PATH="$ARCHIVE_PATH/Products/Applications/${SCHEME}.app"
@@ -62,15 +71,12 @@ jobs:
           mkdir -p unsigned/Payload
           cp -R "$APP_PATH" unsigned/Payload/
           cd unsigned
-          zip -r ../"${SCHEME}"-unsigned.ipa Payload
+          zip -r ../PlayAuralMobile-unsigned.ipa Payload
           cd ..
-          ls -lh "${SCHEME}"-unsigned.ipa
+          ls -lh PlayAuralMobile-unsigned.ipa
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
           name: unsigned-ipa
-          path: |
-            mobile_client/ios/*.ipa
-            mobile_client/ios/**/*.ipa
-            mobile_client/ios/**/**.ipa
+          path: mobile_client/ios/PlayAuralMobile-unsigned.ipa
