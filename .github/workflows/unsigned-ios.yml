@@ -33,38 +33,62 @@ jobs:
       - name: Create self-signing certificate
         run: |
           set -e
-          # Create a self-signed certificate for building (signing will be stripped later)
-          CERT_NAME="PlayAuralCI"
-          security create-keychain -p temp temp.keychain
-          security default-keychain -s temp.keychain
-          security unlock-keychain -p temp temp.keychain
-          security set-keychain-settings -lut 7200 temp.keychain
-          security add-certificates -k temp.keychain
-          # Generate cert
+
+          # Create a keychain
+          KEYCHAIN_NAME=build.keychain
+          security create-keychain -p temp "$KEYCHAIN_NAME"
+          security default-keychain -s "$KEYCHAIN_NAME"
+          security unlock-keychain -p temp "$KEYCHAIN_NAME"
+          security set-keychain-settings -lut 7200 "$KEYCHAIN_NAME"
+
+          # Generate a code-signing certificate via openssl
           CERT_DIR=$(mktemp -d)
-          cat > "$CERT_DIR/cert.conf" << 'EOF'
+
+          cat > "$CERT_DIR/cert.conf" << 'CONF'
           [req]
-          distinguished_name = req_distinguished_name
-          x509_extensions = v3_req
+          distinguished_name = dn
+          x509_extensions = extensions
           prompt = no
-          [req_distinguished_name]
-          CN = PlayAural CI Certificate
-          [v3_req]
-          keyUsage = digitalSignature
+
+          [dn]
+          CN = PlayAural CI
+
+          [extensions]
+          basicConstraints = critical, CA:false
+          keyUsage = critical, digitalSignature
           extendedKeyUsage = codeSigning
-          EOF
-          openssl req -new -newkey rsa:2048 -nodes -out "$CERT_DIR/request.csr" \
-            -keyout "$CERT_DIR/key.pem" -config "$CERT_DIR/cert.conf"
-          openssl x509 -req -days 365 -in "$CERT_DIR/request.csr" \
-            -signkey "$CERT_DIR/key.pem" -out "$CERT_DIR/cert.pem" \
-            -extensions v3_req -extfile "$CERT_DIR/cert.conf" 2>/dev/null
-          # Import into keychain
-          security import "$CERT_DIR/cert.pem" -k temp.keychain
-          security import "$CERT_DIR/key.pem" -k temp.keychain
-          # Find the identity
-          IDENTITY=$(security find-identity -v -p codesigning temp.keychain | grep "PlayAural" | head -1 | awk '{print $2}')
+          subjectKeyIdentifier = hash
+          CONF
+
+          openssl req -x509 -newkey rsa:2048 -nodes \
+            -keyout "$CERT_DIR/key.pem" \
+            -out "$CERT_DIR/cert.pem" \
+            -days 365 \
+            -config "$CERT_DIR/cert.conf"
+
+          # Import as PKCS12
+          openssl pkcs12 -export \
+            -inkey "$CERT_DIR/key.pem" \
+            -in "$CERT_DIR/cert.pem" \
+            -out "$CERT_DIR/cert.p12" \
+            -password pass:temp \
+            -name "PlayAural CI"
+
+          security import "$CERT_DIR/cert.p12" \
+            -k "$KEYCHAIN_NAME" \
+            -P temp \
+            -A \
+            -t agg
+
+          # Get identity hash
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_NAME" 2>/dev/null | grep -i "PlayAural" | head -1 | awk '{print $2}')
+          if [ -z "$IDENTITY" ]; then
+            echo "Available identities:"
+            security find-identity -v "$KEYCHAIN_NAME"
+            exit 1
+          fi
+          echo "Using identity: $IDENTITY"
           echo "CERT_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
-          echo "CERT_NAME=$CERT_NAME" >> "$GITHUB_ENV"
 
       - name: Build archive with self-signed cert
         run: |
