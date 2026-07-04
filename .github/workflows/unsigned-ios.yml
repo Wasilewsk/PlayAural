@@ -35,15 +35,25 @@ jobs:
         run: |
           set -e
           cd mobile_client/ios
+          WORKSPACE=""
           for d in *.xcworkspace; do
             if [ -d "$d" ]; then
-              echo "WORKSPACE=$d" >> "$GITHUB_OUTPUT"
+              WORKSPACE="$d"
               break
             fi
           done
-          SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | awk '/Schemes:/{flag=1;next} flag && NF{print $1; exit}')
+          echo "Found workspace: $WORKSPACE"
+          echo "WORKSPACE=$WORKSPACE" >> "$GITHUB_OUTPUT"
+
+          # Use -json for reliable scheme detection
+          SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" 2>/dev/null \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); ws=d.get('workspace',{}); schemes=ws.get('schemes',[]) or d.get('project',{}).get('schemes',[]); print(schemes[0] if schemes else '')")
+          if [ -z "$SCHEME" ]; then
+            # Fallback: grep the .xcodeproj for scheme names
+            SCHEME=$(ls -d *.xcodeproj 2>/dev/null | head -1 | sed 's/\.xcodeproj//')
+          fi
+          echo "Found scheme: $SCHEME"
           echo "SCHEME=$SCHEME" >> "$GITHUB_OUTPUT"
-          echo "Workspace: $d, Scheme: $SCHEME"
 
       - name: Build .app with xcodebuild
         run: |
