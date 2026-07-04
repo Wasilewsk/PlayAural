@@ -23,39 +23,60 @@ jobs:
       - name: Prebuild iOS
         run: |
           cd mobile_client
-          npx expo prebuild --platform ios --no-install
+          # --no-install should skip pod install, but Expo 55 may still
+          # attempt it inside expo run:ios.  Ignore failures here — the
+          # dedicated Install CocoaPods step handles pod installation.
+          npx expo prebuild --platform ios --no-install 2>&1 || true
 
       - name: Install CocoaPods
         run: |
           cd mobile_client/ios
 
-          # Add SWIFT_STRICT_CONCURRENCY=0 to the existing post_install hook
-          # (CocoaPods rejects duplicate post_install hooks).
+          # Remove any existing post_install block (nesting-aware), then append a
+          # fresh one.  Cocoapods (>= 1.12) rejects duplicate post_install hooks.
           ruby -e '
             content = File.read("Podfile")
             lines = content.lines
-            idx = lines.rindex { |l| l.include?("post_install") && l.include?("|installer|") }
-            if idx
-              indent = lines[idx][/\A\s*/]
-              hook_lines = [
-                "#{indent}  # Disable Swift 6 strict concurrency for all pod targets\n",
-                "#{indent}  installer.pods_project.targets.each do |target|\n",
-                "#{indent}    target.build_configurations.each do |config|\n",
-                "#{indent}      config.build_settings[\"SWIFT_STRICT_CONCURRENCY\"] = \"0\"\n",
-                "#{indent}    end\n",
-                "#{indent}  end\n",
-              ]
-              lines.insert(idx + 1, *hook_lines)
-              File.write("Podfile", lines.join)
-            else
-              $stderr.puts "WARNING: could not find post_install hook in Podfile"
-              exit 1
+            out = []
+            i = 0
+            while i < lines.length
+              line = lines[i]
+              if line =~ /^\s*post_install\b/
+                depth = 0
+                # count openers/closers on the post_install line itself
+                depth += line.scan(/\bdo\b/).length + line.count("{")
+                depth -= line.count("}")
+                depth -= 1 if line.strip.start_with?("end")
+                i += 1
+                while i < lines.length && depth > 0
+                  cur = lines[i]
+                  stripped = cur.strip
+                  unless stripped.start_with?("#")
+                    depth += cur.scan(/\bdo\b/).length + cur.count("{")
+                    depth -= cur.count("}")
+                    depth -= 1 if stripped.start_with?("end")
+                  end
+                  i += 1
+                end
+                # block fully removed, skip to next line
+              else
+                out << line
+                i += 1
+              end
             end
+            # Append a fresh post_install hook at the end
+            out << "\npost_install do |installer|\n"
+            out << "  installer.pods_project.targets.each do |target|\n"
+            out << "    target.build_configurations.each do |config|\n"
+            out << "      config.build_settings[\"SWIFT_STRICT_CONCURRENCY\"] = \"minimal\"\n"
+            out << "    end\n"
+            out << "  end\n"
+            out << "end\n"
+            File.write("Podfile", out.join)
+            puts "Podfile rewritten with SWIFT_STRICT_CONCURRENCY=minimal post_install hook."
           '
 
           pod install --repo-update
-
-
 
       - name: Detect workspace and scheme
         id: detect
@@ -100,7 +121,7 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            SWIFT_STRICT_CONCURRENCY=0 2>&1 || true
+            SWIFT_STRICT_CONCURRENCY=minimal 2>&1 || true
 
           # Find the built .app in DerivedData
           APP_PATH=$(find "$DD" -name "*.app" -type d 2>/dev/null | head -1)
