@@ -33,8 +33,6 @@ jobs:
           # (CocoaPods rejects duplicate post_install hooks).
           ruby -e '
             content = File.read("Podfile")
-            # Find the existing post_install do |installer| block and inject
-            # our concurrency setting inside it, before the closing end
             lines = content.lines
             idx = lines.rindex { |l| l.include?("post_install") && l.include?("|installer|") }
             if idx
@@ -56,6 +54,17 @@ jobs:
           '
 
           pod install --repo-update
+
+          # Create a stub EXEventEmitter.h — this header was removed in Expo SDK 55
+          # but expo-av (deprecated) still imports it. Provide the bare protocol
+          # declaration so EXAV Objective-C code compiles.
+          cat > Pods/Headers/Public/ExpoModulesCore/EXEventEmitter.h << 'OBJC'
+  #import <Foundation/Foundation.h>
+
+  @protocol EXEventEmitter
+  - (NSDictionary<NSString *, NSString *> *)supportedEvents;
+  @end
+  OBJC
 
       - name: Detect workspace and scheme
         id: detect
