@@ -33,84 +33,65 @@ jobs:
       - name: Patch Podfile post_install
         run: |
           cd mobile_client/ios
-          cat > patch_podfile.rb << 'RUBYEOF'
-          require "pathname"
+          python3 - "$PWD/Podfile" << 'PYEOF'
+          import re, sys
 
-          content = File.read("Podfile")
-          lines = content.lines
-          out = []
-          i = 0
-          while i < lines.length
-            line = lines[i]
-            if line =~ /^\s*post_install\b/
-              depth = 0
-              depth += line.scan(/\bdo\b/).length + line.count("{")
-              depth -= line.count("}")
-              depth -= 1 if line.strip.start_with?("end")
-              i += 1
-              while i < lines.length && depth > 0
-                cur = lines[i]
-                stripped = cur.strip
-                unless stripped.start_with?("#")
-                  depth += cur.scan(/\bdo\b/).length + cur.count("{")
-                  depth -= cur.count("}")
-                  depth -= 1 if stripped.start_with?("end")
+          podfile_path = sys.argv[1]
+          with open(podfile_path) as f:
+              content = f.read()
+
+          # Remove existing post_install block
+          pattern = r'\npost_install\s+do\s+\|.*?\|.*?\n(?:end\n?)?'
+          content = re.sub(pattern, '\n', content, flags=re.DOTALL)
+
+          # New post_install
+          post_install = '''
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              has_swift = false
+              if target.respond_to?(:source_build_phase) && target.source_build_phase
+                has_swift = target.source_build_phase.files.any? do |f|
+                  f.file_ref && f.file_ref.respond_to?(:path) && f.file_ref.path && f.file_ref.path.end_with?(".swift")
                 end
-                i += 1
               end
-            else
-              out << line
-              i += 1
+
+              target.build_configurations.each do |config|
+                config.build_settings["CLANG_CXX_LANGUAGE_STANDARD"] = "gnu++20"
+                config.build_settings["DEFINES_MODULE"] = "YES"
+
+                if has_swift
+                  config.build_settings["SWIFT_STRICT_CONCURRENCY"] = "minimal"
+                  config.build_settings["SWIFT_VERSION"] = "6.0"
+                  existing_flags = config.build_settings["OTHER_SWIFT_FLAGS"] || ""
+                  config.build_settings["OTHER_SWIFT_FLAGS"] = (existing_flags + " -strict-concurrency=minimal").strip
+                end
+              end
+            end
+
+            # Wire livekit-react-native to find the webrtc modulemap
+            webrtc_dir = nil
+            installer.pods_project.targets.each do |t|
+              webrtc_dir = File.join(installer.sandbox.target_support_files_root, t.name) if t.name == "livekit-react-native-webrtc"
+            end
+
+            if webrtc_dir
+              installer.pods_project.targets.each do |target|
+                if target.name == "livekit-react-native"
+                  target.build_configurations.each do |config|
+                    paths = config.build_settings["SWIFT_INCLUDE_PATHS"] || ""
+                    config.build_settings["SWIFT_INCLUDE_PATHS"] = "#{paths} #{webrtc_dir}".strip unless paths.include?(webrtc_dir)
+                  end
+                end
+              end
             end
           end
+          '''
 
-          new_post_install = <<~RUBY
-            post_install do |installer|
-              installer.pods_project.targets.each do |target|
-                has_swift = false
-                if target.respond_to?(:source_build_phase) && target.source_build_phase
-                  has_swift = target.source_build_phase.files.any? do |f|
-                    f.file_ref && f.file_ref.respond_to?(:path) && f.file_ref.path && f.file_ref.path.end_with?(".swift")
-                  end
-                end
-
-                target.build_configurations.each do |config|
-                  config.build_settings["CLANG_CXX_LANGUAGE_STANDARD"] = "gnu++20"
-                  config.build_settings["DEFINES_MODULE"] = "YES"
-
-                  if has_swift
-                    config.build_settings["SWIFT_STRICT_CONCURRENCY"] = "minimal"
-                    config.build_settings["SWIFT_VERSION"] = "6.0"
-                    existing_flags = config.build_settings["OTHER_SWIFT_FLAGS"] || ""
-                    config.build_settings["OTHER_SWIFT_FLAGS"] = (existing_flags + " -strict-concurrency=minimal").strip
-                  end
-                end
-              end
-
-              # Wire livekit-react-native to find the webrtc modulemap
-              webrtc_dir = nil
-              installer.pods_project.targets.each do |t|
-                webrtc_dir = File.join(installer.sandbox.target_support_files_root, t.name) if t.name == "livekit-react-native-webrtc"
-              end
-
-              if webrtc_dir
-                installer.pods_project.targets.each do |target|
-                  if target.name == "livekit-react-native"
-                    target.build_configurations.each do |config|
-                      paths = config.build_settings["SWIFT_INCLUDE_PATHS"] || ""
-                      config.build_settings["SWIFT_INCLUDE_PATHS"] = "#{paths} #{webrtc_dir}".strip unless paths.include?(webrtc_dir)
-                    end
-                  end
-                end
-              end
-            end
-          RUBY
-
-          out << "\n" + new_post_install
-          File.write("Podfile", out.join)
-          puts "Podfile patched successfully."
-          RUBYEOF
-          ruby patch_podfile.rb
+          content = content.rstrip() + "\n" + post_install + "\n"
+          with open(podfile_path, 'w') as f:
+              f.write(content)
+          print("Podfile patched successfully.")
+          PYEOF
 
       - name: Install CocoaPods
         run: |
