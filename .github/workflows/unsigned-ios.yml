@@ -147,7 +147,8 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            SWIFT_STRICT_CONCURRENCY=minimal 2>&1
+            SWIFT_STRICT_CONCURRENCY=minimal \
+            CLANG_CXX_LANGUAGE_STANDARD=gnu++20 2>&1
 
           APP_PATH=$(find "$DD" -name "*.app" -type d 2>/dev/null | head -1)
           if [ -z "$APP_PATH" ]; then
