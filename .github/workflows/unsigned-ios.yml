@@ -5,8 +5,13 @@ on:
 
 jobs:
   build_unsigned_ipa:
-    runs-on: macos-latest
+    runs-on: macos-15
     steps:
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.4'
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -23,12 +28,9 @@ jobs:
       - name: Prebuild iOS
         run: |
           cd mobile_client
-          # --no-install should skip pod install, but Expo 55 may still
-          # attempt it inside expo run:ios.  Ignore failures here — the
-          # dedicated Install CocoaPods step handles pod installation.
           npx expo prebuild --platform ios --no-install 2>&1 || true
 
-      - name: Install CocoaPods
+      - name: Patch Podfile and install CocoaPods
         run: |
           cd mobile_client/ios
 
@@ -43,7 +45,6 @@ jobs:
               line = lines[i]
               if line =~ /^\s*post_install\b/
                 depth = 0
-                # count openers/closers on the post_install line itself
                 depth += line.scan(/\bdo\b/).length + line.count("{")
                 depth -= line.count("}")
                 depth -= 1 if line.strip.start_with?("end")
@@ -58,13 +59,11 @@ jobs:
                   end
                   i += 1
                 end
-                # block fully removed, skip to next line
               else
                 out << line
                 i += 1
               end
             end
-            # Append a fresh post_install hook at the end
             out << "\npost_install do |installer|\n"
             out << "  installer.pods_project.targets.each do |target|\n"
             out << "    target.build_configurations.each do |config|\n"
@@ -93,19 +92,38 @@ jobs:
           echo "Found workspace: $WORKSPACE"
           echo "WORKSPACE=$WORKSPACE" >> "$GITHUB_OUTPUT"
 
-          # Use -json for reliable scheme detection.
-          # Pod auto-generated schemes (EX*, React-*, hermes*, etc.) are listed
-          # first alphabetically — skip them and pick the first non-Pod scheme.
-          SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" 2>/dev/null \
-            | python3 -c "import sys,json; d=json.load(sys.stdin); ws=d.get('workspace',{}); schemes=ws.get('schemes',[]) or d.get('project',{}).get('schemes',[]); skip=['Pods-','EX','React-','hermes','FBL','RCT','lib','cxx']; filtered=[s for s in schemes if not any(s.startswith(p) for p in skip)]; print(filtered[0] if filtered else (schemes[0] if schemes else ''))")
-          if [ -z "$SCHEME" ]; then
-            # Fallback: grep the .xcodeproj for scheme names
-            SCHEME=$(ls -d *.xcodeproj 2>/dev/null | head -1 | sed 's/\.xcodeproj//')
+          # The app scheme matches the Xcode project name (PlayAuralMobile).
+          # Pod auto-generated schemes (Pods-*, EX*, React-*, hermes*, etc.)
+          # are never the right build target for the app itself.
+          APP_NAME="PlayAuralMobile"
+          SCHEME=""
+
+          SCHEMES_JSON=$(xcodebuild -list -json -workspace "$WORKSPACE" 2>/dev/null || true)
+          if [ -n "$SCHEMES_JSON" ]; then
+            SCHEME=$(echo "$SCHEMES_JSON" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          ws = d.get('workspace', {})
+          schemes = ws.get('schemes', []) or d.get('project', {}).get('schemes', [])
+          app_name = '$APP_NAME'
+          for s in schemes:
+              if s == app_name:
+                  print(s)
+                  sys.exit(0)
+          print('')
+          ")
           fi
+
+          if [ -z "$SCHEME" ]; then
+            # Fallback: use the project name directly
+            SCHEME="$APP_NAME"
+          fi
+
           echo "Found scheme: $SCHEME"
           echo "SCHEME=$SCHEME" >> "$GITHUB_OUTPUT"
 
       - name: Build .app with xcodebuild
+        id: build
         run: |
           set -e
           cd mobile_client/ios
@@ -113,20 +131,14 @@ jobs:
           SCHEME="${{ steps.detect.outputs.SCHEME }}"
           DD="$PWD/build/DerivedData"
 
-          # CP-User script phases (Hermes, RNDeps) source
-          # $REACT_NATIVE_PATH/scripts/xcode/with-environment.sh — the env
-          # var is unset in vanilla CI and must be provided explicitly.
           export REACT_NATIVE_PATH="$GITHUB_WORKSPACE/mobile_client/node_modules/react-native"
 
-          # Fail early with a clear message if the script isn't reachable
           if [ ! -f "$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh" ]; then
             echo "Error: $REACT_NATIVE_PATH/scripts/xcode/with-environment.sh not found."
             echo "Check that npx expo prebuild and pod install completed successfully."
             exit 1
           fi
 
-          # Must specify iOS destination — otherwise xcodebuild defaults to
-          # Mac Catalyst where ExpoModulesCore headers are incomplete.
           xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" \
             -configuration Release \
             -derivedDataPath "$DD" \
@@ -137,7 +149,6 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             SWIFT_STRICT_CONCURRENCY=minimal 2>&1
 
-          # Find the built .app in DerivedData
           APP_PATH=$(find "$DD" -name "*.app" -type d 2>/dev/null | head -1)
           if [ -z "$APP_PATH" ]; then
             echo "Error: no .app produced. Build failed."
@@ -145,9 +156,9 @@ jobs:
           fi
           echo "App found at: $APP_PATH"
           echo "APP_PATH=$APP_PATH" >> "$GITHUB_OUTPUT"
-        id: build
 
       - name: Package unsigned .ipa
+        id: package
         run: |
           set -e
           APP_PATH="${{ steps.build.outputs.APP_PATH }}"
@@ -158,7 +169,6 @@ jobs:
           cd ..
           ls -lh PlayAuralMobile-unsigned.ipa
           echo "IPA=$PWD/PlayAuralMobile-unsigned.ipa" >> "$GITHUB_OUTPUT"
-        id: package
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
