@@ -70,6 +70,8 @@ jobs:
             out << "      config.build_settings[\"SWIFT_STRICT_CONCURRENCY\"] = \"minimal\"\n"
             out << "      config.build_settings[\"SWIFT_VERSION\"] = \"6.0\"\n"
             out << "      config.build_settings[\"CLANG_CXX_LANGUAGE_STANDARD\"] = \"gnu++20\"\n"
+            out << "      existing = config.build_settings[\"OTHER_SWIFT_FLAGS\"] || \"\"\n"
+            out << "      config.build_settings[\"OTHER_SWIFT_FLAGS\"] = (existing + \" -strict-concurrency=minimal\").strip\n"
             out << "    end\n"
             out << "  end\n"
             out << "end\n"
