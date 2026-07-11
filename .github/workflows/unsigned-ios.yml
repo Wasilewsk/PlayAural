@@ -68,6 +68,8 @@ jobs:
             out << "  installer.pods_project.targets.each do |target|\n"
             out << "    target.build_configurations.each do |config|\n"
             out << "      config.build_settings[\"SWIFT_STRICT_CONCURRENCY\"] = \"minimal\"\n"
+            out << "      config.build_settings[\"SWIFT_VERSION\"] = \"6.0\"\n"
+            out << "      config.build_settings[\"CLANG_CXX_LANGUAGE_STANDARD\"] = \"gnu++20\"\n"
             out << "    end\n"
             out << "  end\n"
             out << "end\n"
