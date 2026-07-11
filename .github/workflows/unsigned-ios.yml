@@ -65,6 +65,14 @@ jobs:
               end
             end
             out << "\npost_install do |installer|\n"
+            out << "  # Find the webrtc pod's Target Support Files dir for module imports\n"
+            out << "  webrtc_support = nil\n"
+            out << "  installer.pods_project.targets.each do |t|\n"
+            out << "    if t.name == \"livekit-react-native-webrtc\"\n"
+            out << "      webrtc_support = File.join(installer.sandbox.target_support_files_root, t.name)\n"
+            out << "    end\n"
+            out << "  end\n"
+            out << "\n"
             out << "  installer.pods_project.targets.each do |target|\n"
             out << "    has_swift = target.respond_to?(:source_build_phase) && target.source_build_phase && target.source_build_phase.files.any? do |f|\n"
             out << "      f.file_ref && f.file_ref.respond_to?(:path) && f.file_ref.path && f.file_ref.path.end_with?(\".swift\")\n"
@@ -77,6 +85,12 @@ jobs:
             out << "        config.build_settings[\"SWIFT_VERSION\"] = \"6.0\"\n"
             out << "        existing = config.build_settings[\"OTHER_SWIFT_FLAGS\"] || \"\"\n"
             out << "        config.build_settings[\"OTHER_SWIFT_FLAGS\"] = (existing + \" -strict-concurrency=minimal\").strip\n"
+            out << "        if webrtc_support && target.name == \"livekit-react-native\"\n"
+            out << "          paths = config.build_settings[\"SWIFT_INCLUDE_PATHS\"] || \"\"\n"
+            out << "          unless paths.include?(webrtc_support)\n"
+            out << "            config.build_settings[\"SWIFT_INCLUDE_PATHS\"] = \"#{paths} #{webrtc_support}\".strip\n"
+            out << "          end\n"
+            out << "        end\n"
             out << "      end\n"
             out << "    end\n"
             out << "  end\n"
@@ -87,42 +101,22 @@ jobs:
 
           pod install --repo-update
 
-          # After pod install, patch the livekit-react-native target to find
-          # the webrtc modulemap. CocoaPods doesn't always wire SWIFT_INCLUDE_PATHS
-          # for static-lib ObjC dependencies that use DEFINES_MODULE.
-          ruby -e '
-            require "xcodeproj"
-            project_path = Dir.glob("*.xcodeproj").first
-            proj = Xcodeproj::Project.open(project_path)
-            WEBRTC_SUPPORT = File.expand_path("Pods/Target Support Files/livekit-react-native-webrtc")
-            proj.targets.each do |target|
-              if target.name == "livekit-react-native"
-                target.build_configurations.each do |config|
-                  existing = config.build_settings["SWIFT_INCLUDE_PATHS"] || ""
-                  unless existing.include?(WEBRTC_SUPPORT)
-                    config.build_settings["SWIFT_INCLUDE_PATHS"] = "#{existing} #{WEBRTC_SUPPORT}".strip
-                    puts "Patched #{target.name} SWIFT_INCLUDE_PATHS to include webrtc module map."
-                  end
-                end
-              end
-            end
-            proj.save
-          '
+          # Fallback: if the post_install hook couldn't set SWIFT_INCLUDE_PATHS,
+          # patch the xcconfig file directly with sed.
+          WEBRTC_SUPPORT=$(pwd)/Pods/Target\ Support Files/livekit-react-native-webrtc
+          XCCONFIG=$(find "Pods/Target Support Files/livekit-react-native" -name "*.xcconfig" -path "*release*" 2>/dev/null | head -1)
+          if [ -n "$XCCONFIG" ] && [ -d "$WEBRTC_SUPPORT" ]; then
+            if ! grep -q "livekit-react-native-webrtc" "$XCCONFIG" 2>/dev/null; then
+              echo "SWIFT_INCLUDE_PATHS = \${inherited} ${WEBRTC_SUPPORT}" >> "$XCCONFIG"
+              echo "Patched $XCCONFIG with webrtc module path"
+            else
+              echo "xcconfig already contains webrtc path"
+            fi
+          fi
 
           # Verify
           echo "=== Modulemaps in Target Support Files ==="
-          find Pods/Target\ Support Files -name "*.modulemap" | head -20
-          echo "=== livekit-react-native SWIFT_INCLUDE_PATHS ==="
-          ruby -e '
-            require "xcodeproj"
-            proj = Xcodeproj::Project.open(Dir.glob("*.xcodeproj").first)
-            proj.targets.each do |t|
-              if t.name == "livekit-react-native"
-                cfg = t.build_configurations.first
-                puts cfg.build_settings["SWIFT_INCLUDE_PATHS"]
-              end
-            end
-          '
+          find "Pods/Target Support Files" -name "*.modulemap" 2>/dev/null | head -20
 
       - name: Detect workspace and scheme
         id: detect
