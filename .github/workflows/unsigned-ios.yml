@@ -82,6 +82,21 @@ jobs:
 
           pod install --repo-update
 
+          # Ensure the webrtc pod generates a module map for Swift imports.
+          # The podspec sets DEFININES_MODULE=YES, but Xcode 16.4 + Swift 6
+          # sometimes fails to generate it during CI. Create it manually.
+          WEBRTC_DIR="Pods/livekit-react-native-webrtc"
+          if [ -d "$WEBRTC_DIR" ] && [ ! -f "$WEBRTC_DIR/livekit_react_native_webrtc.modulemap" ]; then
+            echo "module livekit_react_native_webrtc {" > "$WEBRTC_DIR/livekit_react_native_webrtc.modulemap"
+            echo "  umbrella header \"livekit-react-native-webrtc-umbrella.h\"" >> "$WEBRTC_DIR/livekit_react_native_webrtc.modulemap"
+            echo "  export *" >> "$WEBRTC_DIR/livekit_react_native_webrtc.modulemap"
+            echo "  module * { export * }" >> "$WEBRTC_DIR/livekit_react_native_webrtc.modulemap"
+            echo "}" >> "$WEBRTC_DIR/livekit_react_native_webrtc.modulemap"
+            echo "Created modulemap for livekit_react_native_webrtc"
+          else
+            echo "Module map already exists or directory not found, skipping."
+          fi
+
       - name: Detect workspace and scheme
         id: detect
         run: |
